@@ -112,9 +112,9 @@ fn unpad(mut data: Vec<u8>) -> Vec<u8> {
 pub fn ecb_encrypt(key: &[u8; 16], data: &[u8], padding: bool) -> Vec<u8> {
     let cipher = Aes128::new(key.into());
     let mut buf = if padding { pad(data) } else { data.to_vec() };
-    for block in buf.chunks_exact_mut(16) {
-        let block: &mut aes::Block = block.try_into().expect("bloc de 16 octets");
-        cipher.encrypt_block(block);
+    let (blocks, _) = buf.as_chunks_mut::<16>();
+    for block in blocks {
+        cipher.encrypt_block(block.into());
     }
     buf
 }
@@ -125,9 +125,9 @@ pub fn ecb_decrypt(key: &[u8; 16], data: &[u8]) -> Result<Vec<u8>, String> {
     }
     let cipher = Aes128::new(key.into());
     let mut buf = data.to_vec();
-    for block in buf.chunks_exact_mut(16) {
-        let block: &mut aes::Block = block.try_into().expect("bloc de 16 octets");
-        cipher.decrypt_block(block);
+    let (blocks, _) = buf.as_chunks_mut::<16>();
+    for block in blocks {
+        cipher.decrypt_block(block.into());
     }
     Ok(unpad(buf))
 }
