@@ -1,0 +1,151 @@
+name: release
+
+# Pousser un tag « v0.6.0 » : compile Heim pour chaque machine, publie une release GitHub
+# (que les Heim installés proposent en mise à jour), puis fabrique l'image SD.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Fabriquer aussi l'image SD"
+        type: boolean
+        default: true
+
+# Par défaut, lecture seule ; seules les étapes qui publient la release ont le droit d'écrire.
+permissions:
+  contents: read
+
+env:
+  # Gravé dans le binaire : le dépôt où chercher les mises à jour.
+  HEIM_REPO: ${{ github.repository }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Le tag correspond à la version de Cargo.toml
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          test "v$v" = "${GITHUB_REF_NAME%%-*}" -o "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME ≠ version $v"; exit 1; }
+
+  linux:
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-unknown-linux-musl
+            asset: heim-aarch64-linux      # Pi 3, Pi 4, Pi 5, Pi Zero 2 W en 64 bits
+          - target: armv7-unknown-linux-musleabihf
+            asset: heim-armv7-linux        # Raspberry Pi OS 32 bits
+          - target: x86_64-unknown-linux-musl
+            asset: heim-x86_64-linux       # mini PC
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - run: pip install ziglang cargo-zigbuild
+      - run: cargo zigbuild --release --target ${{ matrix.target }}
+      - run: cp target/${{ matrix.target }}/release/heim ${{ matrix.asset }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  windows:
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release
+      - run: copy target\release\heim.exe heim-x86_64-windows.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: heim-x86_64-windows.exe
+          path: heim-x86_64-windows.exe
+
+  publish:
+    permissions:
+      contents: write
+    needs: [linux, windows]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: cd dist && sha256sum heim-* > SHA256SUMS && cat SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+  image:
+    permissions:
+      contents: write
+    needs: [linux, publish]
+    if: ${{ !failure() && !cancelled() && (startsWith(github.ref, 'refs/tags/') || inputs.image) }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: heim-aarch64-linux
+          path: dist
+      - name: Fichiers de l'étape Heim
+        run: |
+          f=packaging/pi-gen/stage-heim/00-heim/files
+          # Depuis Windows, git peut perdre le droit d'exécution des scripts.
+          chmod +x packaging/pi-gen/stage-heim/prerun.sh packaging/pi-gen/stage-heim/00-heim/01-run.sh packaging/rootfs/heim-guard
+          install -m 755 dist/heim-aarch64-linux $f/heim
+          cp packaging/rootfs/heim.service packaging/rootfs/heim-guard packaging/rootfs/50-heim.rules packaging/rootfs/heim-captive.conf packaging/rootfs/heim-journald.conf $f/
+      # Place disque : on supprime nous-mêmes les gros outils inutiles du runner. L'option
+      # increase-runner-disk-size de pi-gen-action passe par apt et casse sur les runners
+      # récents (« sudo failed with exit code 100 »).
+      - name: Libérer de la place sur le disque
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost /usr/local/.ghcup || true
+          sudo docker image prune --all --force || true
+          df -h /
+      - uses: usimd/pi-gen-action@v1
+        id: build
+        with:
+          image-name: heim-${{ github.ref_name }}
+          # Branche « arm64 » = Debian 13 (trixie) depuis fin 2025 : la mélanger avec
+          # release bookworm casse les clés Debian (NO_PUBKEY). On prend la branche bookworm.
+          pi-gen-version: bookworm-arm64
+          release: bookworm
+          stage-list: stage0 stage1 stage2 ./packaging/pi-gen/stage-heim
+          hostname: heim
+          username: heim-admin
+          # Compte du système (console / SSH, coupé par défaut). Mot de passe : secret PI_PASSWORD, sinon « heim ».
+          password: ${{ secrets.PI_PASSWORD || 'heim' }}
+          disable-first-boot-user-rename: 1
+          enable-ssh: 0
+          locale: fr_FR.UTF-8
+          keyboard-keymap: fr
+          keyboard-layout: French
+          timezone: Europe/Paris
+          wpa-country: FR
+          compression: xz
+          increase-runner-disk-size: false
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ steps.build.outputs.image-path }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        with:
+          name: image-sd
+          path: ${{ steps.build.outputs.image-path }}

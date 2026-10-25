@@ -1,0 +1,24 @@
+#!/bin/sh
+# Lancé par systemd avant chaque démarrage de Heim (ExecStartPre).
+# Une mise à jour est « en attente » tant que Heim n'a pas tenu 90 s dessus. Après trois
+# démarrages ratés, on remet l'ancien programme et la base sauvegardée juste avant.
+DATA=${HEIM_GUARD_DATA:-/var/lib/heim}
+MARK="$DATA/update.pending"
+EXE=${HEIM_GUARD_EXE:-/opt/heim/heim}
+[ -f "$MARK" ] || exit 0
+attempts=$(sed -n 's/^attempts=//p' "$MARK")
+attempts=${attempts:-0}
+if [ "$attempts" -ge 3 ]; then
+  if [ -x "$EXE.prev" ]; then
+    mv -f "$EXE.prev" "$EXE"
+  fi
+  backup=$(sed -n 's/^backup=//p' "$MARK")
+  if [ -n "$backup" ] && [ -f "$backup" ]; then
+    cp -f "$backup" "$DATA/heim.db.restore"
+  fi
+  mv -f "$MARK" "$DATA/update.failed"
+  echo "heim-guard : la mise à jour ne démarre pas, retour à la version précédente" >&2
+  exit 0
+fi
+sed -i "s/^attempts=.*/attempts=$((attempts + 1))/" "$MARK"
+exit 0

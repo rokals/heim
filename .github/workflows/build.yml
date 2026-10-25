@@ -1,0 +1,57 @@
+name: build
+
+# À chaque push : vérifications et tests. Les releases sont faites par release.yml (tags v*).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      # Faux appareils Tuya et faux serveur Matter des tests de bout en bout.
+      - run: pip install tinytuya websockets
+      - run: cargo test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Interface (tests + vérifie que static/index.html est à jour)
+        working-directory: ui
+        run: |
+          npm ci
+          npm test
+          npm run build
+          git diff --exit-code ../static/index.html
+
+  # Failles connues dans les bibliothèques (base RustSec et base npm), à chaque push
+  # et chaque lundi : une faille publiée après coup se voit sans rien changer au code.
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - run: cargo audit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - working-directory: ui
+        run: |
+          npm ci
+          npm audit --audit-level=high

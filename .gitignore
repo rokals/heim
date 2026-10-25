@@ -1,0 +1,14 @@
+/target
+/data
+*.db
+*.db-wal
+*.db-shm
+ui/node_modules
+*.db.bak
+*.db.broken
+*.db.tmp
+*.db.restore
+backups/
+*.log
+heim.env
+.env

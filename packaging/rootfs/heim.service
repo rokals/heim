@@ -1,0 +1,49 @@
+[Unit]
+Description=Heim - la maison, simplement
+After=network-online.target NetworkManager.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=heim
+Group=heim
+# Avant chaque démarrage : retour à la version précédente si une mise à jour a raté 3 fois.
+ExecStartPre=/usr/local/lib/heim/heim-guard
+ExecStart=/opt/heim/heim
+WorkingDirectory=/var/lib/heim
+Environment=HEIM_DATA_DIR=/var/lib/heim
+# Port 80 : http://heim.local et le portail du premier démarrage. 8090 : comme avant.
+Environment=HEIM_HTTP=0.0.0.0:80
+Environment=HEIM_HTTP_ALSO=0.0.0.0:8090
+# Heim gère le Wi-Fi (réseau « Heim-XXXX » quand le Pi n'est relié à rien).
+Environment=HEIM_NETSETUP=1
+Environment=RUST_LOG=heim=info,warn
+# Réglages en plus (HEIM_TOKEN pour des scripts...) : /etc/heim.env, chmod 600
+EnvironmentFile=-/etc/heim.env
+Restart=always
+RestartSec=3
+# Chien de garde : Heim donne signe de vie toutes les 30 s ; figé, il est relancé.
+WatchdogSec=90
+NotifyAccess=main
+StartLimitIntervalSec=0
+# Port 80 sans être root ; ping pour la présence par le Wi-Fi.
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE CAP_NET_RAW
+NoNewPrivileges=true
+# Fichiers créés par Heim (base, sauvegardes, photos) : lisibles par lui seul.
+UMask=0077
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# /opt/heim : les mises à jour remplacent le programme. /var/lib/heim : la base.
+ReadWritePaths=/var/lib/heim /opt/heim
+MemoryMax=160M
+
+[Install]
+WantedBy=multi-user.target

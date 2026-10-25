@@ -1,0 +1,144 @@
+/* Heim — palette « bouleau et ardoise » le jour, « fjord la nuit » le soir.
+   La seule couleur chaude est la braise : elle signifie « allumé », rien d'autre. */
+:root {
+  --bg: #edf0ee;
+  --surface: #f8faf9;
+  --surface-2: #e2e7e5;
+  --ink: #1c2b33;
+  --muted: #5e737d;
+  --line: #d3dbda;
+  --ember: #f0a93a;
+  --ember-glow: #ffd27a;
+  --ember-ink: #3a2405;
+  --moss: #5f8a63;
+  --alert: #b23a48;
+  --focus: #2f6f8f;
+  --shadow: 0 1px 0 rgba(28, 43, 51, 0.06);
+  --radius-tile: 20px;
+  --radius-chip: 999px;
+  --font: 'Familjen Grotesk', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #10181d;
+    --surface: #18232a;
+    --surface-2: #213039;
+    --ink: #e4ebe8;
+    --muted: #8ea3ab;
+    --line: #26343c;
+    --ember: #f4b04a;
+    --ember-glow: #ffcf6e;
+    --ember-ink: #2a1904;
+    --moss: #86b38a;
+    --alert: #e0677a;
+    --focus: #7cc0e0;
+    --shadow: none;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-chip);
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.btn.quiet {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.btn.danger {
+  background: transparent;
+  color: var(--alert);
+  padding: 0 4px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.field > span {
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.input {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.input:focus {
+  border-color: var(--focus);
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
