@@ -57,7 +57,7 @@
 
 <div class="shell">
   <header class="bar">
-    <a class="mark" href="#" onclick={(e) => { e.preventDefault(); go('maison'); }} aria-label="Heim, accueil">
+    <a class="mark" href="#maison" onclick={(e) => { e.preventDefault(); go('maison'); }} aria-label="Heim, accueil">
       <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
         <path d="M6 15 16 7l10 8v11H6z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" />
         <path d="M13 26v-6h6v6" fill="none" stroke="var(--ember)" stroke-width="2.4" stroke-linejoin="round" />

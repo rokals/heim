@@ -1,8 +1,7 @@
 <script>
   // L'accueil. Par défaut, rangé tout seul par pièce. « Personnaliser » le transforme en
   // tableau de bord à soi : sections, cartes, taille, minuterie d'un clic, ordre au doigt.
-  import ControlTile from './ControlTile.svelte';
-  import SensorCard from './SensorCard.svelte';
+  import Tile from './Tile.svelte';
   import TimerTile from './TimerTile.svelte';
   import DeviceSheet from './DeviceSheet.svelte';
   import ForSheet from './ForSheet.svelte';
@@ -11,10 +10,10 @@
   import ConnectionForm from './ConnectionForm.svelte';
   import Icon from './Icon.svelte';
   import AlarmCard from './AlarmCard.svelte';
-  import ButtonTile from './ButtonTile.svelte';
   import InfoSheet from './InfoSheet.svelte';
   import { press } from '../lib/press.js';
-  import { appearance, domainOf, resolveAction, sinceText } from '../lib/tiles.js';
+  import { domainOf, resolveAction, sinceText } from '../lib/tiles.js';
+  import { cardSize, sizeFromPixels } from '../lib/layout.js';
   import { describe as alarmView, isConfigured } from '../lib/security.js';
   import { roomIcon } from '../lib/rooms.js';
   import { buildRooms, dashboardFromRooms, deviceIndex, houseSummary, isOn, UNSORTED } from '../lib/house.js';
@@ -56,7 +55,7 @@
         title: sec.title,
         cards: sec.cards
           .map((c, i) => resolve(c, s, i))
-          .filter((c) => editing || (c.entity && !c.entity.hidden && !c.device?.hidden)),
+          .filter((c) => editing || c.card.type || (c.entity && !c.entity.hidden && !c.device?.hidden)),
         timers: [],
       }));
     }
@@ -64,8 +63,8 @@
       title: r.name === UNSORTED ? 'À ranger' : r.name,
       unsorted: r.name === UNSORTED,
       cards: [
-        ...r.controls.map((c) => ({ card: { entity_id: c.entity.entity_id, size: 1 }, entity: c.entity, device: c.device })),
-        ...r.sensors.map((d) => ({ card: { entity_id: d.primary.entity_id, size: 2 }, entity: d.primary, device: d })),
+        ...r.controls.map((c) => ({ card: { entity_id: c.entity.entity_id, w: 2, h: 2 }, entity: c.entity, device: c.device })),
+        ...r.sensors.map((d) => ({ card: { entity_id: d.primary.entity_id, w: 4, h: 1 }, entity: d.primary, device: d })),
       ],
       timers: r.timers.filter((t) => !running.includes(t)),
     }));
@@ -166,6 +165,7 @@
     const r = resolveAction(action, c.card, c.entity);
     if (r.kind === 'details') return openDetails(c);
     if (r.kind === 'command') {
+      if (c.entity.state?.available === false) return toast(`${c.card.name || c.entity.name} ne répond pas`, 'alert');
       if (!isMember() && c.entity.entity_id.startsWith('siren.')) return;
       if (r.action !== 'turn_off' && c.card.for_min && !isOn(c.entity)) return turnOnFor(r.entity_id, c.card.for_min);
       return command(r.entity_id, r.action);
@@ -188,13 +188,13 @@
       pos = d.sections[sectionIndex].cards.length - 1;
     });
     // Tout de suite ses réglages : nom, appui long, règles…
-    const entity = home.entities[card.entity_id];
-    sheet = { kind: 'card', ref: { card, entity, device: index.get(card.entity_id) ?? null, section: sectionIndex, index: pos } };
+    const entity = card.entity_id ? home.entities[card.entity_id] : null;
+    sheet = { kind: 'card', ref: { card, entity, device: card.entity_id ? (index.get(card.entity_id) ?? null) : null, section: sectionIndex, index: pos } };
   }
 
   // ---- Modifier l'accueil : appui long pour attraper une carte, sinon on fait défiler ----
   let drag = $state(null);
-  let hold = null;
+  let hold = $state.raw(null);
   const HOLD_DRAG_MS = 350;
 
   $effect(() => {
@@ -281,13 +281,83 @@
     else if (e.clientY > window.innerHeight - 90) window.scrollBy(0, 12);
   }
 
-  /** Un capteur avec ses propres réglages (règles, nom…) devient un bouton. */
-  function asButton(c) {
-    const d = domainOf(c.entity?.entity_id);
-    if (['scene', 'automation', 'group', 'person'].includes(d)) return true;
-    if (d === 'light' || d === 'switch') return false;
-    if (!c.device) return true;
-    return !!(c.card.rules?.length || c.card.icon || (c.card.tap && c.card.tap !== 'details'));
+  // ---- Appui court, double appui ----
+  // Sans double appui réglé, l'appui part tout de suite ; sinon on attend un peu le second.
+  const DOUBLE_MS = 260;
+  const taps = new Map();
+
+  function onTap(c, key) {
+    if (editing) return;
+    const dbl = c.card.double;
+    if (!dbl || dbl === 'none') return runAction(tapOf(c.card), c);
+    const t = taps.get(key);
+    if (t) {
+      clearTimeout(t);
+      taps.delete(key);
+      return runAction(dbl, c);
+    }
+    taps.set(
+      key,
+      setTimeout(() => {
+        taps.delete(key);
+        runAction(tapOf(c.card), c);
+      }, DOUBLE_MS),
+    );
+  }
+
+  // ---- Redimensionner à la poignée (mode modification) ----
+  let resize = $state(null);
+
+  function gridMetrics(slot) {
+    const grid = slot.parentElement;
+    const cs = getComputedStyle(grid);
+    const cols = cs.gridTemplateColumns.split(' ').filter(Boolean).length || 4;
+    const gap = parseFloat(cs.columnGap) || 10;
+    const row = parseFloat(cs.gridAutoRows) || 70;
+    const unit = (grid.clientWidth - gap * (cols - 1)) / cols;
+    return { cols, gap, row, unit };
+  }
+
+  function resizeDown(e, s, i, card) {
+    e.stopPropagation();
+    e.preventDefault();
+    const slot = e.currentTarget.closest('.slot');
+    const r = slot.getBoundingClientRect();
+    const size = cardSize(card, home.entities[card.entity_id]);
+    resize = { s, i, left: r.left, top: r.top, m: gridMetrics(slot), ...size };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* rien */
+    }
+  }
+
+  function resizeMove(e) {
+    if (!resize) return;
+    e.stopPropagation();
+    const next = sizeFromPixels(e.clientX - resize.left, e.clientY - resize.top, resize.m);
+    if (next.w !== resize.w || next.h !== resize.h) {
+      resize.w = next.w;
+      resize.h = next.h;
+      navigator.vibrate?.(5);
+    }
+  }
+
+  function resizeUp(e) {
+    if (!resize) return;
+    e.stopPropagation();
+    const { s, i, w, h } = resize;
+    resize = null;
+    mutate((d) => {
+      const card = d.sections[s].cards[i];
+      delete card.size;
+      Object.assign(card, { w, h });
+    });
+  }
+
+  function sizeOf(c, s, i) {
+    if (resize && resize.s === s && resize.i === i) return { w: resize.w, h: resize.h };
+    return cardSize(c.card, c.entity);
   }
 </script>
 
@@ -372,7 +442,7 @@
 {/if}
 
 {#if editing}
-  <p class="hint">Appui long sur une carte pour la déplacer. Touchez-la pour ses réglages : nom, icône, appui court et long, couleurs selon la valeur.</p>
+  <p class="hint">Appui long sur une carte pour la déplacer, poignée en bas à droite pour l’agrandir ou la réduire. Touchez-la pour ses réglages : fonction (appui court, long, double) et apparence (taille, disposition, couleurs…).</p>
 {/if}
 
 <div class="rooms" class:editing>
@@ -413,17 +483,20 @@
       </header>
 
       <div class="grid">
-        {#each sec.cards as c, i (c.card.entity_id + i)}
+        {#each sec.cards as c, i ((c.card.entity_id ?? c.card.type) + i)}
           {@const dragging = drag && drag.moved && drag.from.section === s && drag.from.index === i}
           {@const dropBefore = drag?.moved && drag.to?.section === s && drag.to?.index === i}
-          {@const button = c.entity && asButton(c)}
-          {@const look = c.entity ? appearance(c.card, c.entity, home.now) : null}
+          {@const size = sizeOf(c, s, i)}
           <div
+            role="group"
+            aria-label={c.card.name || c.entity?.name || c.card.text || 'Carte'}
             class="slot"
-            class:wide={c.card.size === 2 || (!button && ['sensor', 'binary_sensor'].includes(c.entity?.domain))}
             class:dragging
             class:drop={dropBefore}
             class:lifted={hold && !drag && editing}
+            class:resizing={resize?.s === s && resize?.i === i}
+            style:grid-column="span {size.w}"
+            style:grid-row="span {size.h}"
             data-slot="{s}:{i}"
             onpointerdown={(e) => slotDown(e, { ...c, section: s, index: i })}
             onpointermove={slotMove}
@@ -432,31 +505,37 @@
             use:press={{ disabled: editing || !c.entity, onhold: () => runAction(holdOf(c.card), c) }}
             style:transform={dragging ? `translate(${drag.x - drag.startX}px, ${drag.y - drag.startY}px) scale(1.03)` : null}
           >
-            {#if !c.entity}
+            {#if c.card.type === 'title'}
+              <div class="title-card" class:center={c.card.align === 'center'}>
+                <h3>{c.card.text || 'Titre'}</h3>
+                {#if c.card.subtitle}<p>{c.card.subtitle}</p>{/if}
+              </div>
+            {:else if c.card.type === 'spacer'}
+              <div class="spacer" aria-hidden="true">{#if editing}Espace{/if}</div>
+            {:else if !c.entity}
               <div class="ghost">Introuvable (supprimé ?)</div>
-            {:else if c.entity.domain === 'light' || c.entity.domain === 'switch'}
-              <ControlTile
+            {:else}
+              <Tile
+                card={c.card.w || c.card.h ? c.card : { ...c.card, ...size }}
                 entity={c.entity}
                 device={c.device}
-                wide={c.card.size === 2}
-                forMin={c.card.for_min ?? null}
-                label={c.card.name || null}
-                iconName={c.card.icon || null}
-                ontap={tapOf(c.card) === 'toggle' ? null : () => runAction(tapOf(c.card), c)}
-                onedit={editing || !isAdmin() ? null : () => (sheet = { kind: 'device', device: c.device, entity: c.entity })}
+                ontap={() => onTap(c, `${s}:${i}`)}
                 onfor={editing ? null : () => (sheet = { kind: 'for', entity: c.entity })}
               />
-            {:else if button}
-              <ButtonTile card={c.card} entity={c.entity} wide={c.card.size === 2} ontap={() => !editing && runAction(tapOf(c.card), c)} />
-            {:else if c.device}
-              <SensorCard
-                device={c.device}
-                tint={look?.color}
-                label={c.card.name || null}
-                onedit={() => !editing && runAction(tapOf(c.card), c)}
-              />
             {/if}
-            {#if editing}<span class="veil" aria-hidden="true"></span>{/if}
+            {#if editing}
+              <span class="veil" aria-hidden="true"></span>
+              <span class="size-badge num" aria-hidden="true">{size.w}×{size.h}</span>
+              <button
+                class="grip"
+                aria-label="Redimensionner"
+                onpointerdown={(e) => resizeDown(e, s, i, c.card)}
+                onpointermove={resizeMove}
+                onpointerup={resizeUp}
+                onpointercancel={() => (resize = null)}
+                onclick={(e) => e.stopPropagation()}
+              ></button>
+            {/if}
           </div>
         {/each}
         {#if editing && !sec.cards.length}
@@ -713,19 +792,113 @@
     display: grid;
   }
 
+  /* Grille en petites cases : 4 de large sur téléphone, 6 ou 8 quand la place le permet.
+     Une case fait 70 px de haut : une tuile d'avant = 2×2. */
+  .room {
+    container-type: inline-size;
+  }
+
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(150px, 45%), 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: 70px;
+    grid-auto-flow: row dense;
     gap: 10px;
+  }
+
+  @container (min-width: 640px) {
+    .grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+  }
+
+  @container (min-width: 900px) {
+    .grid {
+      grid-template-columns: repeat(8, minmax(0, 1fr));
+    }
   }
 
   .slot {
     position: relative;
     min-width: 0;
+    min-height: 0;
   }
 
-  .slot.wide {
-    grid-column: span 2;
+  .slot.resizing {
+    z-index: 4;
+    outline: 2px solid var(--ember);
+    outline-offset: 2px;
+    border-radius: var(--radius-tile);
+  }
+
+  .grip {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    z-index: 3;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--ink);
+    box-shadow: var(--shadow);
+    cursor: nwse-resize;
+    touch-action: none;
+  }
+
+  .grip::after {
+    content: '';
+    position: absolute;
+    inset: 9px;
+    border-right: 2px solid var(--bg);
+    border-bottom: 2px solid var(--bg);
+  }
+
+  .size-badge {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    z-index: 3;
+    padding: 0 6px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    background: color-mix(in srgb, var(--ink) 75%, transparent);
+    color: var(--bg);
+    pointer-events: none;
+  }
+
+  .title-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 4px 4px;
+  }
+
+  .title-card.center {
+    align-items: center;
+    text-align: center;
+  }
+
+  .title-card h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  .title-card p {
+    margin: 2px 0 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .spacer {
+    height: 100%;
+    display: grid;
+    place-items: center;
+    font-size: 12px;
+    color: var(--muted);
   }
 
   .editing .slot {
@@ -814,7 +987,8 @@
   .empty-slot {
     display: grid;
     place-items: center;
-    min-height: 80px;
+    height: 100%;
+    min-height: 70px;
     border-radius: var(--radius-tile);
     border: 1.5px dashed var(--line);
     color: var(--muted);
@@ -823,25 +997,6 @@
 
   .empty-slot {
     grid-column: 1 / -1;
-  }
-
-  .scene-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    min-height: 64px;
-    padding: 0 16px;
-    border-radius: var(--radius-tile);
-    border: 1.5px solid var(--line);
-    font-weight: 600;
-    text-align: left;
-  }
-
-  .scene-card.active {
-    background: var(--ember);
-    border-color: var(--ember);
-    color: var(--ember-ink);
   }
 
   .title-input {

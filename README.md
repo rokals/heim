@@ -28,7 +28,7 @@ capteurs) qui doit marcher sans YAML et sans planter, sur un Raspberry Pi Zero 2
 | Maison | Nom, étages, pièces (icône, ordre, étage). Les pièces servent partout : rangement des appareils, ordre de l'accueil, assistant du premier démarrage. |
 | Réglages d'appareil | Tout ce que l'appareil accepte, lu dans ses `exposes` Zigbee2MQTT ou ses DP Tuya : couleur, luminosité, blanc, effets, fondu, état après coupure, LED, verrouillage enfant, niveaux de démarrage… Mise à jour OTA, nouvel interview, retrait du réseau. |
 | Après une coupure | Un seul choix (Comme avant / Éteint / Allumé) appliqué à tous les appareils compatibles, et aux nouveaux dès leur ajout. |
-| Boutons d'accueil | Tout peut aller sur l'accueil (appareil, groupe, scène, automatisme, personne), choisi dans une liste à onglets. Chaque bouton a son appui court et son appui long (basculer, allumer, réarmer, ouvrir le détail…) et ses règles d'apparence : « si température > 25 : orange, "Chaud" ». Appui long pour déplacer en mode modification. |
+| Cartes d'accueil | Tout peut aller sur l'accueil (appareil, groupe, scène, automatisme, personne, titre, espace), choisi dans une liste à onglets. Une seule carte façon Mushroom, de 1×1 à 4×4 : pastille d'icône, nom, état, et selon la place un curseur de luminosité, une petite courbe, d'autres mesures. Appui court, long et double (basculer, allumer, réarmer, ouvrir le détail…), règles d'apparence : « si température > 25 : orange, "Chaud" ». Les anciennes cartes (1 ou 2 cases) gardent leur taille. |
 | État des automatismes | Chaque automatisme porte un vrai/faux (entité `automation.<id>`) : il passe à l'inverse de son état au repos quand il se lance, et revient au repos par un appui long, l'action « Réarmer », ses déclencheurs de réarmement (« la trappe arrière s'ouvre ») ou un délai. La boîte aux lettres, la lessive finie… |
 | Pourquoi pas lancé | La dernière fois qu'un déclencheur a réagi : lancé, ou la condition qui a bloqué (« il ne faisait pas nuit »). |
 | Journal et courbes | Tout ce qui se passe, et qui l'a fait (30 jours) ; courbes des capteurs (10 jours, un point / 5 min). Base séparée `history.db`, écrite par paquets de 30 s. |
@@ -48,7 +48,12 @@ besoin ni de Node ni d'Internet pour fonctionner : Node ne sert qu'à modifier l
 Cinq onglets :
 
 - **Accueil** : rangé tout seul par pièce, ou personnalisé (« Personnaliser l'accueil ») :
-  sections, cartes déplacées au doigt, taille 1 ou 2 cases, « un clic allume pour 30 min ».
+  sections, cartes façon Mushroom déplacées au doigt et redimensionnées à la poignée, de 1×1
+  (l'icône seule) à 4×4, sur une grille de 4 cases de large (6 ou 8 sur grand écran).
+  Réglages en deux onglets : Fonction (appui court, long, double, « un clic allume pour 30 min »)
+  et Apparence (taille, disposition, nom, icône, couleur, remplissage teinté / plein / discret,
+  état ou « depuis quand », curseur de luminosité, courbe des 24 h, couleurs selon la valeur).
+  Cartes Titre et Espace vide pour composer.
   Bouton « Éteindre/Allumer la pièce » ; les lumières allumées s'éclairent.
 - **Carte d'alarme** en haut de l'accueil dès qu'elle est configurée : Absent, Nuit,
   décompte, alarme déclenchée en rouge avec la photo de la caméra, pavé numérique.
@@ -102,7 +107,7 @@ curl -fsSL https://raw.githubusercontent.com/PROPRIETAIRE/heim/main/packaging/in
 Le dépôt doit être public (les Heim installés lisent ses releases sans compte).
 
 ```sh
-# Cargo.toml : version = "0.10.1"
+# Cargo.toml : version = "0.11.0"
 git commit -am "0.6.1"
 git tag v0.6.1
 git push && git push --tags

@@ -269,7 +269,7 @@ export function actionLabel(action, entityId, facet) {
 export function defaultCard(entity, choice = {}) {
   const id = entity.entity_id;
   const d = domainOf(id);
-  const card = { entity_id: id, size: 1 };
+  const card = { entity_id: id, w: 2, h: 2 };
   if (d === 'automation') {
     card.facet = choice.facet ?? 'state';
     card.tap = choice.tap ?? (card.facet === 'state' ? 'details' : 'toggle');
@@ -283,7 +283,7 @@ export function defaultCard(entity, choice = {}) {
   }
   card.tap = 'details';
   card.hold = 'details';
-  if (d === 'sensor' || d === 'binary_sensor') card.size = 2;
+  if (d === 'sensor' || d === 'binary_sensor') Object.assign(card, { w: 4, h: 1 });
   return card;
 }
 

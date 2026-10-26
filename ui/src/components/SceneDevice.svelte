@@ -139,7 +139,7 @@
 </li>
 
 <style>
-  .dev + .dev {
+  .dev:not(:first-child) {
     border-top: 1px solid var(--line);
   }
 

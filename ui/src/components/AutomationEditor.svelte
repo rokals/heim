@@ -29,7 +29,7 @@
   // Les blocs repliés ou ouverts : on garde l'écran court, comme on aime travailler.
   let open = $state({
     when: true,
-    if: untrack(() => draft.conditions.length > 0) || !automation,
+    if: untrack(() => draft.conditions.length > 0 || !automation),
     then: true,
     state: untrack(() => !!(draft.rearm.triggers.length || draft.rearm.after_min || draft.rest_state)),
   });

@@ -64,10 +64,15 @@
       .filter((m) => match(m.name))
       .sort(byName),
   );
+  const OTHERS = [
+    { id: 'title', name: 'Titre', hint: 'Un intertitre pour regrouper des cartes', icon: 'pencil', card: { type: 'title', text: 'Titre', w: 4, h: 1 } },
+    { id: 'spacer', name: 'Espace vide', hint: 'Une case vide pour aérer ou aligner', icon: 'plus', card: { type: 'spacer', w: 1, h: 1 } },
+  ];
   const TABS = $derived([
     { id: 'devices', label: 'Appareils', items: devices },
     { id: 'scenes', label: 'Scènes', items: scenes },
     { id: 'automations', label: 'Automatismes', items: automations },
+    { id: 'other', label: 'Autres', items: OTHERS },
   ]);
   const items = $derived(TABS.find((t) => t.id === tab).items);
 
@@ -76,7 +81,7 @@
   }
 </script>
 
-<Sheet title="Ajouter un bouton" {onclose}>
+<Sheet title="Ajouter une carte" {onclose}>
   <div class="tabs" role="tablist">
     {#each TABS as t (t.id)}
       <button role="tab" aria-selected={tab === t.id} class:on={tab === t.id} onclick={() => ((tab = t.id), (open = null))}>
@@ -99,14 +104,26 @@
     </label>
   {/if}
 
-  {#if !items.length}
+  {#if tab === 'other'}
+    <ul>
+      {#each OTHERS as o (o.id)}
+        <li>
+          <button class="row" onclick={() => onadd(target, structuredClone(o.card))}>
+            <span class="ic"><Icon name={o.icon} size={20} /></span>
+            <span class="txt"><strong>{o.name}</strong><span>{o.hint}</span></span>
+            <span class="chev" aria-hidden="true">+</span>
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {:else if !items.length}
     <p class="muted">
       {#if q}Rien ne correspond à « {query} ».{:else if tab === 'automations'}Pas encore d'automatisme : créez-en un dans l'onglet Automatismes.{:else if tab === 'scenes'}Pas encore de scène.{:else}Aucun appareil.{/if}
     </p>
   {/if}
 
-  <ul>
-    {#each items as m (m.entity.entity_id)}
+  <ul class:hidden={tab === 'other'}>
+    {#each tab === 'other' ? [] : items as m (m.entity.entity_id)}
       {@const choices = choicesFor(m.entity)}
       <li class:open={open === m.entity.entity_id}>
         <button class="row" onclick={() => (choices.length === 1 ? add(m, choices[0]) : (open = open === m.entity.entity_id ? null : m.entity.entity_id))}>
@@ -257,5 +274,13 @@
 
   .field {
     margin-top: 10px;
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  .tabs button {
+    padding: 0 4px;
   }
 </style>

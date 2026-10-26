@@ -15,7 +15,8 @@
   /** scene : la scène à modifier (null = nouvelle) ; template : un modèle de départ. */
   let { scene = null, template = null, room: startRoom = '', onclose, onsaved, onduplicate = null, ondelete = null } = $props();
 
-  const initial = untrack(() => scene);
+  // Copie simple de la scène : un objet réactif ne se copie pas avec structuredClone.
+  const initial = untrack(() => (scene ? $state.snapshot(scene) : null));
   let name = $state(initial?.name ?? untrack(() => template?.name) ?? '');
   let room = $state(initial?.room ?? untrack(() => startRoom) ?? '');
   let icon = $state(initial?.icon ?? untrack(() => template?.icon) ?? '');
@@ -70,7 +71,7 @@
     const r = untrack(() => startRoom);
     const lamps = untrack(() => candidates).filter((e) => e.domain !== 'group' && (!r || (e.room || '') === r));
     for (const e of lamps) {
-      order.push(e.entity_id);
+      untrack(() => order).push(e.entity_id);
       targets[e.entity_id] = templateTarget(tpl, e);
     }
   }

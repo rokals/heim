@@ -207,14 +207,14 @@ export function deviceIndex(entities) {
 /** Le rangement automatique, converti en tableau de bord modifiable. */
 export function dashboardFromRooms(entities, order = []) {
   return {
-    version: 1,
+    version: 2,
     sections: buildRooms(entities, order)
       .filter((r) => r.controls.length || r.sensors.length)
       .map((r) => ({
         title: r.name === UNSORTED ? 'À ranger' : r.name,
         cards: [
-          ...r.controls.map((c) => ({ entity_id: c.entity.entity_id, size: 1 })),
-          ...r.sensors.map((d) => ({ entity_id: d.primary.entity_id, size: 2 })),
+          ...r.controls.map((c) => ({ entity_id: c.entity.entity_id, w: 2, h: 2 })),
+          ...r.sensors.map((d) => ({ entity_id: d.primary.entity_id, w: 4, h: 1 })),
         ],
       })),
   };
