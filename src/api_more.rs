@@ -432,7 +432,11 @@ pub async fn restart(State(app): State<AppState>) -> ApiResult<impl IntoResponse
 
 use crate::integrations::{matter, tuya, zigbee2mqtt};
 
-pub async fn integrations_catalog(State(app): State<AppState>) -> impl IntoResponse {
+pub async fn integrations_catalog(
+    State(app): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    let lang = crate::api::lang_of(&headers);
     let core = app.core();
     let status = core
         .integrations
@@ -466,13 +470,14 @@ pub async fn integrations_catalog(State(app): State<AppState>) -> impl IntoRespo
                  configured: bool,
                  summary: String| {
         let st = status.get(id);
+        let tr = |s: &str| crate::i18n::tr(lang, s).into_owned();
         json!({
-            "id": id, "name": name, "description": description, "icon": icon,
+            "id": id, "name": name, "description": tr(description), "icon": icon,
             "enabled": enabled, "configured": configured,
             "status": st.and_then(|s| s.get("status").cloned()),
-            "detail": st.and_then(|s| s.get("detail").cloned()),
+            "detail": st.and_then(|s| s.get("detail")).and_then(Value::as_str).map(tr),
             "devices": count(id),
-            "summary": summary,
+            "summary": tr(&summary),
         })
     };
     Json(json!([

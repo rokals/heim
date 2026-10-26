@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // « Allumer pour… » : une durée, et l'appareil s'éteint tout seul à la fin.
   import Sheet from './Sheet.svelte';
   import { turnOnFor } from '../lib/store.svelte.js';
@@ -14,7 +15,7 @@
   }
 </script>
 
-<Sheet title="Allumer {entity.name} pour…" {onclose}>
+<Sheet title={tr("Allumer {name} pour…", { name: entity.name })} {onclose}>
   <div class="choices">
     {#each CHOICES as m (m)}
       <button class="choice" onclick={() => go(m)}>{m < 60 ? `${m} min` : `${m / 60} h`}</button>
@@ -27,11 +28,11 @@
       if (custom > 0) go(custom);
     }}
   >
-    <input class="input num" type="number" min="1" max="10080" bind:value={custom} aria-label="Durée en minutes" />
-    <span>minutes</span>
-    <button class="btn" type="submit">Allumer</button>
+    <input class="input num" type="number" min="1" max="10080" bind:value={custom} aria-label={tr("Durée en minutes")} />
+    <span>{tr("minutes")}</span>
+    <button class="btn" type="submit">{tr("Allumer")}</button>
   </form>
-  <p class="note">S'il est éteint à la main avant la fin, la minuterie s'annule.</p>
+  <p class="note">{tr("S'il est éteint à la main avant la fin, la minuterie s'annule.")}</p>
 </Sheet>
 
 <style>

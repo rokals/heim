@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   import Icon from '../Icon.svelte';
   import PushCard from './PushCard.svelte';
   import { api, deviceId, home, isAdmin, rememberDeviceLabel, toast } from '../../lib/store.svelte.js';
@@ -30,7 +31,7 @@
     try {
       await api(`/notify/targets/${me}`, { method: 'PUT', body: { name: myName.trim(), kind: 'app' } });
       rememberDeviceLabel(myName.trim());
-      toast('Nom de cet appareil enregistré');
+      toast(tr("Nom de cet appareil enregistré"));
       load();
     } catch (err) {
       toast(err.message, 'alert');
@@ -41,7 +42,7 @@
     e.preventDefault();
     try {
       const r = await api('/notify', { method: 'POST', body: { message, except: except ? [except] : [] } });
-      toast(r.recipients.length === 1 ? 'Envoyée à 1 appareil' : `Envoyée à ${r.recipients.length} appareils`);
+      toast(r.recipients.length === 1 ? tr("Envoyée à 1 appareil") : tr("Envoyée à {length} appareils", { length: r.recipients.length }));
       message = '';
     } catch (err) {
       toast(err.message, 'alert');
@@ -64,7 +65,7 @@
   }
 
   async function forget(t) {
-    if (!confirm(`Ne plus envoyer de notifications à « ${t.name} » ?`)) return;
+    if (!confirm(tr("Ne plus envoyer de notifications à « {name} » ?", { name: t.name }))) return;
     await api(`/notify/targets/${t.id}`, { method: 'DELETE' }).catch((err) => toast(err.message, 'alert'));
     load();
   }
@@ -73,60 +74,60 @@
 <PushCard />
 
 {#if isAdmin()}
-<p class="muted">Chaque téléphone ou écran qui ouvre Heim reçoit les notifications. Donnez-lui un nom pour le reconnaître.</p>
+<p class="muted">{tr("Chaque téléphone ou écran qui ouvre Heim reçoit les notifications. Donnez-lui un nom pour le reconnaître.")}</p>
 
 <form class="inline" onsubmit={renameMe}>
   <label class="field grow">
-    <span>Nom de cet appareil</span>
-    <input class="input" bind:value={myName} placeholder="Téléphone de Alex" />
+    <span>{tr("Nom de cet appareil")}</span>
+    <input class="input" bind:value={myName} placeholder={tr("Téléphone de Alex")} />
   </label>
-  <button class="btn quiet" type="submit" disabled={!myName.trim()}>Renommer</button>
+  <button class="btn quiet" type="submit" disabled={!myName.trim()}>{tr("Renommer")}</button>
 </form>
 
-<h2>Destinataires</h2>
+<h2>{tr("Destinataires")}</h2>
 <ul class="rows">
   {#each targets as t (t.id)}
     <li>
       <Icon name={t.kind === 'webhook' ? 'bolt' : 'bell'} size={18} />
       <span class="grow">
-        {t.name}{t.id === me ? ' (cet appareil)' : ''}{t.kind === 'webhook' ? ' (service web)' : ''}
-        <small>{[t.person ? `compte ${t.person}` : '', t.push ? 'notifications push' : t.kind === 'app' ? 'seulement Heim ouvert' : ''].filter(Boolean).join(' · ')}</small>
+        {t.name}{t.id === me ? tr(" (cet appareil)") : ''}{t.kind === 'webhook' ? tr(" (service web)") : ''}
+        <small>{[t.person ? `compte ${t.person}` : '', t.push ? tr("notifications push") : t.kind === 'app' ? tr("seulement Heim ouvert") : ''].filter(Boolean).join(' · ')}</small>
       </span>
-      <button class="btn danger" onclick={() => forget(t)}>Retirer</button>
+      <button class="btn danger" onclick={() => forget(t)}>{tr("Retirer")}</button>
     </li>
   {/each}
 </ul>
 
-<h2>Message de test</h2>
+<h2>{tr("Message de test")}</h2>
 <form onsubmit={send}>
   <label class="field">
-    <span>Message</span>
-    <input class="input" bind:value={message} placeholder="Le linge est prêt" />
+    <span>{tr("Message")}</span>
+    <input class="input" bind:value={message} placeholder={tr("Le linge est prêt")} />
   </label>
   <label class="field">
-    <span>À tout le monde sauf</span>
+    <span>{tr("À tout le monde sauf")}</span>
     <select class="input" bind:value={except}>
-      <option value="">personne</option>
+      <option value="">{tr("personne")}</option>
       {#each targets as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
     </select>
   </label>
-  <button class="btn" type="submit" disabled={!message.trim()}>Envoyer</button>
+  <button class="btn" type="submit" disabled={!message.trim()}>{tr("Envoyer")}</button>
 </form>
 
-<h2>Service web (ntfy, Gotify, Discord…)</h2>
-<p class="muted">Pour envoyer aussi les notifications vers un autre service.</p>
+<h2>{tr("Service web (ntfy, Gotify, Discord…)")}</h2>
+<p class="muted">{tr("Pour envoyer aussi les notifications vers un autre service.")}</p>
 <form onsubmit={addHook}>
   <div class="two">
     <label class="field">
-      <span>Nom</span>
-      <input class="input" bind:value={hookName} placeholder="ntfy" />
+      <span>{tr("Nom")}</span>
+      <input class="input" bind:value={hookName} placeholder={tr("ntfy")} />
     </label>
     <label class="field">
-      <span>Adresse</span>
-      <input class="input" bind:value={hookUrl} placeholder="https://ntfy.sh/ma-maison" inputmode="url" />
+      <span>{tr("Adresse")}</span>
+      <input class="input" bind:value={hookUrl} placeholder={tr("https://ntfy.sh/ma-maison")} inputmode="url" />
     </label>
   </div>
-  <button class="btn quiet" type="submit" disabled={!hookName.trim() || !hookUrl.trim()}>Ajouter</button>
+  <button class="btn quiet" type="submit" disabled={!hookName.trim() || !hookUrl.trim()}>{tr("Ajouter")}</button>
 </form>
 {/if}
 

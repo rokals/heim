@@ -200,8 +200,10 @@ pub async fn put_my_appearance(
             core.settings.touch(ACCOUNTS_CHANGED);
         }
         None => {
+            let look = input.unwrap_or_default();
+            crate::i18n::set_house_lang(look.get("lang").and_then(Value::as_str));
             core.settings
-                .set(APPEARANCE_KEY, &input.unwrap_or_default())
+                .set(APPEARANCE_KEY, &look)
                 .map_err(bad_request)?;
         }
     }
@@ -217,6 +219,7 @@ pub async fn put_house_appearance(
         .settings
         .set(APPEARANCE_KEY, &input)
         .map_err(bad_request)?;
+    crate::i18n::set_house_lang(input.get("lang").and_then(Value::as_str));
     Ok(StatusCode::NO_CONTENT)
 }
 

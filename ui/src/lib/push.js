@@ -1,4 +1,5 @@
 // Notifications push : ce que le navigateur sait faire, et l'abonnement.
+import { tr } from './i18n.js';
 import { api } from './store.svelte.js';
 
 /** Où en est ce navigateur ? Sert à expliquer à l'utilisateur ce qu'il lui manque. */
@@ -50,7 +51,7 @@ export async function currentSubscription() {
  */
 export async function enablePush(targetId) {
   const permission = await Notification.requestPermission();
-  if (permission !== 'granted') throw new Error("Les notifications ont été refusées. Vous pouvez les autoriser dans les réglages du téléphone.");
+  if (permission !== 'granted') throw new Error(tr("Les notifications ont été refusées. Vous pouvez les autoriser dans les réglages du téléphone."));
   const reg = (await registerWorker()) ?? (await navigator.serviceWorker.ready);
   await navigator.serviceWorker.ready;
   const { public_key } = await api('/push/key');

@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Un minuteur : l'anneau se vide au fil du temps. Le décompte est calculé ici
   // à partir de l'heure de fin ; le noyau n'envoie rien chaque seconde.
   import Icon from './Icon.svelte';
@@ -37,21 +38,21 @@
   <div class="body">
     <span class="name">{entity.name}</span>
     <span class="time num">
-      {#if value === 'finished'}Terminé{:else if value === 'idle'}{duration(total)}{:else}{clock(remaining)}{/if}
+      {#if value === 'finished'}{tr("Terminé")}{:else if value === 'idle'}{duration(total)}{:else}{clock(remaining)}{/if}
     </span>
     {#if target && !compact}
-      <span class="then">puis {action.action === 'turn_off' ? 'éteint' : action.action === 'turn_on' ? 'allume' : 'bascule'} {target.name}</span>
+      <span class="then">{tr("puis {v} {name}", { v: action.action === 'turn_off' ? tr("éteint") : action.action === 'turn_on' ? 'allume' : 'bascule', name: target.name })}</span>
     {/if}
   </div>
   <div class="actions">
     {#if value === 'running'}
-      <button class="round" onclick={() => op('pause')} aria-label="Mettre en pause"><Icon name="pause" size={18} /></button>
-      <button class="round quiet" onclick={() => op('cancel')} aria-label="Annuler"><Icon name="close" size={18} /></button>
+      <button class="round" onclick={() => op('pause')} aria-label={tr("Mettre en pause")}><Icon name="pause" size={18} /></button>
+      <button class="round quiet" onclick={() => op('cancel')} aria-label={tr("Annuler")}><Icon name="close" size={18} /></button>
     {:else if value === 'paused'}
-      <button class="round" onclick={() => op('resume')} aria-label="Reprendre"><Icon name="play" size={18} /></button>
-      <button class="round quiet" onclick={() => op('cancel')} aria-label="Annuler"><Icon name="close" size={18} /></button>
+      <button class="round" onclick={() => op('resume')} aria-label={tr("Reprendre")}><Icon name="play" size={18} /></button>
+      <button class="round quiet" onclick={() => op('cancel')} aria-label={tr("Annuler")}><Icon name="close" size={18} /></button>
     {:else}
-      <button class="round" onclick={() => op('start')} aria-label="Démarrer {entity.name}"><Icon name="play" size={18} /></button>
+      <button class="round" onclick={() => op('start')} aria-label={tr("Démarrer {name}", { name: entity.name })}><Icon name="play" size={18} /></button>
     {/if}
   </div>
 </article>

@@ -1,3 +1,4 @@
+import { tr } from './i18n.js';
 import { houseRules } from './housecards.js';
 
 // Les boutons du tableau de bord : ce qu'ils montrent, ce que font l'appui court et l'appui
@@ -20,17 +21,17 @@ export const COLORS = {
 };
 
 export const COLOR_NAMES = {
-  ember: 'Braise',
-  red: 'Rouge',
-  orange: 'Orange',
-  yellow: 'Jaune',
-  green: 'Vert',
-  teal: 'Turquoise',
-  blue: 'Bleu',
-  sky: 'Ciel',
-  purple: 'Violet',
-  pink: 'Rose',
-  gray: 'Gris',
+  ember: tr("Braise"),
+  red: tr("Rouge"),
+  orange: tr("Orange"),
+  yellow: tr("Jaune"),
+  green: tr("Vert"),
+  teal: tr("Turquoise"),
+  blue: tr("Bleu"),
+  sky: tr("Ciel"),
+  purple: tr("Violet"),
+  pink: tr("Rose"),
+  gray: tr("Gris"),
 };
 
 /** L'alarme en couleur sur sa carte. */
@@ -44,8 +45,8 @@ export const TILE_ICONS = [
 ];
 
 export const OPS = [
-  { id: 'eq', label: 'est' },
-  { id: 'ne', label: "n'est pas" },
+  { id: 'eq', label: tr("est") },
+  { id: 'ne', label: tr("n'est pas") },
   { id: 'gt', label: '>' },
   { id: 'lt', label: '<' },
   { id: 'gte', label: '≥' },
@@ -82,26 +83,26 @@ export function valueText(card, entity) {
   const own = ownText(entity);
   if (own != null) return own;
   const v = tileValue(card, entity);
-  if (v == null) return entity?.state?.available === false ? 'Injoignable' : '–';
+  if (v == null) return entity?.state?.available === false ? tr("Injoignable") : '–';
   const d = domainOf(entity.entity_id);
   if (d === 'automation') {
-    if (card?.facet === 'enabled') return v ? 'Activé' : 'Désactivé';
-    return v ? 'Vrai' : 'Faux';
+    if (card?.facet === 'enabled') return v ? tr("Activé") : tr("Désactivé");
+    return v ? tr("Vrai") : tr("Faux");
   }
-  if (d === 'scene') return v ? (entity.state.attributes?.partial ? 'En partie' : 'Active') : 'Inactive';
-  if (typeof v === 'boolean') return v ? 'Allumé' : 'Éteint';
+  if (d === 'scene') return v ? (entity.state.attributes?.partial ? tr("En partie") : tr("Active")) : tr("Inactive");
+  if (typeof v === 'boolean') return v ? tr("Allumé") : tr("Éteint");
   if (d === 'binary_sensor') {
     const kind = entity.capabilities?.kind;
     const on = v === 'on';
-    if (kind === 'contact') return on ? 'Ouvert' : 'Fermé';
-    if (kind === 'water_leak') return on ? 'Fuite !' : 'Sec';
-    if (kind === 'smoke') return on ? 'Fumée !' : 'Rien';
-    if (kind === 'occupancy' || kind === 'presence') return on ? 'Présence' : 'Personne';
-    return on ? 'Actif' : 'Inactif';
+    if (kind === 'contact') return on ? tr("Ouvert") : tr("Fermé");
+    if (kind === 'water_leak') return on ? tr("Fuite !") : tr("Sec");
+    if (kind === 'smoke') return on ? tr("Fumée !") : tr("Rien");
+    if (kind === 'occupancy' || kind === 'presence') return on ? tr("Présence") : tr("Personne");
+    return on ? tr("Actif") : tr("Inactif");
   }
-  if (d === 'person') return v === 'home' ? 'À la maison' : 'Absent';
-  if (v === 'on') return 'Allumé';
-  if (v === 'off') return 'Éteint';
+  if (d === 'person') return v === 'home' ? tr("À la maison") : tr("Absent");
+  if (v === 'on') return tr("Allumé");
+  if (v === 'off') return tr("Éteint");
   if (typeof v === 'number') {
     const unit = entity.capabilities?.unit;
     const s = Number.isInteger(v) ? String(v) : v.toFixed(1).replace('.', ',');
@@ -182,7 +183,7 @@ export function fillText(text, { value, since, name }) {
 export function sinceText(iso, now = Date.now()) {
   if (!iso) return '';
   const s = Math.max(0, (now - new Date(iso).getTime()) / 1000);
-  if (s < 60) return "moins d'une minute";
+  if (s < 60) return tr("moins d'une minute");
   if (s < 3600) return `${Math.floor(s / 60)} min`;
   if (s < 86400) return `${Math.floor(s / 3600)} h`;
   return `${Math.floor(s / 86400)} j`;
@@ -258,31 +259,31 @@ export function actionsFor(entityId, facet) {
 }
 
 export const ACTION_LABELS = {
-  toggle: 'Basculer',
-  on: 'Allumer / activer',
-  off: 'Éteindre / désactiver',
-  rearm: 'Réarmer',
-  run: 'Lancer maintenant',
-  details: 'Ouvrir le détail',
-  none: 'Rien',
+  toggle: tr("Basculer"),
+  on: tr("Allumer / activer"),
+  off: tr("Éteindre / désactiver"),
+  rearm: tr("Réarmer"),
+  run: tr("Lancer maintenant"),
+  details: tr("Ouvrir le détail"),
+  none: tr("Rien"),
 };
 
 /** Libellés adaptés : « Mettre à vrai » pour un état, « Activer » pour un automatisme… */
 export function actionLabel(action, entityId, facet) {
   const d = domainOf(entityId);
   if (d === 'automation' && facet !== 'enabled') {
-    if (action === 'toggle') return 'Inverser l’état';
-    if (action === 'on') return 'Mettre à vrai';
-    if (action === 'off') return 'Mettre à faux';
+    if (action === 'toggle') return tr("Inverser l’état");
+    if (action === 'on') return tr("Mettre à vrai");
+    if (action === 'off') return tr("Mettre à faux");
   }
   if (d === 'automation' && facet === 'enabled') {
-    if (action === 'toggle') return 'Activer / désactiver';
-    if (action === 'on') return 'Activer';
-    if (action === 'off') return 'Désactiver';
+    if (action === 'toggle') return tr("Activer / désactiver");
+    if (action === 'on') return tr("Activer");
+    if (action === 'off') return tr("Désactiver");
   }
   if (d === 'scene') {
-    if (action === 'on') return 'Activer';
-    if (action === 'off') return 'Désactiver';
+    if (action === 'on') return tr("Activer");
+    if (action === 'off') return tr("Désactiver");
   }
   return ACTION_LABELS[action] ?? action;
 }
@@ -339,17 +340,17 @@ export function choicesFor(entity) {
   const d = domainOf(entity.entity_id);
   if (d === 'automation')
     return [
-      { label: 'État', hint: 'Vrai / faux, appui long pour réarmer', facet: 'state', tap: 'details' },
-      { label: 'Basculer', hint: 'Activer ou désactiver d’un appui', facet: 'enabled', tap: 'toggle' },
-      { label: 'Activer', hint: 'Un appui l’active', facet: 'enabled', tap: 'on' },
-      { label: 'Désactiver', hint: 'Un appui le désactive', facet: 'enabled', tap: 'off' },
+      { label: tr("État"), hint: tr("Vrai / faux, appui long pour réarmer"), facet: 'state', tap: 'details' },
+      { label: tr("Basculer"), hint: tr("Activer ou désactiver d’un appui"), facet: 'enabled', tap: 'toggle' },
+      { label: tr("Activer"), hint: tr("Un appui l’active"), facet: 'enabled', tap: 'on' },
+      { label: tr("Désactiver"), hint: tr("Un appui le désactive"), facet: 'enabled', tap: 'off' },
     ];
   if (['light', 'switch', 'group', 'scene'].includes(d))
     return [
-      { label: 'Basculer', hint: 'Allume ou éteint', tap: 'toggle' },
-      { label: d === 'scene' ? 'Activer' : 'Allumer', hint: 'Un appui allume', tap: 'on' },
-      { label: d === 'scene' ? 'Désactiver' : 'Éteindre', hint: 'Un appui éteint', tap: 'off' },
-      { label: 'État', hint: 'Affiche seulement', tap: 'details' },
+      { label: tr("Basculer"), hint: tr("Allume ou éteint"), tap: 'toggle' },
+      { label: d === 'scene' ? tr("Activer") : tr("Allumer"), hint: tr("Un appui allume"), tap: 'on' },
+      { label: d === 'scene' ? tr("Désactiver") : tr("Éteindre"), hint: tr("Un appui éteint"), tap: 'off' },
+      { label: tr("État"), hint: tr("Affiche seulement"), tap: 'details' },
     ];
-  return [{ label: 'État', hint: 'Affiche la valeur', tap: 'details' }];
+  return [{ label: tr("État"), hint: tr("Affiche la valeur"), tap: 'details' }];
 }

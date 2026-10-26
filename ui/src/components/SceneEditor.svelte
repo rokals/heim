@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // L'éditeur de scène : on choisit les appareils, on règle chacun (allumé, luminosité, blanc,
   // couleur, effet), avec l'aperçu en direct si on veut voir le résultat sur les vraies lampes.
   // En quittant l'éditeur (enregistré ou non), les lampes reviennent comme avant l'aperçu.
@@ -145,7 +146,7 @@
     try {
       const snap = await api('/scenes/snapshot', { method: 'POST', body: { entities: order } });
       for (const [id, t] of Object.entries(snap)) targets[id] = t;
-      toast('Réglages repris de l’état actuel');
+      toast(tr("Réglages repris de l’état actuel"));
     } catch (e) {
       toast(e.message, 'alert');
     }
@@ -156,7 +157,7 @@
     try {
       const batch = Object.fromEntries(order.map((id) => [id, cleanTarget($state.snapshot(targets[id]))]));
       await api('/scenes/preview', { method: 'POST', body: { targets: batch, transition_s: transition || null } });
-      toast('Essai en cours : tout reviendra comme avant en quittant');
+      toast(tr("Essai en cours : tout reviendra comme avant en quittant"));
     } catch (e) {
       toast(e.message, 'alert');
     }
@@ -177,7 +178,7 @@
       };
       const id = initial?.id ?? (slug(name) || 'scene');
       const saved = await api(`/scenes/${id}`, { method: 'PUT', body });
-      toast(`Scène « ${saved.name} » enregistrée`);
+      toast(tr("Scène « {name} » enregistrée", { name: saved.name }));
       onsaved?.(saved);
       onclose();
     } catch (e) {
@@ -190,23 +191,23 @@
   const FADES = [0, 1, 2, 3, 5, 10];
 </script>
 
-<Sheet title={initial ? initial.name : template ? `Nouvelle scène : ${template.name}` : 'Nouvelle scène'} {onclose}>
+<Sheet title={initial ? initial.name : template ? tr("Nouvelle scène : {name}", { name: template.name }) : tr("Nouvelle scène")} {onclose}>
   <div class="livebar" class:on={live}>
     <label class="switchline">
       <span class="sw" class:on={live}><input type="checkbox" checked={live} onchange={(e) => setLive(e.currentTarget.checked)} /><i></i></span>
       <span>
-        <strong>Aperçu en direct</strong>
-        <small>{live ? 'Chaque réglage s’applique tout de suite sur les lampes.' : 'Voir le résultat sur les vraies lampes pendant le réglage.'}</small>
+        <strong>{tr("Aperçu en direct")}</strong>
+        <small>{live ? tr("Chaque réglage s’applique tout de suite sur les lampes.") : tr("Voir le résultat sur les vraies lampes pendant le réglage.")}</small>
       </span>
     </label>
   </div>
 
   <label class="field">
-    <span>Nom</span>
-    <input class="input" bind:value={name} placeholder="Soirée, Ciné, Dîner…" autocomplete="off" />
+    <span>{tr("Nom")}</span>
+    <input class="input" bind:value={name} placeholder={tr("Soirée, Ciné, Dîner…")} autocomplete="off" />
   </label>
 
-  <h3>Appareils <span class="n">{order.length}</span></h3>
+  <h3>{tr("Appareils")} <span class="n">{order.length}</span></h3>
   {#if order.length}
     <ul class="devs">
       {#each order as id (id)}
@@ -222,76 +223,76 @@
       {/each}
     </ul>
     <div class="row">
-      <button class="btn quiet" onclick={() => (picking = !picking)}><Icon name="plus" size={16} /> Ajouter des appareils</button>
-      <button class="btn quiet" onclick={captureAll}><Icon name="restart" size={16} /> Reprendre l'état actuel</button>
+      <button class="btn quiet" onclick={() => (picking = !picking)}><Icon name="plus" size={16} /> {tr("Ajouter des appareils")}</button>
+      <button class="btn quiet" onclick={captureAll}><Icon name="restart" size={16} /> {tr("Reprendre l'état actuel")}</button>
     </div>
   {:else}
-    <p class="muted">Choisissez les lumières, prises ou groupes de la scène. Chacun part de son état actuel, puis se règle.</p>
+    <p class="muted">{tr("Choisissez les lumières, prises ou groupes de la scène. Chacun part de son état actuel, puis se règle.")}</p>
   {/if}
 
   {#if picking}
     <div class="picker">
       <div class="chips">
-        <button class="chip" class:on={pickRoom === ''} onclick={() => (pickRoom = '')}>Toutes les pièces</button>
+        <button class="chip" class:on={pickRoom === ''} onclick={() => (pickRoom = '')}>{tr("Toutes les pièces")}</button>
         {#each homeRooms() as r (r)}<button class="chip" class:on={pickRoom === r} onclick={() => (pickRoom = r)}>{r}</button>{/each}
       </div>
-      <input class="input" type="search" bind:value={pickQuery} placeholder="Chercher un appareil" aria-label="Chercher" />
+      <input class="input" type="search" bind:value={pickQuery} placeholder={tr("Chercher un appareil")} aria-label={tr("Chercher")} />
       {#if pickList.length}
         <ul class="pick">
           {#each pickList as e (e.entity_id)}
             <li>
               <button onclick={() => add([e.entity_id])}>
                 <Icon name={e.domain === 'switch' ? 'plug' : 'bulb'} size={18} />
-                <span>{e.name}{e.domain === 'group' ? ' (groupe)' : ''}</span>
-                <small>{e.room || 'Sans pièce'} · {e.state?.value === 'on' ? 'allumé' : 'éteint'}</small>
+                <span>{e.name}{e.domain === 'group' ? tr(' (groupe)') : ''}</span>
+                <small>{e.room || tr("Sans pièce")} · {e.state?.value === 'on' ? tr("allumé") : tr("éteint")}</small>
                 <Icon name="plus" size={16} />
               </button>
             </li>
           {/each}
         </ul>
         {#if pickList.length > 1}
-          <button class="btn quiet" onclick={() => add(pickList.map((e) => e.entity_id))}>Tout ajouter ({pickList.length})</button>
+          <button class="btn quiet" onclick={() => add(pickList.map((e) => e.entity_id))}>{tr("Tout ajouter ({length})", { length: pickList.length })}</button>
         {/if}
       {:else}
-        <p class="muted">Rien d'autre à ajouter ici.</p>
+        <p class="muted">{tr("Rien d'autre à ajouter ici.")}</p>
       {/if}
     </div>
   {/if}
 
   <details class="opts">
-    <summary>Comportement</summary>
+    <summary>{tr("Comportement")}</summary>
     <div class="field">
-      <span>Fondu à l'activation</span>
+      <span>{tr("Fondu à l'activation")}</span>
       <div class="seg wrap">
-        {#each FADES as f (f)}<button class:on={transition === f} onclick={() => (transition = f)}>{f ? `${f} s` : 'Aucun'}</button>{/each}
+        {#each FADES as f (f)}<button class:on={transition === f} onclick={() => (transition = f)}>{f ? `${f} s` : tr("Aucun")}</button>{/each}
       </div>
     </div>
     <div class="field">
-      <span>Quand on la désactive</span>
+      <span>{tr("Quand on la désactive")}</span>
       <div class="seg wrap">
-        <button class:on={offMode === 'turn_off'} onclick={() => (offMode = 'turn_off')}>Tout éteindre</button>
-        <button class:on={offMode === 'restore'} onclick={() => (offMode = 'restore')}>Revenir comme avant</button>
+        <button class:on={offMode === 'turn_off'} onclick={() => (offMode = 'turn_off')}>{tr("Tout éteindre")}</button>
+        <button class:on={offMode === 'restore'} onclick={() => (offMode = 'restore')}>{tr("Revenir comme avant")}</button>
       </div>
     </div>
     <label class="field">
-      <span>Pièce de la scène</span>
+      <span>{tr("Pièce de la scène")}</span>
       <select class="input" bind:value={room}>
-        <option value="">Aucune</option>
+        <option value="">{tr("Aucune")}</option>
         {#each homeRooms() as r (r)}<option value={r}>{r}</option>{/each}
       </select>
     </label>
   </details>
 
   <details class="opts" bind:open={showLook}>
-    <summary>Apparence sur l'accueil</summary>
+    <summary>{tr("Apparence sur l'accueil")}</summary>
     <div class="icons">
-      <button class="ic" class:sel={!icon} onclick={() => (icon = '')} title="Icône par défaut"><Icon name="scene" size={20} /></button>
+      <button class="ic" class:sel={!icon} onclick={() => (icon = '')} title={tr("Icône par défaut")}><Icon name="scene" size={20} /></button>
       {#each TILE_ICONS as ic (ic)}
         <button class="ic" class:sel={icon === ic} onclick={() => (icon = ic)} aria-label={ic}><Icon name={ic} size={20} /></button>
       {/each}
     </div>
     <div class="colors">
-      <button class="dot none" class:sel={!color} onclick={() => (color = '')} aria-label="Couleur par défaut"></button>
+      <button class="dot none" class:sel={!color} onclick={() => (color = '')} aria-label={tr("Couleur par défaut")}></button>
       {#each Object.entries(COLORS) as [id, hex] (id)}
         <button class="dot" class:sel={color === hex} style:background={hex} onclick={() => (color = hex)} title={COLOR_NAMES[id]} aria-label={COLOR_NAMES[id]}></button>
       {/each}
@@ -299,13 +300,13 @@
   </details>
 
   <div class="actions">
-    <button class="btn" onclick={save} disabled={saving || !name.trim() || !order.length}>Enregistrer</button>
-    {#if order.length && !live}<button class="btn quiet" onclick={tryIt}><Icon name="play" size={15} /> Essayer</button>{/if}
-    {#if initial && onduplicate}<button class="btn quiet" onclick={() => onduplicate(initial.id)}><Icon name="copy" size={15} /> Dupliquer</button>{/if}
-    {#if initial && ondelete}<button class="btn danger" onclick={() => ondelete(initial)}>Supprimer</button>{/if}
+    <button class="btn" onclick={save} disabled={saving || !name.trim() || !order.length}>{tr("Enregistrer")}</button>
+    {#if order.length && !live}<button class="btn quiet" onclick={tryIt}><Icon name="play" size={15} /> {tr("Essayer")}</button>{/if}
+    {#if initial && onduplicate}<button class="btn quiet" onclick={() => onduplicate(initial.id)}><Icon name="copy" size={15} /> {tr("Dupliquer")}</button>{/if}
+    {#if initial && ondelete}<button class="btn danger" onclick={() => ondelete(initial)}>{tr("Supprimer")}</button>{/if}
   </div>
   {#if !initial && !template}
-    <p class="muted small">Ou partez d'un modèle : {TEMPLATES.map((t) => t.name).join(', ')} (bouton « Modèles » de la page Scènes).</p>
+    <p class="muted small">{tr("Ou partez d'un modèle : {join} (bouton « Modèles » de la page Scènes).", { join: TEMPLATES.map((t) => t.name).join(', ') })}</p>
   {/if}
 </Sheet>
 

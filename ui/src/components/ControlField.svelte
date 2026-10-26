@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Un réglage d'appareil, quel qu'il soit : interrupteur, choix, curseur, texte.
   import { controlLabel, showDescription, valueLabel } from '../lib/controls.js';
 
@@ -51,7 +52,7 @@
     </div>
   {:else if c.kind === 'enum'}
     <select class="input" value={value ?? ''} {disabled} onchange={(e) => commit(e.currentTarget.value)} aria-label={label}>
-      {#if value == null}<option value="" disabled>Choisir…</option>{/if}
+      {#if value == null}<option value="" disabled>{tr("Choisir…")}</option>{/if}
       {#each values as v (v)}<option value={v}>{valueLabel(v)}</option>{/each}
     </select>
   {:else if sliderOk}

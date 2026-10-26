@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Connexion : on touche son prénom, puis son mot de passe. Pas d'identifiant à retenir.
   import { home, login } from '../lib/store.svelte.js';
 
@@ -32,7 +33,7 @@
     <path d="M6 15 16 7l10 8v11H6z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" />
     <path d="M13 26v-6h6v6" fill="none" stroke="var(--ember)" stroke-width="2.4" stroke-linejoin="round" />
   </svg>
-  <h1>Qui est-ce ?</h1>
+  <h1>{tr("Qui est-ce ?")}</h1>
 
   {#if !chosen}
     <ul class="people">
@@ -51,15 +52,15 @@
         <span class="avatar" aria-hidden="true">{chosen.name.slice(0, 1).toUpperCase()}</span>
         <strong>{chosen.name}</strong>
         {#if home.loginUsers.length > 1}
-          <button type="button" class="link" onclick={() => ((chosen = null), (error = ''))}>Changer</button>
+          <button type="button" class="link" onclick={() => ((chosen = null), (error = ''))}>{tr("Changer")}</button>
         {/if}
       </p>
       <label class="field">
-        <span>Mot de passe</span>
+        <span>{tr("Mot de passe")}</span>
         <input class="input" type="password" bind:this={input} bind:value={password} autocomplete="current-password" />
       </label>
       {#if error}<p class="error" role="alert">{error}</p>{/if}
-      <button class="btn wide" type="submit" disabled={busy || !password}>Entrer</button>
+      <button class="btn wide" type="submit" disabled={busy || !password}>{tr("Entrer")}</button>
     </form>
   {/if}
 </section>

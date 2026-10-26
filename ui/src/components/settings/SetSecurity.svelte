@@ -1,4 +1,5 @@
 <script>
+  import { tr, locale } from '../../lib/i18n.js';
   // Réglages de l'alarme, mode simple : un rôle par capteur, des sirènes, des délais, un code.
   import { onMount, untrack } from 'svelte';
   import Icon from '../Icon.svelte';
@@ -51,7 +52,7 @@
       }
     }
     if (n) touch();
-    toast(n ? `${n} capteur(s) proposés : vérifiez, puis enregistrez` : 'Rien à proposer');
+    toast(n ? tr("{n} capteur(s) proposés : vérifiez, puis enregistrez", { n }) : tr("Rien à proposer"));
   }
 
   function toggleIn(list, id) {
@@ -74,7 +75,7 @@
       await api('/security/config', { method: 'PUT', body });
       await loadSecurity();
       reset();
-      toast('Alarme enregistrée');
+      toast(tr("Alarme enregistrée"));
     } catch (e) {
       toast(e.message, 'alert');
     } finally {
@@ -87,7 +88,7 @@
     testing = true;
     try {
       const r = await api('/security/test_sirens', { method: 'POST', body: { seconds: 3 } });
-      toast(r.sirens > 1 ? `${r.sirens} sirènes sonnent 3 secondes` : 'La sirène sonne 3 secondes');
+      toast(r.sirens > 1 ? tr("{sirens} sirènes sonnent 3 secondes", { sirens: r.sirens }) : tr("La sirène sonne 3 secondes"));
     } catch (e) {
       toast(e.message, 'alert');
     } finally {
@@ -116,33 +117,33 @@
       cfg.has_code = r.has_code;
       code = { current: '', next: '' };
       await loadSecurity();
-      toast(r.has_code ? 'Code enregistré' : 'Code retiré');
+      toast(r.has_code ? tr("Code enregistré") : tr("Code retiré"));
     } catch (e) {
       toast(e.message, 'alert');
     }
   }
 
   const fmt = (at) =>
-    new Date(at).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    new Date(at).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 </script>
 
-<p class="muted">Donnez un rôle à chaque capteur. <strong>Absent</strong> surveille tout ; <strong>Nuit</strong> seulement les portes et fenêtres, pour circuler dans la maison.</p>
+<p class="muted">{tr("Donnez un rôle à chaque capteur.")} <strong>{tr("Absent")}</strong> {tr("surveille tout ;")} <strong>{tr("Nuit")}</strong> {tr("seulement les portes et fenêtres, pour circuler dans la maison.")}</p>
 
 {#if cfg}
-  <h2>Capteurs</h2>
+  <h2>{tr("Capteurs")}</h2>
   {#if !candidates.length}
-    <p class="muted">Aucun capteur d'ouverture, de mouvement ou de fuite pour l'instant.</p>
+    <p class="muted">{tr("Aucun capteur d'ouverture, de mouvement ou de fuite pour l'instant.")}</p>
   {:else}
-    <button class="btn quiet small" onclick={suggest}>Proposer selon le type</button>
+    <button class="btn quiet small" onclick={suggest}>{tr("Proposer selon le type")}</button>
     <ul class="list">
       {#each candidates as e (e.entity_id)}
         {@const r = roles[e.entity_id]}
         <li>
           <div class="who">
             <strong>{e.capabilities?.device_name && !e.user_edited ? e.capabilities.device_name : e.name}</strong>
-            <span>{e.room || 'Sans pièce'} · {e.capabilities?.kind ?? 'capteur'}{e.state?.available === false ? ' · injoignable' : ''}</span>
+            <span>{e.room || tr("Sans pièce")} · {e.capabilities?.kind ?? 'capteur'}{e.state?.available === false ? tr(" · injoignable") : ''}</span>
           </div>
-          <select class="input sel" value={r?.role ?? ''} onchange={(ev) => setRole(e.entity_id, ev.currentTarget.value)} aria-label="Rôle de {e.name}">
+          <select class="input sel" value={r?.role ?? ''} onchange={(ev) => setRole(e.entity_id, ev.currentTarget.value)} aria-label={tr("Rôle de {name}", { name: e.name })}>
             {#each ROLES as o (o.id)}<option value={o.id}>{o.label}</option>{/each}
           </select>
           {#if r?.role === 'perimeter'}
@@ -155,7 +156,7 @@
                   touch();
                 }}
               />
-              Porte d'entrée : laisse {cfg.entry_delay_s} s pour désactiver
+              {tr("Porte d'entrée : laisse {entry_delay_s} s pour désactiver", { entry_delay_s: cfg.entry_delay_s })}
             </label>
           {/if}
         </li>
@@ -163,9 +164,9 @@
     </ul>
   {/if}
 
-  <h2>Sirènes</h2>
+  <h2>{tr("Sirènes")}</h2>
   {#if !sirens.length}
-    <p class="muted">Aucune sirène Zigbee trouvée. Ajoutez-en une depuis Appareils, « Ajouter un appareil ».</p>
+    <p class="muted">{tr("Aucune sirène Zigbee trouvée. Ajoutez-en une depuis Appareils, « Ajouter un appareil ».")}</p>
   {:else}
     <ul class="list">
       {#each sirens as s (s.entity_id)}
@@ -173,22 +174,22 @@
           <label class="check">
             <input type="checkbox" checked={cfg.sirens.includes(s.entity_id)} onchange={() => toggleIn('sirens', s.entity_id)} />
             <Icon name="siren" size={18} /> {s.name}
-            {#if s.state?.available === false}<span class="warn">injoignable</span>{/if}
+            {#if s.state?.available === false}<span class="warn">{tr("injoignable")}</span>{/if}
           </label>
         </li>
       {/each}
     </ul>
     <div class="row">
-      <button class="btn quiet" disabled={!cfg.sirens.length || testing} onclick={testSirens}>{testing ? 'Ça sonne…' : 'Tester (3 s)'}</button>
+      <button class="btn quiet" disabled={!cfg.sirens.length || testing} onclick={testSirens}>{testing ? tr("Ça sonne…") : tr("Tester (3 s)")}</button>
     </div>
     <label class="check opt">
       <input type="checkbox" bind:checked={cfg.h24_sirens} onchange={touch} />
-      Les capteurs 24 h/24 (fumée, fuite) font aussi sonner les sirènes
+      {tr("Les capteurs 24 h/24 (fumée, fuite) font aussi sonner les sirènes")}
     </label>
   {/if}
 
-  <h2>Lumières en cas d'intrusion</h2>
-  <p class="muted">Allumées à fond quand l'alarme se déclenche.</p>
+  <h2>{tr("Lumières en cas d'intrusion")}</h2>
+  <p class="muted">{tr("Allumées à fond quand l'alarme se déclenche.")}</p>
   <ul class="list cols">
     {#each lights as l (l.entity_id)}
       <li>
@@ -200,43 +201,43 @@
     {/each}
   </ul>
 
-  <h2>Délais</h2>
+  <h2>{tr("Délais")}</h2>
   <div class="delays">
-    <label class="field"><span>Pour sortir (Absent)</span><span class="unit"><input class="input num" type="number" min="0" max="600" bind:value={cfg.exit_delay_s} oninput={touch} /> s</span></label>
-    <label class="field"><span>Pour sortir (Nuit)</span><span class="unit"><input class="input num" type="number" min="0" max="600" bind:value={cfg.night_exit_delay_s} oninput={touch} /> s</span></label>
-    <label class="field"><span>Pour désactiver en entrant</span><span class="unit"><input class="input num" type="number" min="0" max="600" bind:value={cfg.entry_delay_s} oninput={touch} /> s</span></label>
-    <label class="field"><span>Sirènes pendant</span><span class="unit"><input class="input num" type="number" min="5" max="900" bind:value={cfg.siren_duration_s} oninput={touch} /> s</span></label>
+    <label class="field"><span>{tr("Pour sortir (Absent)")}</span><span class="unit"><input class="input num" type="number" min="0" max="600" bind:value={cfg.exit_delay_s} oninput={touch} /> s</span></label>
+    <label class="field"><span>{tr("Pour sortir (Nuit)")}</span><span class="unit"><input class="input num" type="number" min="0" max="600" bind:value={cfg.night_exit_delay_s} oninput={touch} /> s</span></label>
+    <label class="field"><span>{tr("Pour désactiver en entrant")}</span><span class="unit"><input class="input num" type="number" min="0" max="600" bind:value={cfg.entry_delay_s} oninput={touch} /> s</span></label>
+    <label class="field"><span>{tr("Sirènes pendant")}</span><span class="unit"><input class="input num" type="number" min="5" max="900" bind:value={cfg.siren_duration_s} oninput={touch} /> s</span></label>
   </div>
 
-  <h2>Caméras</h2>
-  <p class="muted">Une photo est prise quand l'alarme se déclenche. Il faut l'adresse d'une image fixe (JPEG) de la caméra, par exemple <code>http://utilisateur:motdepasse@192.168.1.30/snapshot.jpg</code>.</p>
+  <h2>{tr("Caméras")}</h2>
+  <p class="muted">{tr("Une photo est prise quand l'alarme se déclenche. Il faut l'adresse d'une image fixe (JPEG) de la caméra, par exemple")} <code>http://utilisateur:motdepasse@192.168.1.30/snapshot.jpg</code>.</p>
   {#each cfg.cameras as c, i (i)}
     <div class="cam">
-      <input class="input" placeholder="Nom (Entrée, Garage…)" bind:value={c.name} oninput={touch} aria-label="Nom de la caméra" />
-      <input class="input" placeholder="http://…/snapshot.jpg" bind:value={c.snapshot_url} oninput={touch} aria-label="Adresse de l'image" />
+      <input class="input" placeholder={tr("Nom (Entrée, Garage…)")} bind:value={c.name} oninput={touch} aria-label={tr("Nom de la caméra")} />
+      <input class="input" placeholder={tr("http://…/snapshot.jpg")} bind:value={c.snapshot_url} oninput={touch} aria-label={tr("Adresse de l'image")} />
       <div class="row">
-        <button class="btn quiet small" disabled={!c.name || !c.snapshot_url || shots[c.name] === 'loading'} onclick={() => testCamera(c)}><Icon name="camera" size={16} /> Prendre une photo</button>
-        <button class="btn danger" onclick={() => (cfg.cameras.splice(i, 1), touch())}>Retirer</button>
+        <button class="btn quiet small" disabled={!c.name || !c.snapshot_url || shots[c.name] === 'loading'} onclick={() => testCamera(c)}><Icon name="camera" size={16} /> {tr("Prendre une photo")}</button>
+        <button class="btn danger" onclick={() => (cfg.cameras.splice(i, 1), touch())}>{tr("Retirer")}</button>
       </div>
       {#if shots[c.name] && shots[c.name] !== 'loading'}
-        <img class="shot" src={snapshotUrl(shots[c.name])} alt="Photo de {c.name}" />
+        <img class="shot" src={snapshotUrl(shots[c.name])} alt={tr("Photo de {name}", { name: c.name })} />
       {/if}
     </div>
   {/each}
-  <button class="btn quiet small" onclick={() => (cfg.cameras.push({ name: '', snapshot_url: '' }), touch())}><Icon name="plus" size={16} /> Ajouter une caméra</button>
+  <button class="btn quiet small" onclick={() => (cfg.cameras.push({ name: '', snapshot_url: '' }), touch())}><Icon name="plus" size={16} /> {tr("Ajouter une caméra")}</button>
 
   {#if dirty}
     <div class="savebar">
-      <button class="btn" disabled={saving} onclick={save}>Enregistrer l'alarme</button>
-      <button class="btn quiet" onclick={reset}>Annuler</button>
+      <button class="btn" disabled={saving} onclick={save}>{tr("Enregistrer l'alarme")}</button>
+      <button class="btn quiet" onclick={reset}>{tr("Annuler")}</button>
     </div>
   {/if}
 
-  <h2>Code</h2>
+  <h2>{tr("Code")}</h2>
   <p class="muted">
     {cfg.has_code
-      ? "Un code est demandé pour désactiver l'alarme."
-      : "Sans code, toute personne qui ouvre Heim peut désactiver l'alarme. Conseillé si Heim est ouvert sur une tablette dans l'entrée."}
+      ? tr("Un code est demandé pour désactiver l'alarme.")
+      : tr("Sans code, toute personne qui ouvre Heim peut désactiver l'alarme. Conseillé si Heim est ouvert sur une tablette dans l'entrée.")}
   </p>
   <form
     class="code"
@@ -246,24 +247,24 @@
     }}
   >
     {#if cfg.has_code}
-      <input class="input" type="password" inputmode="numeric" autocomplete="off" placeholder="Code actuel" bind:value={code.current} />
+      <input class="input" type="password" inputmode="numeric" autocomplete="off" placeholder={tr("Code actuel")} bind:value={code.current} />
     {/if}
-    <input class="input" type="password" inputmode="numeric" autocomplete="off" placeholder={cfg.has_code ? 'Nouveau code' : 'Code (4 à 12 chiffres)'} bind:value={code.next} />
+    <input class="input" type="password" inputmode="numeric" autocomplete="off" placeholder={cfg.has_code ? tr("Nouveau code") : tr("Code (4 à 12 chiffres)")} bind:value={code.next} />
     <div class="row">
-      <button class="btn" type="submit" disabled={code.next.length < 4}>{cfg.has_code ? 'Changer le code' : 'Définir le code'}</button>
-      {#if cfg.has_code}<button class="btn danger" type="button" disabled={!code.current} onclick={() => saveCode(true)}>Retirer le code</button>{/if}
+      <button class="btn" type="submit" disabled={code.next.length < 4}>{cfg.has_code ? tr("Changer le code") : tr("Définir le code")}</button>
+      {#if cfg.has_code}<button class="btn danger" type="button" disabled={!code.current} onclick={() => saveCode(true)}>{tr("Retirer le code")}</button>{/if}
     </div>
   </form>
   {#if cfg.has_code}
     <label class="check opt">
       <input type="checkbox" bind:checked={cfg.code_to_arm} onchange={save} />
-      Demander aussi le code pour activer
+      {tr("Demander aussi le code pour activer")}
     </label>
   {/if}
 
-  <h2>Historique</h2>
+  <h2>{tr("Historique")}</h2>
   {#if !log.length}
-    <p class="muted">Rien pour l'instant.</p>
+    <p class="muted">{tr("Rien pour l'instant.")}</p>
   {:else}
     <ul class="log">
       {#each log.slice(0, 60) as l, i (l.at + i)}

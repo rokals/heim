@@ -1,8 +1,9 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Pavé numérique : gros boutons, utilisable avec des gants ou sur une tablette murale.
   import Sheet from './Sheet.svelte';
 
-  let { title = 'Code', hint = '', error = '', onsubmit, onclose } = $props();
+  let { title = tr("Code"), hint = '', error = '', onsubmit, onclose } = $props();
   let code = $state('');
 
   const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
@@ -32,7 +33,7 @@
 
 <Sheet {title} {onclose}>
   {#if hint}<p class="hint">{hint}</p>{/if}
-  <div class="dots" aria-label="{code.length} chiffres saisis" class:shake={!!error}>
+  <div class="dots" aria-label={tr("{length} chiffres saisis", { length: code.length })} class:shake={!!error}>
     {#each Array(Math.max(4, code.length)) as _, i (i)}
       <span class:on={i < code.length}></span>
     {/each}
@@ -41,13 +42,13 @@
   <div class="pad">
     {#each KEYS as k, i (i)}
       {#if k}
-        <button type="button" class="key" class:back={k === '⌫'} aria-label={k === '⌫' ? 'Effacer' : k} onclick={() => press(k)}>{k}</button>
+        <button type="button" class="key" class:back={k === '⌫'} aria-label={k === '⌫' ? tr("Effacer") : k} onclick={() => press(k)}>{k}</button>
       {:else}
         <span></span>
       {/if}
     {/each}
   </div>
-  <button class="btn ok" disabled={code.length < 4} onclick={submit}>Valider</button>
+  <button class="btn ok" disabled={code.length < 4} onclick={submit}>{tr("Valider")}</button>
 </Sheet>
 
 <style>

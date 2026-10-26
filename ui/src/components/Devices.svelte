@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Tous les appareils sur une seule page : chercher, filtrer, et repérer d'un coup d'œil
   // les piles à changer et les appareils qui captent mal.
   import { onMount } from 'svelte';
@@ -11,15 +12,15 @@
   import { home, isAdmin, refreshEntities } from '../lib/store.svelte.js';
 
   const FILTERS = [
-    { id: 'all', label: 'Tous' },
-    { id: 'controls', label: 'Lumières et prises' },
-    { id: 'sensors', label: 'Capteurs' },
-    { id: 'security', label: 'Sirènes' },
-    { id: 'unsorted', label: 'Sans pièce' },
-    { id: 'battery', label: 'Piles' },
-    { id: 'signal', label: 'Signal' },
-    { id: 'offline', label: 'Injoignables' },
-    { id: 'hidden', label: 'Masqués' },
+    { id: 'all', label: tr("Tous") },
+    { id: 'controls', label: tr("Lumières et prises") },
+    { id: 'sensors', label: tr("Capteurs") },
+    { id: 'security', label: tr("Sirènes") },
+    { id: 'unsorted', label: tr("Sans pièce") },
+    { id: 'battery', label: tr("Piles") },
+    { id: 'signal', label: tr("Signal") },
+    { id: 'offline', label: tr("Injoignables") },
+    { id: 'hidden', label: tr("Masqués") },
   ];
 
   let filter = $state('all');
@@ -70,23 +71,23 @@
 
   function mainValue(d) {
     const c = d.controls[0];
-    if (c) return isOn(c) ? 'Allumé' : 'Éteint';
-    if (d.sirens.length) return isOn(d.sirens[0]) ? 'Sonne' : 'Silencieuse';
+    if (c) return isOn(c) ? tr("Allumé") : tr("Éteint");
+    if (d.sirens.length) return isOn(d.sirens[0]) ? tr("Sonne") : tr("Silencieuse");
     return d.readings[0] ? formatValue(d.readings[0]) : '–';
   }
 </script>
 
 <header class="top">
-  <h1>Appareils</h1>
+  <h1>{tr("Appareils")}</h1>
   <span class="count num">{devices.filter((d) => !d.hidden).length}</span>
   {#if 'zigbee2mqtt' in home.integrations && isAdmin()}
-    <button class="btn add" onclick={() => (pairing = true)} aria-label="Ajouter un appareil"><Icon name="plus" size={18} /> Ajouter</button>
+    <button class="btn add" onclick={() => (pairing = true)} aria-label={tr("Ajouter un appareil")}><Icon name="plus" size={18} /> {tr("Ajouter")}</button>
   {/if}
 </header>
 
-<input class="input search" type="search" bind:value={query} placeholder="Chercher un appareil ou une pièce" aria-label="Chercher" />
+<input class="input search" type="search" bind:value={query} placeholder={tr("Chercher un appareil ou une pièce")} aria-label={tr("Chercher")} />
 
-<div class="chips" role="group" aria-label="Filtrer">
+<div class="chips" role="group" aria-label={tr("Filtrer")}>
   {#each FILTERS.filter((f) => f.id !== 'security' || devices.some((d) => d.sirens.length)) as f (f.id)}
     <button class="chip" class:on={filter === f.id} aria-pressed={filter === f.id} onclick={() => (filter = f.id)}>
       {f.label}
@@ -98,13 +99,13 @@
 </div>
 
 {#if filter === 'battery'}
-  <p class="note">Classés de la pile la plus faible à la plus pleine.</p>
+  <p class="note">{tr("Classés de la pile la plus faible à la plus pleine.")}</p>
 {:else if filter === 'signal'}
-  <p class="note">Classés du signal le plus faible au meilleur. Un appareil qui capte mal gagne souvent à avoir une prise Zigbee (qui relaie le signal) entre lui et la clé.</p>
+  <p class="note">{tr("Classés du signal le plus faible au meilleur. Un appareil qui capte mal gagne souvent à avoir une prise Zigbee (qui relaie le signal) entre lui et la clé.")}</p>
 {/if}
 
 {#if !shown.length}
-  <p class="note">Aucun appareil ici.</p>
+  <p class="note">{tr("Aucun appareil ici.")}</p>
 {/if}
 
 <ul class="list">
@@ -114,7 +115,7 @@
         <span class="ic" class:lit={d.controls[0] && isOn(d.controls[0])}><Icon name={iconFor(d.primary)} size={20} /></span>
         <span class="txt">
           <strong>{d.name}</strong>
-          <span>{d.room === UNSORTED ? 'Sans pièce' : d.room}, {d.offline ? 'injoignable' : ago(d.seen, home.now)}</span>
+          <span>{d.room === UNSORTED ? tr("Sans pièce") : d.room}, {d.offline ? 'injoignable' : ago(d.seen, home.now)}</span>
         </span>
         <span class="meta">
           <span class="val num">{mainValue(d)}</span>

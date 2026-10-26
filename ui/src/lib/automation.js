@@ -1,15 +1,16 @@
 // Automatismes : vocabulaire, valeurs proposées selon l'appareil, modèles prêts à l'emploi,
 // et une phrase lisible pour la liste.
 
+import { tr } from './i18n.js';
 import { kindOf } from './format.js';
 
 const BINARY_WORDS = {
-  contact: ['Ouverte', 'Fermée'],
-  occupancy: ['Présence', 'Personne'],
-  presence: ['Présence', 'Personne'],
-  water_leak: ['Fuite', 'Au sec'],
-  smoke: ['Fumée', 'Normal'],
-  vibration: ['Vibration', 'Calme'],
+  contact: [tr("Ouverte"), tr("Fermée")],
+  occupancy: [tr("Présence"), tr("Personne")],
+  presence: [tr("Présence"), tr("Personne")],
+  water_leak: [tr("Fuite"), tr("Au sec")],
+  smoke: [tr("Fumée"), tr("Normal")],
+  vibration: [tr("Vibration"), tr("Calme")],
 };
 
 /** Les états qu'on peut attendre d'un appareil, avec leur nom en français. */
@@ -17,20 +18,20 @@ export function stateChoices(entity) {
   if (!entity) return [];
   if (entity.domain === 'automation') {
     return [
-      { value: 'on', label: 'vrai' },
-      { value: 'off', label: 'faux' },
+      { value: 'on', label: tr("vrai") },
+      { value: 'off', label: tr("faux") },
     ];
   }
   if (entity.domain === 'light' || entity.domain === 'switch' || entity.domain === 'scene' || entity.domain === 'group') {
     return [
-      { value: 'on', label: entity.domain === 'scene' ? 'active' : 'allumé' },
-      { value: 'off', label: entity.domain === 'scene' ? 'inactive' : 'éteint' },
+      { value: 'on', label: entity.domain === 'scene' ? 'active' : tr("allumé") },
+      { value: 'off', label: entity.domain === 'scene' ? 'inactive' : tr("éteint") },
     ];
   }
   if (entity.domain === 'person') {
     return [
-      { value: 'home', label: 'à la maison' },
-      { value: 'away', label: 'absent' },
+      { value: 'home', label: tr("à la maison") },
+      { value: 'away', label: tr("absent") },
     ];
   }
   if (entity.domain === 'binary_sensor') {
@@ -50,27 +51,27 @@ export function stateLabel(entity, value) {
 export const DAYS = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
 
 export const TRIGGER_TYPES = [
-  { type: 'state', label: 'Un appareil change' },
-  { type: 'numeric', label: 'Une mesure franchit un seuil' },
-  { type: 'time', label: 'À une heure précise' },
-  { type: 'sun', label: 'Au lever ou au coucher du soleil' },
+  { type: 'state', label: tr("Un appareil change") },
+  { type: 'numeric', label: tr("Une mesure franchit un seuil") },
+  { type: 'time', label: tr("À une heure précise") },
+  { type: 'sun', label: tr("Au lever ou au coucher du soleil") },
 ];
 
 export const CONDITION_TYPES = [
-  { type: 'time', label: 'Entre deux heures' },
-  { type: 'dark', label: 'Il fait nuit' },
-  { type: 'daylight', label: 'Il fait jour' },
-  { type: 'days', label: 'Certains jours' },
-  { type: 'state', label: 'Un appareil est dans un état' },
+  { type: 'time', label: tr("Entre deux heures") },
+  { type: 'dark', label: tr("Il fait nuit") },
+  { type: 'daylight', label: tr("Il fait jour") },
+  { type: 'days', label: tr("Certains jours") },
+  { type: 'state', label: tr("Un appareil est dans un état") },
 ];
 
 export const STEP_TYPES = [
-  { type: 'command', label: 'Allumer, éteindre ou basculer' },
-  { type: 'turn_on_for', label: 'Allumer pour un temps' },
-  { type: 'scene', label: 'Activer une scène' },
-  { type: 'notify', label: 'Envoyer une notification' },
-  { type: 'delay', label: 'Attendre' },
-  { type: 'automation', label: 'Réarmer, activer ou lancer un automatisme' },
+  { type: 'command', label: tr("Allumer, éteindre ou basculer") },
+  { type: 'turn_on_for', label: tr("Allumer pour un temps") },
+  { type: 'scene', label: tr("Activer une scène") },
+  { type: 'notify', label: tr("Envoyer une notification") },
+  { type: 'delay', label: tr("Attendre") },
+  { type: 'automation', label: tr("Réarmer, activer ou lancer un automatisme") },
 ];
 
 export function blankTrigger(type) {
@@ -119,52 +120,52 @@ export function blankStep(type) {
 /** Modèles pour démarrer sans réfléchir ; l'utilisateur n'a qu'à choisir ses appareils. */
 export const PRESETS = [
   {
-    title: "Éclairer l'entrée la nuit",
-    detail: "Quand la porte s'ouvre et qu'il fait nuit, allumer pour 5 minutes.",
+    title: tr("Éclairer l'entrée la nuit"),
+    detail: tr("Quand la porte s'ouvre et qu'il fait nuit, allumer pour 5 minutes."),
     value: {
-      name: "Entrée éclairée la nuit",
+      name: tr("Entrée éclairée la nuit"),
       triggers: [{ type: 'state', entity_id: '', to: 'on' }],
       conditions: [{ type: 'dark' }],
       actions: [{ type: 'turn_on_for', entity_id: '', minutes: 5 }],
     },
   },
   {
-    title: 'Porte restée ouverte',
-    detail: 'Prévenir si une porte reste ouverte plus de 10 minutes.',
+    title: tr("Porte restée ouverte"),
+    detail: tr("Prévenir si une porte reste ouverte plus de 10 minutes."),
     value: {
-      name: 'Porte restée ouverte',
+      name: tr("Porte restée ouverte"),
       triggers: [{ type: 'state', entity_id: '', to: 'on', for_s: 600 }],
       conditions: [],
-      actions: [{ type: 'notify', message: 'La porte est ouverte depuis 10 minutes.' }],
+      actions: [{ type: 'notify', message: tr("La porte est ouverte depuis 10 minutes.") }],
     },
   },
   {
-    title: 'Bienvenue à la maison',
-    detail: "Quand quelqu'un rentre et qu'il fait nuit, allumer l'entrée 5 minutes (présence par le Wi-Fi).",
+    title: tr("Bienvenue à la maison"),
+    detail: tr("Quand quelqu'un rentre et qu'il fait nuit, allumer l'entrée 5 minutes (présence par le Wi-Fi)."),
     value: {
-      name: 'Bienvenue à la maison',
+      name: tr("Bienvenue à la maison"),
       triggers: [{ type: 'state', entity_id: '', to: 'home' }],
       conditions: [{ type: 'dark' }],
       actions: [{ type: 'turn_on_for', entity_id: '', minutes: 5 }],
     },
   },
   {
-    title: 'Courrier arrivé',
-    detail: "Quand la boîte aux lettres s'ouvre : prévenir et lever l'état « Courrier ». Réarmé quand on relève le courrier (trappe arrière) ou à la main.",
+    title: tr("Courrier arrivé"),
+    detail: tr("Quand la boîte aux lettres s'ouvre : prévenir et lever l'état « Courrier ». Réarmé quand on relève le courrier (trappe arrière) ou à la main."),
     value: {
-      name: 'Courrier',
+      name: tr("Courrier"),
       triggers: [{ type: 'state', entity_id: '', to: 'on' }],
       conditions: [],
-      actions: [{ type: 'notify', message: 'Le facteur est passé.' }],
+      actions: [{ type: 'notify', message: tr("Le facteur est passé.") }],
       rest_state: false,
       rearm: { triggers: [{ type: 'state', entity_id: '', to: 'on' }], conditions: [] },
     },
   },
   {
-    title: 'Tout éteindre le soir',
-    detail: 'À 23 h 30, éteindre les lumières choisies.',
+    title: tr("Tout éteindre le soir"),
+    detail: tr("À 23 h 30, éteindre les lumières choisies."),
     value: {
-      name: 'Extinction du soir',
+      name: tr("Extinction du soir"),
       triggers: [{ type: 'time', at: '23:30', days: [] }],
       conditions: [],
       actions: [{ type: 'command', entity_id: '', action: 'turn_off' }],
@@ -175,7 +176,7 @@ export const PRESETS = [
 /** « Réarmé quand … », pour la liste. */
 export function describeRearm(rearm, entities) {
   const parts = (rearm?.triggers ?? []).map((t) => describeTrigger(t, entities));
-  if (rearm?.after_min) parts.push(`au bout de ${rearm.after_min >= 60 && rearm.after_min % 60 === 0 ? `${rearm.after_min / 60} h` : `${rearm.after_min} min`}`);
+  if (rearm?.after_min) parts.push(tr("au bout de {v}", { v: rearm.after_min >= 60 && rearm.after_min % 60 === 0 ? `${rearm.after_min / 60} h` : `${rearm.after_min} min` }));
   return parts.join(' ou ');
 }
 
@@ -185,12 +186,12 @@ export function describeTrigger(t, entities) {
   switch (t.type) {
     case 'state': {
       const base = `${name(t.entity_id)} devient ${stateLabel(entities[t.entity_id], t.to)}`;
-      return t.for_s ? `${base} depuis ${Math.round(t.for_s / 60)} min` : base;
+      return t.for_s ? tr("{base} depuis {round} min", { base, round: Math.round(t.for_s / 60) }) : base;
     }
     case 'numeric': {
       const parts = [];
-      if (t.above != null) parts.push(`dépasse ${t.above}`);
-      if (t.below != null) parts.push(`passe sous ${t.below}`);
+      if (t.above != null) parts.push(tr("dépasse {above}", { above: t.above }));
+      if (t.below != null) parts.push(tr("passe sous {below}", { below: t.below }));
       return `${name(t.entity_id)} ${parts.join(' et ')}`;
     }
     case 'time': {
@@ -198,9 +199,9 @@ export function describeTrigger(t, entities) {
       return `à ${t.at}${days}`;
     }
     case 'sun': {
-      const what = t.event === 'sunrise' ? 'au lever du soleil' : 'au coucher du soleil';
+      const what = t.event === 'sunrise' ? tr("au lever du soleil") : tr("au coucher du soleil");
       if (!t.offset_min) return what;
-      return `${Math.abs(t.offset_min)} min ${t.offset_min < 0 ? 'avant' : 'après'} ${what.slice(3)}`;
+      return `${Math.abs(t.offset_min)} min ${t.offset_min < 0 ? 'avant' : tr("après")} ${what.slice(3)}`;
     }
   }
   return '';

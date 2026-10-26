@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Les scènes : une liste claire (active ou pas, jusqu'à quand), et pour chacune
   // activer, activer pour un temps, modifier, dupliquer. Un modèle pour démarrer vite.
   import Icon from './Icon.svelte';
@@ -36,14 +37,14 @@
     const ids = Object.keys(d?.targets ?? {});
     const names = ids.map((id) => home.entities[id]?.name).filter(Boolean);
     if (names.length <= 3) return names.join(', ');
-    return `${names.slice(0, 3).join(', ')} et ${names.length - 3} autres`;
+    return tr("{join} et {v} autres", { join: names.slice(0, 3).join(', '), v: names.length - 3 });
   }
 
   async function activateFor(id, minutes) {
     forScene = null;
     try {
       await api(`/scenes/${id}/activate`, { method: 'POST', body: { minutes } });
-      toast(minutes >= 60 ? `Activée pour ${minutes / 60} h` : `Activée pour ${minutes} min`);
+      toast(minutes >= 60 ? tr("Activée pour {v} h", { v: minutes / 60 }) : tr("Activée pour {minutes} min", { minutes }));
     } catch (e) {
       toast(e.message, 'alert');
     }
@@ -52,7 +53,7 @@
   async function duplicate(id) {
     try {
       const copy = await api(`/scenes/${id}/duplicate`, { method: 'POST' });
-      toast(`« ${copy.name} » créée`);
+      toast(tr("« {name} » créée", { name: copy.name }));
       await load();
       editing = { scene: copy };
     } catch (e) {
@@ -61,7 +62,7 @@
   }
 
   async function remove(d) {
-    if (!confirm(`Supprimer la scène « ${d.name} » ?`)) return;
+    if (!confirm(tr("Supprimer la scène « {name} » ?", { name: d.name }))) return;
     try {
       await api(`/scenes/${d.id}`, { method: 'DELETE' });
       editing = null;
@@ -75,20 +76,20 @@
 </script>
 
 <header class="top">
-  <h1>Scènes</h1>
+  <h1>{tr("Scènes")}</h1>
   {#if isAdmin()}
     <div class="tools">
-      <button class="btn quiet" onclick={() => (templates = true)}><Icon name="star" size={17} /> Modèles</button>
-      <button class="btn" onclick={() => (editing = { scene: null })}><Icon name="plus" size={18} /> Nouvelle scène</button>
+      <button class="btn quiet" onclick={() => (templates = true)}><Icon name="star" size={17} /> {tr("Modèles")}</button>
+      <button class="btn" onclick={() => (editing = { scene: null })}><Icon name="plus" size={18} /> {tr("Nouvelle scène")}</button>
     </div>
   {/if}
 </header>
-<p class="intro">Une ambiance en un geste : chaque appareil réglé comme vous voulez (luminosité, blanc, couleur, effet). Si quelqu'un change une lampe ensuite, la scène se désactive d'elle-même.</p>
+<p class="intro">{tr("Une ambiance en un geste : chaque appareil réglé comme vous voulez (luminosité, blanc, couleur, effet). Si quelqu'un change une lampe ensuite, la scène se désactive d'elle-même.")}</p>
 
 {#if !sceneEntities.length}
   <div class="empty">
-    <p>Aucune scène pour l'instant.</p>
-    {#if isAdmin()}<button class="btn" onclick={() => (templates = true)}>Partir d'un modèle</button>{/if}
+    <p>{tr("Aucune scène pour l'instant.")}</p>
+    {#if isAdmin()}<button class="btn" onclick={() => (templates = true)}>{tr("Partir d'un modèle")}</button>{/if}
   </div>
 {/if}
 
@@ -104,13 +105,13 @@
         <span class="text">
           <strong>{s.name}</strong>
           <span>{membersText(d)}</span>
-          <span class="status">{sceneStatus(s, home.now)}{d?.off_mode === 'restore' ? ' · revient comme avant' : ''}</span>
+          <span class="status">{sceneStatus(s, home.now)}{d?.off_mode === 'restore' ? tr(" · revient comme avant") : ''}</span>
         </span>
       </button>
       <div class="acts">
-        <button class="mini" onclick={() => (forScene = d ?? { id, name: s.name })} title="Activer pour un temps" aria-label="Activer {s.name} pour un temps"><Icon name="timer" size={17} /></button>
+        <button class="mini" onclick={() => (forScene = d ?? { id, name: s.name })} title={tr("Activer pour un temps")} aria-label={tr("Activer {name} pour un temps", { name: s.name })}><Icon name="timer" size={17} /></button>
         {#if isAdmin() && d}
-          <button class="mini" onclick={() => (editing = { scene: d })} aria-label="Modifier {s.name}"><Icon name="pencil" size={16} /></button>
+          <button class="mini" onclick={() => (editing = { scene: d })} aria-label={tr("Modifier {name}", { name: s.name })}><Icon name="pencil" size={16} /></button>
         {/if}
       </div>
     </li>
@@ -129,8 +130,8 @@
 {/if}
 
 {#if forScene}
-  <Sheet title="« {forScene.name} » pendant…" onclose={() => (forScene = null)}>
-    <p class="muted">Puis chaque appareil revient comme il était avant.</p>
+  <Sheet title={tr("« {name} » pendant…", { name: forScene.name })} onclose={() => (forScene = null)}>
+    <p class="muted">{tr("Puis chaque appareil revient comme il était avant.")}</p>
     <div class="durations">
       {#each DURATIONS as m (m)}
         <button class="btn quiet" onclick={() => activateFor(forScene.id, m)}>{m < 60 ? `${m} min` : `${m / 60} h`}</button>
@@ -140,11 +141,11 @@
 {/if}
 
 {#if templates}
-  <Sheet title="Partir d'un modèle" onclose={() => (templates = false)}>
+  <Sheet title={tr("Partir d'un modèle")} onclose={() => (templates = false)}>
     <label class="field">
-      <span>Pour la pièce</span>
+      <span>{tr("Pour la pièce")}</span>
       <select class="input" bind:value={tplRoom}>
-        <option value="">Toute la maison</option>
+        <option value="">{tr("Toute la maison")}</option>
         {#each homeRooms() as r (r)}<option value={r}>{r}</option>{/each}
       </select>
     </label>
@@ -164,7 +165,7 @@
         </button>
       {/each}
     </div>
-    <p class="muted small">Le modèle prend les lumières de la pièce et propose des réglages ; vous ajustez ensuite chaque lampe.</p>
+    <p class="muted small">{tr("Le modèle prend les lumières de la pièce et propose des réglages ; vous ajustez ensuite chaque lampe.")}</p>
   </Sheet>
 {/if}
 

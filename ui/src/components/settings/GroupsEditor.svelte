@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // Groupes : plusieurs lumières ou prises commandées comme une seule (« Tout le salon »).
   import { onMount } from 'svelte';
   import Icon from '../Icon.svelte';
@@ -48,18 +49,18 @@
     if (index >= 0) next[index] = g;
     else next.push(g);
     if (await save(next)) {
-      toast(index >= 0 ? 'Groupe enregistré' : 'Groupe créé : il apparaît dans sa pièce');
+      toast(index >= 0 ? tr("Groupe enregistré") : tr("Groupe créé : il apparaît dans sa pièce"));
       editing = null;
     }
   }
 
   async function remove(g) {
-    if (!confirm(`Supprimer le groupe « ${g.name} » ? Les appareils, eux, restent.`)) return;
+    if (!confirm(tr("Supprimer le groupe « {name} » ? Les appareils, eux, restent.", { name: g.name }))) return;
     await save($state.snapshot(groups).filter((x) => x.id !== g.id));
   }
 </script>
 
-<p class="muted">Plusieurs lumières ou prises commandées d'un seul bouton. Un groupe a sa carte sur l'accueil et s'utilise dans les automatismes.</p>
+<p class="muted">{tr("Plusieurs lumières ou prises commandées d'un seul bouton. Un groupe a sa tuile sur l'accueil et s'utilise dans les automatismes.")}</p>
 
 {#if groups.length}
   <ul class="list">
@@ -68,10 +69,10 @@
         <span class="ic"><Icon name="bulb" size={20} /></span>
         <span class="txt">
           <strong>{g.name}</strong>
-          <span>{g.room || 'Sans pièce'} · {g.members.map(nameOf).join(', ')}</span>
+          <span>{g.room || tr("Sans pièce")} · {g.members.map(nameOf).join(', ')}</span>
         </span>
-        <button class="mini" onclick={() => start(g)} aria-label="Modifier {g.name}"><Icon name="pencil" size={15} /></button>
-        <button class="mini" onclick={() => remove(g)} aria-label="Supprimer {g.name}"><Icon name="close" size={15} /></button>
+        <button class="mini" onclick={() => start(g)} aria-label={tr("Modifier {name}", { name: g.name })}><Icon name="pencil" size={15} /></button>
+        <button class="mini" onclick={() => remove(g)} aria-label={tr("Supprimer {name}", { name: g.name })}><Icon name="close" size={15} /></button>
       </li>
     {/each}
   </ul>
@@ -80,20 +81,20 @@
 {#if editing}
   <div class="editor">
     <label class="field">
-      <span>Nom du groupe</span>
-      <input class="input" bind:value={editing.name} placeholder="Tout le salon" />
+      <span>{tr("Nom du groupe")}</span>
+      <input class="input" bind:value={editing.name} placeholder={tr("Tout le salon")} />
     </label>
     <label class="field">
-      <span>Pièce</span>
+      <span>{tr("Pièce")}</span>
       <select class="input" bind:value={editing.room} onchange={() => (filter = editing.room)}>
-        <option value="">Sans pièce</option>
+        <option value="">{tr("Sans pièce")}</option>
         {#each homeRooms() as r (r)}<option value={r}>{r}</option>{/each}
       </select>
     </label>
     <div class="field">
-      <span>Appareils ({editing.members.length} choisis, deux au moins)</span>
+      <span>{tr("Appareils ({length} choisis, deux au moins)", { length: editing.members.length })}</span>
       <div class="chips">
-        <button class="chip" class:on={filter === ''} onclick={() => (filter = '')}>Toutes les pièces</button>
+        <button class="chip" class:on={filter === ''} onclick={() => (filter = '')}>{tr("Toutes les pièces")}</button>
         {#if editing.room}<button class="chip" class:on={filter === editing.room} onclick={() => (filter = editing.room)}>{editing.room}</button>{/if}
       </div>
       <ul class="pick">
@@ -103,19 +104,19 @@
               <input type="checkbox" checked={editing.members.includes(e.entity_id)} onchange={() => toggle(e.entity_id)} />
               <Icon name={e.domain === 'light' ? 'bulb' : 'plug'} size={16} />
               <span>{e.name}</span>
-              <small>{e.room || 'Sans pièce'}</small>
+              <small>{e.room || tr("Sans pièce")}</small>
             </label>
           </li>
         {/each}
       </ul>
     </div>
     <div class="row">
-      <button class="btn" onclick={commit} disabled={!editing.name.trim() || editing.members.length < 2}>Enregistrer</button>
-      <button class="btn quiet" onclick={() => (editing = null)}>Annuler</button>
+      <button class="btn" onclick={commit} disabled={!editing.name.trim() || editing.members.length < 2}>{tr("Enregistrer")}</button>
+      <button class="btn quiet" onclick={() => (editing = null)}>{tr("Annuler")}</button>
     </div>
   </div>
 {:else}
-  <button class="btn quiet" onclick={() => start()}><Icon name="plus" size={16} /> Nouveau groupe</button>
+  <button class="btn quiet" onclick={() => start()}><Icon name="plus" size={16} /> {tr("Nouveau groupe")}</button>
 {/if}
 
 <style>

@@ -88,6 +88,45 @@ impl From<CommandError> for ApiError {
     }
 }
 
+/// La langue de celui qui demande : celle de l'interface (en-tête X-Heim-Lang), sinon celle
+/// de son navigateur, sinon celle de la maison.
+pub fn lang_of(headers: &HeaderMap) -> &'static str {
+    let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
+    crate::i18n::known(header("x-heim-lang"))
+        .or_else(|| crate::i18n::known(header("accept-language")))
+        .or_else(|| crate::i18n::known(Some(&crate::i18n::house_lang())))
+        .unwrap_or("fr")
+}
+
+/// Les messages d'erreur (« {"error": "…"} ») dans la langue de celui qui les lira.
+async fn translate_errors(req: Request, next: Next) -> Response {
+    let lang = lang_of(req.headers());
+    let res = next.run(req).await;
+    if lang == "fr" || !(res.status().is_client_error() || res.status().is_server_error()) {
+        return res;
+    }
+    let json = res
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|c| c.starts_with("application/json"));
+    if !json {
+        return res;
+    }
+    let (mut parts, body) = res.into_parts();
+    let Ok(bytes) = axum::body::to_bytes(body, 256 * 1024).await else {
+        return parts.status.into_response();
+    };
+    let Ok(mut v) = serde_json::from_slice::<Value>(&bytes) else {
+        return Response::from_parts(parts, axum::body::Body::from(bytes));
+    };
+    if let Some(Value::String(s)) = v.get_mut("error") {
+        *s = crate::i18n::tr(lang, s).into_owned();
+    }
+    parts.headers.remove(header::CONTENT_LENGTH);
+    Response::from_parts(parts, axum::body::Body::from(v.to_string()))
+}
+
 pub fn bad_request(msg: impl Into<String>) -> ApiError {
     ApiError(StatusCode::BAD_REQUEST, msg.into())
 }
@@ -210,6 +249,10 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
         .route("/setup/scan", post(pres::setup_scan))
         .route("/setup/wifi", post(pres::setup_wifi))
         .route("/setup/done", post(pres::setup_done))
+        .route("/setup/step", post(pres::setup_step))
+        .route("/setup/ethernet", post(pres::setup_ethernet))
+        .route("/setup/hostname", post(pres::setup_hostname))
+        .route("/setup/timezone", post(pres::setup_timezone))
         .route("/devices/{id}/controls", get(ctl::get_controls))
         .route("/devices/{id}/set", post(ctl::set_controls))
         .route("/devices/{id}/action", post(ctl::device_action))
@@ -240,7 +283,8 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
         .route("/sun", get(boards::sun))
         .route("/ws", get(ws_upgrade))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth))
-        .fallback(|| async { ApiError(StatusCode::NOT_FOUND, "route inconnue".into()) });
+        .fallback(|| async { ApiError(StatusCode::NOT_FOUND, "route inconnue".into()) })
+        .layer(middleware::from_fn(translate_errors));
 
     Router::new()
         .route("/", get(|| async { Html(INDEX_HTML) }))
@@ -766,6 +810,9 @@ enum ClientMsg {
         /// Ce que le navigateur dit être (« iPad »…), pour la page Écrans.
         #[serde(default)]
         kind: Option<String>,
+        /// La langue de l'interface : les messages du Pi arrivent dans celle-ci.
+        #[serde(default)]
+        lang: Option<String>,
     },
     Command {
         entity_id: String,
@@ -789,6 +836,8 @@ async fn ws_session(socket: WebSocket, app: AppState, caller: Caller) {
     let mut events = app.core.bus.subscribe();
     let mut target_id: Option<String> = None;
     let mut screen_id: Option<String> = None;
+    let mut lang: &'static str = crate::i18n::known(Some(&crate::i18n::house_lang())).unwrap_or("fr");
+    let tr = |lang: &str, s: &str| crate::i18n::tr(lang, s).into_owned();
 
     if tx.send(snapshot_msg(&app).await).await.is_err() {
         return;
@@ -803,10 +852,26 @@ async fn ws_session(socket: WebSocket, app: AppState, caller: Caller) {
                         if target_id.as_deref() != Some(to.as_str()) {
                             continue;
                         }
-                        Message::Text(json!({ "type": "notification", "notification": notification }).to_string().into())
+                        let mut n = serde_json::to_value(&notification).unwrap_or_default();
+                        for k in ["title", "message"] {
+                            if let Some(Value::String(s)) = n.get_mut(k) {
+                                *s = tr(lang, s);
+                            }
+                        }
+                        Message::Text(json!({ "type": "notification", "notification": n }).to_string().into())
                     }
-                    Ok(event) => match serde_json::to_string(&event) {
-                        Ok(text) => Message::Text(text.into()),
+                    Ok(event) => match serde_json::to_value(&event) {
+                        Ok(mut v) => {
+                            // Les textes du Pi (erreurs, état des connexions) dans la langue de l'écran.
+                            if lang != "fr" {
+                                for k in ["detail", "error", "message"] {
+                                    if let Some(Value::String(s)) = v.get_mut(k) {
+                                        *s = tr(lang, s);
+                                    }
+                                }
+                            }
+                            Message::Text(v.to_string().into())
+                        }
                         Err(_) => continue,
                     },
                     // Trop lent pour suivre : on renvoie un instantané complet plutôt que des trous.
@@ -824,7 +889,10 @@ async fn ws_session(socket: WebSocket, app: AppState, caller: Caller) {
                     Some(Ok(_)) => continue,
                 };
                 let reply = match serde_json::from_str::<ClientMsg>(text.as_str()) {
-                    Ok(ClientMsg::Hello { target_id: id, name, kind }) => {
+                    Ok(ClientMsg::Hello { target_id: id, name, kind, lang: l }) => {
+                        if let Some(l) = crate::i18n::known(l.as_deref()) {
+                            lang = l;
+                        }
                         if let Some(old) = target_id.take() {
                             app.core.notify.app_disconnected(&old);
                         }
@@ -838,17 +906,17 @@ async fn ws_session(socket: WebSocket, app: AppState, caller: Caller) {
                         json!({ "type": "welcome", "target_id": target_id, "role": caller.role, "user": caller.user })
                     }
                     Ok(ClientMsg::Command { entity_id, .. }) if !may_command(caller.role, &entity_id) => {
-                        json!({ "type": "error", "entity_id": entity_id, "error": "réservé aux membres" })
+                        json!({ "type": "error", "entity_id": entity_id, "error": tr(lang, "réservé aux membres") })
                     }
                     Ok(ClientMsg::Command { entity_id, .. }) if caller.user.as_ref().and_then(|u| app.core.accounts.get(&u.id)).is_some_and(|u| !u.may_control(&entity_id)) => {
-                        json!({ "type": "error", "entity_id": entity_id, "error": "cet appareil est en lecture seule pour votre compte" })
+                        json!({ "type": "error", "entity_id": entity_id, "error": tr(lang, "cet appareil est en lecture seule pour votre compte") })
                     }
                     Ok(ClientMsg::Command { entity_id, action }) => match app.core.registry.command(&entity_id, action, &crate::api_life::actor(&caller)).await {
                         Ok(target) => json!({ "type": "ack", "entity_id": entity_id, "target": target }),
-                        Err(e) => json!({ "type": "error", "entity_id": entity_id, "error": e.to_string() }),
+                        Err(e) => json!({ "type": "error", "entity_id": entity_id, "error": tr(lang, &e.to_string()) }),
                     },
                     Ok(ClientMsg::Ping) => json!({ "type": "pong" }),
-                    Err(e) => json!({ "type": "error", "error": format!("message illisible : {e}") }),
+                    Err(e) => json!({ "type": "error", "error": tr(lang, &format!("message illisible : {e}")) }),
                 };
                 if tx.send(Message::Text(reply.to_string().into())).await.is_err() {
                     break;

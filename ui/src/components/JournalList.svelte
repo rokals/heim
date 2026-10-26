@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Le journal : tout ce qui s'est passé, du plus récent au plus ancien, par jour.
   // Réutilisé partout : page Journal (avec filtres), fiche d'un appareil, d'un automatisme.
   import { untrack } from 'svelte';
@@ -64,9 +65,9 @@
 </script>
 
 {#if error}
-  <p class="muted">Journal indisponible : {error}</p>
+  <p class="muted">{tr("Journal indisponible : {error}", { error })}</p>
 {:else if !rows.length && !loading}
-  <p class="muted">Rien pour l'instant.</p>
+  <p class="muted">{tr("Rien pour l'instant.")}</p>
 {/if}
 
 <div class="journal" class:compact>
@@ -80,7 +81,7 @@
           <span class="txt">
             {#if !entity}<strong>{t.title}</strong>{/if}
             {t.text}
-            {#if t.actor}<span class="by">par {t.actor}</span>{/if}
+            {#if t.actor}<span class="by">{tr("par {actor}", { actor: t.actor })}</span>{/if}
           </span>
         </li>
       {/each}
@@ -89,7 +90,7 @@
 </div>
 
 {#if more && rows.length}
-  <button class="btn quiet more" disabled={loading} onclick={() => load(false)}>{loading ? 'Chargement…' : 'Plus ancien'}</button>
+  <button class="btn quiet more" disabled={loading} onclick={() => load(false)}>{loading ? tr("Chargement…") : tr("Plus ancien")}</button>
 {/if}
 
 <style>

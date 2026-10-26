@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Réglages d'une carte de l'accueil, en deux onglets :
   //  - Fonction : ce qu'elle montre (automatisme), appui court, long, double, minuterie, section ;
   //  - Apparence : taille (de 1×1 à 4×4), disposition, nom, icône, couleur, remplissage,
@@ -75,10 +76,10 @@
         ? ['vrai', 'faux']
         : d === 'binary_sensor'
           ? ['on', 'off']
-          : ['allumé', 'éteint'],
+          : ["allumé", "éteint"],
   );
   const wordLabel = (w) =>
-    ({ on: 'Actif / ouvert', off: 'Inactif / fermé', home: 'À la maison', away: 'Absent', vrai: 'Vrai', faux: 'Faux', allumé: 'Allumé', éteint: 'Éteint' })[w] ?? w;
+    ({ on: tr("Actif / ouvert"), off: tr("Inactif / fermé"), home: tr("À la maison"), away: tr("Absent"), vrai: tr("Vrai"), faux: tr("Faux"), allumé: tr("Allumé"), éteint: tr("Éteint") })[w] ?? w;
 
   // Aperçu à la vraie taille : une case = 1/4 de la largeur de l'accueil sur téléphone.
   let previewWidth = $state(0);
@@ -156,35 +157,35 @@
 
   const triState = (v) => (v === true ? 'on' : v === false ? 'off' : 'auto');
   const fromTri = (t) => (t === 'on' ? true : t === 'off' ? false : undefined);
-  const title = kind === 'title' ? 'Titre' : kind === 'spacer' ? 'Espace vide' : house ? kindInfo(original.kind).name : null;
+  const title = kind === 'title' ? tr("Titre") : kind === 'spacer' ? tr("Espace vide") : house ? kindInfo(original.kind).name : null;
 </script>
 
-<Sheet title={title ?? (card.name || entity?.name || 'Carte')} {onclose}>
-  <div class="preview" bind:clientWidth={previewWidth} aria-label="Aperçu">
+<Sheet title={title ?? (card.name || entity?.name || tr("Tuile"))} {onclose}>
+  <div class="preview" bind:clientWidth={previewWidth} aria-label={tr("Aperçu")}>
     <div class="stage" style:width="{card.w * unit + (card.w - 1) * UNIT_GAP}px" style:height="{card.h * ROW + (card.h - 1) * UNIT_GAP}px">
       {#if kind === 'title'}
         <div class="title-prev" class:center={card.align === 'center'}>
-          <strong>{card.text || 'Titre'}</strong>
+          <strong>{card.text || tr("Titre")}</strong>
           {#if card.subtitle}<span>{card.subtitle}</span>{/if}
         </div>
       {:else if kind === 'spacer'}
-        <div class="spacer-prev">Espace</div>
+        <div class="spacer-prev">{tr("Espace")}</div>
       {:else if special}
         <HouseSpecial card={clean($state.snapshot(card))} preview />
       {:else if entity}
         <Tile card={clean($state.snapshot(card))} {entity} {device} preview />
       {/if}
     </div>
-    {#if entity && !house}<p class="muted">Valeur actuelle : <strong>{valueNow}</strong></p>{/if}
+    {#if entity && !house}<p class="muted">{tr("Valeur actuelle :")} <strong>{valueNow}</strong></p>{/if}
   </div>
 
   {#if tiled}
     <div class="tabs" role="tablist">
       <button role="tab" aria-selected={tab === 'function'} class:on={tab === 'function'} onclick={() => (tab = 'function')}>
-        <Icon name="power" size={16} /> Fonction
+        <Icon name="power" size={16} /> {tr("Fonction")}
       </button>
       <button role="tab" aria-selected={tab === 'look'} class:on={tab === 'look'} onclick={() => (tab = 'look')}>
-        <Icon name="star" size={16} /> Apparence
+        <Icon name="star" size={16} /> {tr("Apparence")}
       </button>
     </div>
   {/if}
@@ -193,34 +194,34 @@
     <div class="pane" role="tabpanel">
       {#if d === 'automation'}
         <div class="field">
-          <span>La carte montre</span>
+          <span>{tr("La tuile montre")}</span>
           <div class="seg">
-            <button class:on={card.facet !== 'enabled'} onclick={() => (card.facet = 'state')}>Son état (vrai / faux)</button>
-            <button class:on={card.facet === 'enabled'} onclick={() => (card.facet = 'enabled')}>S'il est activé</button>
+            <button class:on={card.facet !== 'enabled'} onclick={() => (card.facet = 'state')}>{tr("Son état (vrai / faux)")}</button>
+            <button class:on={card.facet === 'enabled'} onclick={() => (card.facet = 'enabled')}>{tr("S'il est activé")}</button>
           </div>
         </div>
       {/if}
       <label class="field">
-        <span>Appui court</span>
+        <span>{tr("Appui court")}</span>
         <select class="input" value={card.tap ?? tapDefault} onchange={(e) => (card.tap = e.currentTarget.value)}>
           {#each actions as a (a)}<option value={a}>{label(a)}</option>{/each}
         </select>
       </label>
       <label class="field">
-        <span>Appui long</span>
+        <span>{tr("Appui long")}</span>
         <select class="input" value={card.hold ?? holdDefault} onchange={(e) => (card.hold = e.currentTarget.value)}>
           {#each actions as a (a)}<option value={a}>{label(a)}</option>{/each}
         </select>
       </label>
       <label class="field">
-        <span>Double appui</span>
+        <span>{tr("Double appui")}</span>
         <select class="input" value={card.double ?? 'none'} onchange={(e) => (card.double = e.currentTarget.value)}>
-          {#each actions as a (a)}<option value={a}>{a === 'none' ? 'Rien (l’appui court part tout de suite)' : actionLabel(a, card.entity_id, card.facet)}</option>{/each}
+          {#each actions as a (a)}<option value={a}>{a === 'none' ? tr("Rien (l’appui court part tout de suite)") : actionLabel(a, card.entity_id, card.facet)}</option>{/each}
         </select>
       </label>
       {#if house && card.kind === 'room'}
         <label class="field">
-          <span>La pièce</span>
+          <span>{tr("La pièce")}</span>
           <select class="input" bind:value={card.room}>
             {#each homeRooms() as r (r)}<option value={r}>{r}</option>{/each}
           </select>
@@ -229,15 +230,15 @@
       {#if house && card.kind === 'leave' && alarmReady}
         <label class="check-row">
           <input type="checkbox" checked={!!card.arm} onchange={(e) => (card.arm = e.currentTarget.checked)} />
-          Activer aussi l'alarme en mode Absent
+          {tr("Activer aussi l'alarme en mode Absent")}
         </label>
       {/if}
       {#if controllable}
         <div class="field">
-          <span>Un appui allume pour…</span>
+          <span>{tr("Un appui allume pour…")}</span>
           <div class="seg wrap">
             {#each [0, 5, 15, 30, 60] as m (m)}
-              <button class:on={(card.for_min ?? 0) === m} onclick={() => (card.for_min = m)}>{m === 0 ? 'Sans limite' : m < 60 ? `${m} min` : '1 h'}</button>
+              <button class:on={(card.for_min ?? 0) === m} onclick={() => (card.for_min = m)}>{m === 0 ? tr("Sans limite") : m < 60 ? `${m} min` : '1 h'}</button>
             {/each}
           </div>
         </div>
@@ -247,33 +248,33 @@
     <div class="pane" role="tabpanel">
       {#if kind === 'title'}
         <label class="field">
-          <span>Titre</span>
-          <input class="input" bind:value={card.text} placeholder="Lumières, Climat, Sécurité…" />
+          <span>{tr("Titre")}</span>
+          <input class="input" bind:value={card.text} placeholder={tr("Lumières, Climat, Sécurité…")} />
         </label>
         <label class="field">
-          <span>Sous-titre (facultatif)</span>
+          <span>{tr("Sous-titre (facultatif)")}</span>
           <input class="input" bind:value={card.subtitle} />
         </label>
         <div class="field">
-          <span>Alignement</span>
+          <span>{tr("Alignement")}</span>
           <div class="seg">
-            <button class:on={card.align !== 'center'} onclick={() => (card.align = '')}>À gauche</button>
-            <button class:on={card.align === 'center'} onclick={() => (card.align = 'center')}>Centré</button>
+            <button class:on={card.align !== 'center'} onclick={() => (card.align = '')}>{tr("À gauche")}</button>
+            <button class:on={card.align === 'center'} onclick={() => (card.align = 'center')}>{tr("Centré")}</button>
           </div>
         </div>
       {/if}
 
       <div class="field">
-        <span>Taille <strong class="num">{card.w} × {card.h}</strong></span>
+        <span>{tr("Taille")} <strong class="num">{card.w} × {card.h}</strong></span>
         <div class="size">
-          <div class="picker" role="grid" aria-label="Choisir la taille">
+          <div class="picker" role="grid" aria-label={tr("Choisir la taille")}>
             {#each [1, 2, 3, 4] as h (h)}
               {#each [1, 2, 3, 4] as w (w)}
                 <button
                   class="cell"
                   class:in={w <= card.w && h <= card.h}
                   onclick={() => setSize(w, h)}
-                  aria-label="{w} de large, {h} de haut"
+                  aria-label={tr("{w} de large, {h} de haut", { w, h })}
                   title="{w} × {h}"
                 ></button>
               {/each}
@@ -292,7 +293,7 @@
 
       {#if tiled}
         <div class="field">
-          <span>Disposition</span>
+          <span>{tr("Disposition")}</span>
           <div class="seg wrap">
             {#each LAYOUTS as l (l.id)}
               <button class:on={(card.layout ?? 'auto') === l.id} onclick={() => (card.layout = l.id)}>{l.label}</button>
@@ -301,18 +302,18 @@
         </div>
 
         <label class="field">
-          <span>Nom</span>
+          <span>{tr("Nom")}</span>
           <input class="input" bind:value={card.name} placeholder={entity?.name} />
         </label>
 
         <div class="toggles">
-          <label><input type="checkbox" checked={card.show_name !== false} onchange={(e) => (card.show_name = e.currentTarget.checked)} /> Nom</label>
-          <label><input type="checkbox" checked={card.show_state !== false} onchange={(e) => (card.show_state = e.currentTarget.checked)} /> État</label>
-          <label><input type="checkbox" checked={card.show_icon !== false} onchange={(e) => (card.show_icon = e.currentTarget.checked)} /> Icône</label>
+          <label><input type="checkbox" checked={card.show_name !== false} onchange={(e) => (card.show_name = e.currentTarget.checked)} /> {tr("Nom")}</label>
+          <label><input type="checkbox" checked={card.show_state !== false} onchange={(e) => (card.show_state = e.currentTarget.checked)} /> {tr("État")}</label>
+          <label><input type="checkbox" checked={card.show_icon !== false} onchange={(e) => (card.show_icon = e.currentTarget.checked)} /> {tr("Icône")}</label>
         </div>
 
         <div class="field">
-          <span>Sous le nom</span>
+          <span>{tr("Sous le nom")}</span>
           <div class="seg wrap">
             {#each INFOS as o (o.id)}
               <button class:on={(card.info ?? 'state') === o.id} onclick={() => (card.info = o.id)}>{o.label}</button>
@@ -321,9 +322,9 @@
         </div>
 
         <div class="field">
-          <span>Icône</span>
+          <span>{tr("Icône")}</span>
           <div class="icons">
-            <button class="ic" class:sel={!card.icon} onclick={() => (card.icon = '')} title="Celle de l'appareil">
+            <button class="ic" class:sel={!card.icon} onclick={() => (card.icon = '')} title={tr("Celle de l'appareil")}>
               <Icon name={defaultIcon(entity)} size={20} />
             </button>
             {#each showIcons ? TILE_ICONS : TILE_ICONS.slice(0, 11) as ic (ic)}
@@ -334,9 +335,9 @@
         </div>
 
         <div class="field">
-          <span>Couleur quand c'est allumé / actif</span>
-          <div class="colors" role="radiogroup" aria-label="Couleur">
-            <button class="sw auto" class:sel={!card.color} onclick={() => (card.color = '')} title="Automatique" aria-label="Automatique">A</button>
+          <span>{tr("Couleur quand c'est allumé / actif")}</span>
+          <div class="colors" role="radiogroup" aria-label={tr("Couleur")}>
+            <button class="sw auto" class:sel={!card.color} onclick={() => (card.color = '')} title={tr("Automatique")} aria-label={tr("Automatique")}>A</button>
             {#each Object.entries(COLORS) as [id, hex] (id)}
               <button class="sw" class:sel={card.color === id} style:background={hex} onclick={() => (card.color = id)} title={COLOR_NAMES[id]} aria-label={COLOR_NAMES[id]}></button>
             {/each}
@@ -344,19 +345,19 @@
         </div>
 
         <div class="field">
-          <span>Remplissage</span>
+          <span>{tr("Remplissage")}</span>
           <div class="seg">
-            <button class:on={(card.fill ?? 'tint') === 'tint'} onclick={() => (card.fill = 'tint')}>Teinté</button>
-            <button class:on={card.fill === 'solid'} onclick={() => (card.fill = 'solid')}>Plein</button>
-            <button class:on={card.fill === 'none'} onclick={() => (card.fill = 'none')}>Discret</button>
+            <button class:on={(card.fill ?? 'tint') === 'tint'} onclick={() => (card.fill = 'tint')}>{tr("Teinté")}</button>
+            <button class:on={card.fill === 'solid'} onclick={() => (card.fill = 'solid')}>{tr("Plein")}</button>
+            <button class:on={card.fill === 'none'} onclick={() => (card.fill = 'none')}>{tr("Discret")}</button>
           </div>
         </div>
 
         {#if canSlider}
           <div class="field">
-            <span>Curseur de luminosité</span>
+            <span>{tr("Curseur de luminosité")}</span>
             <div class="seg">
-              {#each [['auto', `Auto (${sliderAuto ? 'oui' : 'non'} à cette taille)`], ['on', 'Toujours'], ['off', 'Jamais']] as [id, label] (id)}
+              {#each [['auto', (sliderAuto ? tr("Auto (oui à cette taille)") : tr("Auto (non à cette taille)"))], ['on', tr("Toujours")], ['off', tr("Jamais")]] as [id, label] (id)}
                 <button class:on={triState(card.slider) === id} onclick={() => (card.slider = fromTri(id))}>{label}</button>
               {/each}
             </div>
@@ -364,9 +365,9 @@
         {/if}
         {#if canGraph}
           <div class="field">
-            <span>Courbe des dernières 24 h</span>
+            <span>{tr("Courbe des dernières 24 h")}</span>
             <div class="seg">
-              {#each [['auto', `Auto (${graphAuto ? 'oui' : 'non'} à cette taille)`], ['on', 'Toujours'], ['off', 'Jamais']] as [id, label] (id)}
+              {#each [['auto', (graphAuto ? tr("Auto (oui à cette taille)") : tr("Auto (non à cette taille)"))], ['on', tr("Toujours")], ['off', tr("Jamais")]] as [id, label] (id)}
                 <button class:on={triState(card.graph) === id} onclick={() => (card.graph = fromTri(id))}>{label}</button>
               {/each}
             </div>
@@ -374,20 +375,19 @@
         {/if}
 
         <details open={!!card.rules?.length}>
-          <summary>Couleurs selon la valeur {#if card.rules?.length}<span class="count">{card.rules.length}</span>{/if}</summary>
+          <summary>{tr("Couleurs selon la valeur")} {#if card.rules?.length}<span class="count">{card.rules.length}</span>{/if}</summary>
           <p class="muted small">
-            La première règle vraie donne à la carte sa couleur, son icône et son texte.
-            Dans le texte : <code>{'{valeur}'}</code>, <code>{'{depuis}'}</code>, <code>{'{nom}'}</code>.
-            {#if !card.rules?.length && suggested.length}Sans règle, Heim applique les siennes (ex. : {suggested.map((r) => `${OPS.find((o) => o.id === r.op)?.label} ${r.value} → ${COLOR_NAMES[r.color]?.toLowerCase()}`).join(', ')}).{/if}
+            {tr("La première règle vraie donne à la tuile sa couleur, son icône et son texte. Dans le texte :")} <code>{'{valeur}'}</code>, <code>{'{depuis}'}</code>, <code>{'{nom}'}</code>.
+            {#if !card.rules?.length && suggested.length}{tr("Sans règle, Heim applique les siennes (ex. : {join}).", { join: suggested.map((r) => `${OPS.find((o) => o.id === r.op)?.label} ${r.value} → ${COLOR_NAMES[r.color]?.toLowerCase()}`).join(', ') })}{/if}
           </p>
           {#each card.rules ?? [] as rule, k (k)}
             <div class="rule">
               <div class="when">
-                <span class="si">Si</span>
+                <span class="si">{tr("Si")}</span>
                 {#if binary}
                   <select class="input" bind:value={rule.op}>
-                    <option value="eq">est</option>
-                    <option value="ne">n'est pas</option>
+                    <option value="eq">{tr("est")}</option>
+                    <option value="ne">{tr("n'est pas")}</option>
                   </select>
                   <select class="input" bind:value={rule.value}>
                     {#each WORDS as w (w)}<option value={w}>{wordLabel(w)}</option>{/each}
@@ -396,22 +396,22 @@
                   <select class="input op" bind:value={rule.op}>
                     {#each OPS as o (o.id)}<option value={o.id}>{o.label}</option>{/each}
                   </select>
-                  <input class="input" bind:value={rule.value} placeholder="25" inputmode="decimal" aria-label="Valeur" />
+                  <input class="input" bind:value={rule.value} placeholder="25" inputmode="decimal" aria-label={tr("Valeur")} />
                 {/if}
               </div>
-              <div class="colors" role="radiogroup" aria-label="Couleur">
-                <button class="sw none" class:sel={!rule.color} onclick={() => (rule.color = '')} title="Sans couleur" aria-label="Sans couleur"></button>
+              <div class="colors" role="radiogroup" aria-label={tr("Couleur")}>
+                <button class="sw none" class:sel={!rule.color} onclick={() => (rule.color = '')} title={tr("Sans couleur")} aria-label={tr("Sans couleur")}></button>
                 {#each Object.entries(COLORS) as [id, hex] (id)}
                   <button class="sw" class:sel={rule.color === id} style:background={hex} onclick={() => (rule.color = id)} title={COLOR_NAMES[id]} aria-label={COLOR_NAMES[id]}></button>
                 {/each}
               </div>
               <div class="then">
-                <button class="ic small" onclick={() => (iconPicker = iconPicker === k ? null : k)} aria-label="Icône de la règle">
+                <button class="ic small" onclick={() => (iconPicker = iconPicker === k ? null : k)} aria-label={tr("Icône de la règle")}>
                   <Icon name={rule.icon || card.icon || defaultIcon(entity)} size={18} />
                 </button>
-                <input class="input" bind:value={rule.text} placeholder="Texte (facultatif) : Courrier !" />
-                <button class="mini" onclick={() => moveRule(k, -1)} disabled={k === 0} aria-label="Monter">↑</button>
-                <button class="mini" onclick={() => card.rules.splice(k, 1)} aria-label="Supprimer la règle"><Icon name="close" size={14} /></button>
+                <input class="input" bind:value={rule.text} placeholder={tr("Texte (facultatif) : Courrier !")} />
+                <button class="mini" onclick={() => moveRule(k, -1)} disabled={k === 0} aria-label={tr("Monter")}>↑</button>
+                <button class="mini" onclick={() => card.rules.splice(k, 1)} aria-label={tr("Supprimer la règle")}><Icon name="close" size={14} /></button>
               </div>
               {#if iconPicker === k}
                 <div class="icons">
@@ -423,7 +423,7 @@
               {/if}
             </div>
           {/each}
-          <button class="btn quiet" onclick={addRule}><Icon name="plus" size={16} /> Ajouter une règle</button>
+          <button class="btn quiet" onclick={addRule}><Icon name="plus" size={16} /> {tr("Ajouter une règle")}</button>
         </details>
       {/if}
     </div>
@@ -431,19 +431,19 @@
 
   {#if sections.length > 1}
     <label class="field">
-      <span>Section</span>
+      <span>{tr("Section")}</span>
       <select class="input" bind:value={target}>
-        {#each sections as sec, k (k)}<option value={k}>{sec.title || 'En haut (sans titre)'}</option>{/each}
+        {#each sections as sec, k (k)}<option value={k}>{sec.title || tr("En haut (sans titre)")}</option>{/each}
       </select>
     </label>
   {/if}
 
   <div class="actions">
-    <button class="btn" onclick={apply}>Enregistrer</button>
-    <button class="btn quiet" onclick={() => shift(-1)}>Avant</button>
-    <button class="btn quiet" onclick={() => shift(1)}>Après</button>
-    <button class="btn quiet" onclick={duplicate}>Dupliquer</button>
-    <button class="btn danger" onclick={remove}>Retirer</button>
+    <button class="btn" onclick={apply}>{tr("Enregistrer")}</button>
+    <button class="btn quiet" onclick={() => shift(-1)}>{tr("Avant")}</button>
+    <button class="btn quiet" onclick={() => shift(1)}>{tr("Après")}</button>
+    <button class="btn quiet" onclick={duplicate}>{tr("Dupliquer")}</button>
+    <button class="btn danger" onclick={remove}>{tr("Retirer")}</button>
   </div>
 </Sheet>
 

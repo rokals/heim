@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Réglages rangés en rubriques : une page courte par sujet plutôt qu'une page sans fin.
   import Icon from './Icon.svelte';
   import SetSystem from './settings/SetSystem.svelte';
@@ -23,12 +24,12 @@
   let { page = '', onnavigate } = $props();
 
   const zigbee = $derived(home.integrations.zigbee2mqtt?.status);
-  const ZSTATUS = { connected: 'Connecté', starting: 'Connexion…', disconnected: 'Injoignable', failed: 'En échec', stopped: 'Désactivé' };
+  const ZSTATUS = { connected: tr("Connecté"), starting: tr("Connexion…"), disconnected: tr("Injoignable"), failed: tr("En échec"), stopped: tr("Désactivé") };
 
   let pairing = $state(false);
   const alarmHint = $derived.by(() => {
     const sec = home.security;
-    if (!sec || !isConfigured(sec.config)) return 'Alarme à configurer';
+    if (!sec || !isConfigured(sec.config)) return tr("Alarme à configurer");
     return alarmView(sec.status, home.now).title;
   });
 
@@ -36,25 +37,25 @@
   const ALL_PAGES = $derived([
     {
       id: 'comptes',
-      label: 'Comptes',
+      label: tr("Comptes"),
       icon: 'user',
-      hint: home.me?.open ? 'Heim n’est pas protégé : créez votre compte' : me ? `${me.name}, se déconnecter, mot de passe` : 'Comptes de la maison',
+      hint: home.me?.open ? tr("Heim n’est pas protégé : créez votre compte") : me ? tr("{name}, se déconnecter, mot de passe", { name: me.name }) : tr("Comptes de la maison"),
       all: true,
     },
-    { id: 'apparence', label: 'Apparence', icon: 'sun', hint: 'Thème clair ou sombre, couleur, taille du texte', all: true },
-    { id: 'ecrans', label: 'Écrans', icon: 'grid', hint: 'Tablettes et téléphones : tableau, limites, mode tablette murale' },
-    { id: 'securite', label: 'Sécurité', icon: 'shield', hint: alarmHint },
-    { id: 'presence', label: 'Présence', icon: 'motion', hint: 'Qui est à la maison (Wi-Fi)' },
-    { id: 'maison', label: 'Maison', icon: 'house', hint: home.layout?.rooms?.length ? `${home.layout.name || 'La maison'} · ${home.layout.rooms.length} pièce(s)` : 'Étages et pièces' },
-    { id: 'integrations', label: 'Intégrations', icon: 'plug', hint: integrationsHint },
-    { id: 'reseau', label: 'Réseau', icon: 'link', hint: 'Wi-Fi du Raspberry Pi' },
-    { id: 'notifications', label: 'Notifications', icon: 'bell', hint: 'Sur ce téléphone, et les autres', all: true },
-    { id: 'alertes', label: 'Alertes', icon: 'battery', hint: 'Piles faibles, appareils muets, fuites' },
-    { id: 'lieu', label: 'Lieu', icon: 'sun', hint: 'Pour le lever et le coucher du soleil' },
-    { id: 'acces', label: 'Accès à distance', icon: 'link', hint: 'Heim depuis dehors, avec Tailscale' },
-    { id: 'journal', label: 'Journal', icon: 'history', hint: 'Tout ce qui s’est passé, et qui l’a fait', member: true },
-    { id: 'sauvegarde', label: 'Sauvegarde', icon: 'drop', hint: 'Chaque nuit, télécharger, restaurer' },
-    { id: 'systeme', label: 'Système', icon: 'sensor', hint: 'Version, adresse, mémoire' },
+    { id: 'apparence', label: tr("Apparence"), icon: 'sun', hint: tr("Thème clair ou sombre, couleur, taille du texte"), all: true },
+    { id: 'ecrans', label: tr("Écrans"), icon: 'grid', hint: tr("Tablettes et téléphones : tableau, limites, mode tablette murale") },
+    { id: 'securite', label: tr("Sécurité"), icon: 'shield', hint: alarmHint },
+    { id: 'presence', label: tr("Présence"), icon: 'motion', hint: tr("Qui est à la maison (Wi-Fi)") },
+    { id: 'maison', label: tr("Maison"), icon: 'house', hint: home.layout?.rooms?.length ? tr("{v} · {length} pièce(s)", { v: home.layout.name || tr("La maison"), length: home.layout.rooms.length }) : tr("Étages et pièces") },
+    { id: 'integrations', label: tr("Connexions"), icon: 'plug', hint: integrationsHint },
+    { id: 'reseau', label: tr("Réseau"), icon: 'link', hint: tr("Wi-Fi du Raspberry Pi") },
+    { id: 'notifications', label: tr("Notifications"), icon: 'bell', hint: tr("Sur ce téléphone, et les autres"), all: true },
+    { id: 'alertes', label: tr("Alertes"), icon: 'battery', hint: tr("Piles faibles, appareils muets, fuites") },
+    { id: 'lieu', label: tr("Lieu"), icon: 'sun', hint: tr("Pour le lever et le coucher du soleil") },
+    { id: 'acces', label: tr("Accès à distance"), icon: 'link', hint: tr("Heim depuis dehors, avec Tailscale") },
+    { id: 'journal', label: tr("Journal"), icon: 'history', hint: tr("Tout ce qui s’est passé, et qui l’a fait"), member: true },
+    { id: 'sauvegarde', label: tr("Sauvegarde"), icon: 'drop', hint: tr("Chaque nuit, télécharger, restaurer") },
+    { id: 'systeme', label: tr("Système"), icon: 'sensor', hint: tr("Version, adresse, mémoire") },
   ]);
 
   // Membres et invités ne voient que leur compte et les notifications de leur téléphone.
@@ -64,13 +65,13 @@
   const integrationsHint = $derived(
     ['zigbee2mqtt', 'tuya', 'matter']
       .filter((k) => home.integrations[k])
-      .map((k) => `${{ zigbee2mqtt: 'Zigbee', tuya: 'Tuya', matter: 'Matter' }[k]} : ${ZSTATUS[home.integrations[k].status] ?? home.integrations[k].status}`)
-      .join(' · ') || 'Zigbee, Tuya, Matter',
+      .map((k) => `${{ zigbee2mqtt: tr("Zigbee"), tuya: tr("Tuya"), matter: tr("Matter") }[k]} : ${ZSTATUS[home.integrations[k].status] ?? home.integrations[k].status}`)
+      .join(' · ') || tr("Zigbee, Tuya, Matter"),
   );
 </script>
 
 {#if !current}
-  <h1>Réglages</h1>
+  <h1>{tr("Réglages")}</h1>
   <ul class="hub">
     {#each PAGES as p (p.id)}
       <li>
@@ -86,7 +87,7 @@
   {#if detail}
     <button class="back" onclick={() => onnavigate(root)}>‹ {current.label}</button>
   {:else}
-    <button class="back" onclick={() => onnavigate('')}>‹ Réglages</button>
+    <button class="back" onclick={() => onnavigate('')}>{tr("‹ Réglages")}</button>
     <h1>{current.label}</h1>
   {/if}
   <div class="page">

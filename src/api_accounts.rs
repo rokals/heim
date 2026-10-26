@@ -55,7 +55,8 @@ pub async fn status(State(app): State<AppState>) -> impl IntoResponse {
         .into_iter()
         .map(|(id, name)| json!({ "id": id, "name": name }))
         .collect();
-    Json(json!({ "open": accounts.is_open(), "users": names }))
+    // La langue de la maison : l'écran de connexion d'un nouvel appareil la prend.
+    Json(json!({ "open": accounts.is_open(), "users": names, "lang": crate::i18n::house_lang() }))
 }
 
 pub async fn me(

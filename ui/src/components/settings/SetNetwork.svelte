@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // Wi-Fi du Raspberry Pi (image Heim). Sur un ordinateur, c'est le système qui s'en occupe.
   import { onMount } from 'svelte';
   import { api, toast } from '../../lib/store.svelte.js';
@@ -26,10 +27,10 @@
 
   async function join(e) {
     e.preventDefault();
-    if (!confirm(`Heim va rejoindre « ${ssid} ». S'il n'y arrive pas, il revient sur le réseau actuel, ou ouvre son réseau « ${st.network.hotspot_ssid} ». Continuer ?`)) return;
+    if (!confirm(tr("Heim va rejoindre « {ssid} ». S'il n'y arrive pas, il revient sur le réseau actuel, ou ouvre son réseau « {hotspot_ssid} ». Continuer ?", { ssid, hotspot_ssid: st.network.hotspot_ssid }))) return;
     try {
       await api('/setup/wifi', { method: 'POST', body: { ssid, password } });
-      toast(`Connexion à « ${ssid} »… Si cette page ne répond plus, rejoignez ce Wi-Fi et ouvrez http://heim.local`);
+      toast(tr("Connexion à « {ssid} »… Si cette page ne répond plus, rejoignez ce Wi-Fi et ouvrez http://heim.local", { ssid }));
       password = '';
       setTimeout(load, 15000);
     } catch (err) {
@@ -37,41 +38,41 @@
     }
   }
 
-  const MODES = { ethernet: 'Câble réseau', wifi: 'Wi-Fi', hotspot: 'Réseau Heim (configuration)', none: 'Aucune connexion' };
+  const MODES = { ethernet: tr("Câble réseau"), wifi: 'Wi-Fi', hotspot: tr("Réseau Heim (configuration)"), none: tr("Aucune connexion") };
 </script>
 
 {#if !st}
-  <p class="muted">Chargement…</p>
+  <p class="muted">{tr("Chargement…")}</p>
 {:else if !st.netsetup}
-  <p class="muted">Ici, c'est le système de la machine qui gère le réseau (Windows, ou un Linux sans l'image Heim). Heim utilise simplement la connexion existante.</p>
-  {#if st.local_ip}<p>Adresse de Heim : <strong>{st.local_ip}</strong></p>{/if}
+  <p class="muted">{tr("Ici, c'est le système de la machine qui gère le réseau (Windows, ou un Linux sans l'image Heim). Heim utilise simplement la connexion existante.")}</p>
+  {#if st.local_ip}<p>{tr("Adresse de Heim :")} <strong>{st.local_ip}</strong></p>{/if}
 {:else}
   <dl>
-    <dt>Connexion</dt><dd>{MODES[st.network.mode] ?? st.network.mode}{st.network.ssid ? ` : ${st.network.ssid}` : ''}</dd>
-    <dt>Adresse</dt><dd>{st.network.ip ?? st.local_ip ?? '–'}</dd>
-    <dt>Nom sur le réseau</dt><dd>heim.local</dd>
+    <dt>{tr("Connexion")}</dt><dd>{MODES[st.network.mode] ?? st.network.mode}{st.network.ssid ? ` : ${st.network.ssid}` : ''}</dd>
+    <dt>{tr("Adresse")}</dt><dd>{st.network.ip ?? st.local_ip ?? '–'}</dd>
+    <dt>{tr("Nom sur le réseau")}</dt><dd>{tr("heim.local")}</dd>
   </dl>
   {#if st.network.last_error}<p class="error">{st.network.last_error}</p>{/if}
 
-  <h2>Changer de Wi-Fi</h2>
+  <h2>{tr("Changer de Wi-Fi")}</h2>
   <form onsubmit={join}>
     <label class="field">
-      <span>Réseau</span>
+      <span>{tr("Réseau")}</span>
       <select class="input" bind:value={ssid}>
-        <option value="">{busy ? 'Recherche…' : 'Choisir un réseau'}</option>
+        <option value="">{busy ? tr("Recherche…") : tr("Choisir un réseau")}</option>
         {#each networks as n (n.ssid)}<option value={n.ssid}>{n.ssid} ({n.signal} %)</option>{/each}
       </select>
     </label>
     <label class="field">
-      <span>Mot de passe</span>
+      <span>{tr("Mot de passe")}</span>
       <input class="input" type="password" bind:value={password} autocomplete="off" />
     </label>
     <div class="row">
-      <button class="btn" type="submit" disabled={!ssid}>Rejoindre</button>
-      <button class="btn quiet" type="button" disabled={busy} onclick={scan}>Chercher à nouveau</button>
+      <button class="btn" type="submit" disabled={!ssid}>{tr("Rejoindre")}</button>
+      <button class="btn quiet" type="button" disabled={busy} onclick={scan}>{tr("Chercher à nouveau")}</button>
     </div>
   </form>
-  <p class="muted small">Si la maison perd son Wi-Fi plus de 15 minutes, Heim ouvre son réseau « {st.network.hotspot_ssid} » : connectez-vous-y pour lui en donner un autre. Il le referme dès que le Wi-Fi connu revient.</p>
+  <p class="muted small">{tr("Si la maison perd son Wi-Fi plus de 15 minutes, Heim ouvre son réseau « {hotspot_ssid} » : connectez-vous-y pour lui en donner un autre. Il le referme dès que le Wi-Fi connu revient.", { hotspot_ssid: st.network.hotspot_ssid })}</p>
 {/if}
 
 <style>

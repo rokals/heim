@@ -1,4 +1,5 @@
 <script>
+  import { tr, locale } from '../lib/i18n.js';
   // Un appareil dans une scène : allumé ou éteint, et pour une lampe les réglages qu'on veut
   // fixer (case cochée) — luminosité, blanc, couleur, effet. Ce qui n'est pas coché ne bouge pas.
   import Icon from './Icon.svelte';
@@ -42,7 +43,7 @@
       <Icon name={d === 'switch' ? 'plug' : 'bulb'} size={20} />
     </span>
     <span class="txt">
-      <strong>{entity?.name ?? 'Appareil supprimé'}</strong>
+      <strong>{entity?.name ?? tr("Appareil supprimé")}</strong>
       <span>{entity?.room ? `${entity.room} · ` : ''}{summary(target, entity)}</span>
     </span>
     <span class="chev" aria-hidden="true"><Icon name="chevron" size={18} /></span>
@@ -50,15 +51,15 @@
 
   {#if open}
     <div class="body">
-      <div class="seg" role="radiogroup" aria-label="Allumé ou éteint">
-        <button role="radio" aria-checked={target.on} class:sel={target.on} onclick={() => change({ on: true })}>Allumé</button>
-        <button role="radio" aria-checked={!target.on} class:sel={!target.on} onclick={() => change({ on: false })}>Éteint</button>
+      <div class="seg" role="radiogroup" aria-label={tr("Allumé ou éteint")}>
+        <button role="radio" aria-checked={target.on} class:sel={target.on} onclick={() => change({ on: true })}>{tr("Allumé")}</button>
+        <button role="radio" aria-checked={!target.on} class:sel={!target.on} onclick={() => change({ on: false })}>{tr("Éteint")}</button>
       </div>
 
       {#if target.on && d !== 'switch'}
         {#if canDim}
           <div class="row">
-            <label class="check"><input type="checkbox" checked={target.brightness != null} onchange={(e) => check('brightness', e.currentTarget.checked)} /> Luminosité</label>
+            <label class="check"><input type="checkbox" checked={target.brightness != null} onchange={(e) => check('brightness', e.currentTarget.checked)} /> {tr("Luminosité")}</label>
             {#if target.brightness != null}<span class="num val">{pct} %</span>{/if}
           </div>
           {#if target.brightness != null}
@@ -72,15 +73,15 @@
                 target = { ...target, brightness: Math.round((Number(e.currentTarget.value) / 100) * 255) };
                 onchange?.(target);
               }}
-              aria-label="Luminosité de {entity?.name}"
+              aria-label={tr("Luminosité de {v}", { v: entity?.name })}
             />
           {/if}
         {/if}
 
         {#if range}
           <div class="row">
-            <label class="check"><input type="checkbox" checked={target.color_temp != null} onchange={(e) => check('color_temp', e.currentTarget.checked)} /> Blanc</label>
-            {#if target.color_temp != null}<span class="num val">{toKelvin(target.color_temp).toLocaleString('fr-FR')} K</span>{/if}
+            <label class="check"><input type="checkbox" checked={target.color_temp != null} onchange={(e) => check('color_temp', e.currentTarget.checked)} /> {tr("Blanc")}</label>
+            {#if target.color_temp != null}<span class="num val">{toKelvin(target.color_temp).toLocaleString(locale())} K</span>{/if}
           </div>
           {#if target.color_temp != null}
             <!-- Curseur en kelvins inversés : à gauche le chaud (beaucoup de mireds). -->
@@ -95,23 +96,23 @@
                 target = { ...target, color_temp: range[0] + range[1] - Number(e.currentTarget.value) };
                 onchange?.(target);
               }}
-              aria-label="Blanc de {entity?.name}"
+              aria-label={tr("Blanc de {v}", { v: entity?.name })}
             />
-            <div class="ends"><span>Chaud</span><span>Froid</span></div>
+            <div class="ends"><span>{tr("Chaud")}</span><span>{tr("Froid")}</span></div>
           {/if}
         {/if}
 
         {#if hasColor}
           <div class="row">
-            <label class="check"><input type="checkbox" checked={!!target.color} onchange={(e) => check('color', e.currentTarget.checked)} /> Couleur</label>
+            <label class="check"><input type="checkbox" checked={!!target.color} onchange={(e) => check('color', e.currentTarget.checked)} /> {tr("Couleur")}</label>
           </div>
           {#if target.color}
             <div class="swatches">
               {#each SWATCHES as c (c)}
-                <button class="sw" class:sel={target.color?.toLowerCase() === c.toLowerCase()} style:background={c} onclick={() => change({ color: c, color_temp: null })} aria-label="Couleur {c}"></button>
+                <button class="sw" class:sel={target.color?.toLowerCase() === c.toLowerCase()} style:background={c} onclick={() => change({ color: c, color_temp: null })} aria-label={tr("Couleur {c}", { c })}></button>
               {/each}
-              <label class="sw custom" title="Autre couleur">
-                <input type="color" value={target.color} onchange={(e) => change({ color: e.currentTarget.value, color_temp: null })} aria-label="Autre couleur" />
+              <label class="sw custom" title={tr("Autre couleur")}>
+                <input type="color" value={target.color} onchange={(e) => change({ color: e.currentTarget.value, color_temp: null })} aria-label={tr("Autre couleur")} />
               </label>
             </div>
           {/if}
@@ -119,7 +120,7 @@
 
         {#if effects.length}
           <div class="row">
-            <label class="check"><input type="checkbox" checked={!!target.effect} onchange={(e) => check('effect', e.currentTarget.checked)} /> Effet</label>
+            <label class="check"><input type="checkbox" checked={!!target.effect} onchange={(e) => check('effect', e.currentTarget.checked)} /> {tr("Effet")}</label>
           </div>
           {#if target.effect}
             <select class="input" value={target.effect} onchange={(e) => change({ effect: e.currentTarget.value })}>
@@ -129,11 +130,11 @@
         {/if}
 
         {#if !canDim && !range && !hasColor && d === 'light'}
-          <p class="muted small">Cette lampe ne se règle pas plus finement.</p>
+          <p class="muted small">{tr("Cette lampe ne se règle pas plus finement.")}</p>
         {/if}
       {/if}
 
-      <button class="btn quiet remove" onclick={onremove}><Icon name="close" size={15} /> Retirer de la scène</button>
+      <button class="btn quiet remove" onclick={onremove}><Icon name="close" size={15} /> {tr("Retirer de la scène")}</button>
     </div>
   {/if}
 </li>

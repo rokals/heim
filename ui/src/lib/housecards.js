@@ -2,25 +2,26 @@
 // seules (une lampe ajoutée demain compte aussitôt dans « Toutes les lumières »).
 // Fonctions pures, testées avec `npm test`.
 
+import { tr, locale } from './i18n.js';
 import { describe as alarmView } from './security.js';
 
 export const HOUSE_KINDS = [
-  { kind: 'lights', name: 'Toutes les lumières', hint: 'Combien sont allumées ; un appui éteint tout', icon: 'bulb', w: 2, h: 1 },
-  { kind: 'plugs', name: 'Toutes les prises', hint: 'Combien sont en marche ; un appui coupe tout', icon: 'plug', w: 2, h: 1 },
-  { kind: 'room', name: 'Une pièce', hint: 'Les lumières d’une pièce, d’un appui', icon: 'sofa', w: 2, h: 1 },
-  { kind: 'leave', name: 'Je pars', hint: 'Coupe lumières et prises, peut activer l’alarme', icon: 'door', w: 2, h: 1 },
-  { kind: 'people', name: 'Qui est à la maison', hint: 'Les personnes présentes', icon: 'user', w: 2, h: 1 },
-  { kind: 'alarm', name: 'Alarme', hint: 'Son état en couleur ; un appui l’ouvre', icon: 'shield', w: 2, h: 1 },
-  { kind: 'fired', name: 'Déclenchés', hint: 'Les automatismes levés (courrier arrivé…), à réarmer', icon: 'alert', w: 2, h: 1 },
-  { kind: 'batteries', name: 'Piles faibles', hint: 'Combien sont à changer', icon: 'battery', w: 2, h: 1 },
-  { kind: 'offline', name: 'Injoignables', hint: 'Les appareils qui ne répondent plus', icon: 'wifi', w: 2, h: 1 },
-  { kind: 'sun', name: 'Soleil', hint: 'Prochain lever ou coucher, calculé sans Internet', icon: 'sun', w: 2, h: 1 },
-  { kind: 'clock', name: 'Horloge', hint: 'L’heure et la date', icon: 'timer', w: 2, h: 2 },
-  { kind: 'scenes', name: 'Scènes', hint: 'Toutes les scènes, d’un appui', icon: 'scene', w: 4, h: 1 },
-  { kind: 'timers', name: 'Minuteurs en cours', hint: 'Ceux qui tournent, avec leur décompte', icon: 'timer', w: 4, h: 1 },
+  { kind: 'lights', name: tr("Toutes les lumières"), hint: tr("Combien sont allumées ; un appui éteint tout"), icon: 'bulb', w: 2, h: 1 },
+  { kind: 'plugs', name: tr("Toutes les prises"), hint: tr("Combien sont en marche ; un appui coupe tout"), icon: 'plug', w: 2, h: 1 },
+  { kind: 'room', name: tr("Une pièce"), hint: tr("Les lumières d’une pièce, d’un appui"), icon: 'sofa', w: 2, h: 1 },
+  { kind: 'leave', name: tr("Je pars"), hint: tr("Coupe lumières et prises, peut activer l’alarme"), icon: 'door', w: 2, h: 1 },
+  { kind: 'people', name: tr("Qui est à la maison"), hint: tr("Les personnes présentes"), icon: 'user', w: 2, h: 1 },
+  { kind: 'alarm', name: tr("Alarme"), hint: tr("Son état en couleur ; un appui l’ouvre"), icon: 'shield', w: 2, h: 1 },
+  { kind: 'fired', name: tr("Déclenchés"), hint: tr("Les automatismes levés (courrier arrivé…), à réarmer"), icon: 'alert', w: 2, h: 1 },
+  { kind: 'batteries', name: tr("Piles faibles"), hint: tr("Combien sont à changer"), icon: 'battery', w: 2, h: 1 },
+  { kind: 'offline', name: tr("Injoignables"), hint: tr("Les appareils qui ne répondent plus"), icon: 'wifi', w: 2, h: 1 },
+  { kind: 'sun', name: tr("Soleil"), hint: tr("Prochain lever ou coucher, calculé sans Internet"), icon: 'sun', w: 2, h: 1 },
+  { kind: 'clock', name: tr("Horloge"), hint: tr("L’heure et la date"), icon: 'timer', w: 2, h: 2 },
+  { kind: 'scenes', name: tr("Scènes"), hint: tr("Toutes les scènes, d’un appui"), icon: 'scene', w: 4, h: 1 },
+  { kind: 'timers', name: tr("Minuteurs en cours"), hint: tr("Ceux qui tournent, avec leur décompte"), icon: 'timer', w: 4, h: 1 },
 ];
 
-export const kindInfo = (kind) => HOUSE_KINDS.find((k) => k.kind === kind) ?? { kind, name: 'Carte', icon: 'house', w: 2, h: 1 };
+export const kindInfo = (kind) => HOUSE_KINDS.find((k) => k.kind === kind) ?? { kind, name: tr("Tuile"), icon: 'house', w: 2, h: 1 };
 
 const BATTERY_LOW = 20;
 
@@ -49,7 +50,7 @@ export function houseMembers(card, entities) {
 }
 
 function hhmm(iso) {
-  return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
 }
 
 /** Le prochain lever ou coucher d'après la réponse de /api/sun. */
@@ -89,10 +90,10 @@ export function houseEntity(card, ctx) {
       const on = members.filter((e) => e.state?.available !== false && isOnValue(e));
       value = on.length;
       active = value > 0;
-      if (card.kind === 'plugs') text = value ? plural(value, '1 en marche', '{n} en marche') : 'Toutes coupées';
-      else if (card.kind === 'leave') text = value ? plural(value, '1 appareil en marche', '{n} appareils en marche') : 'Tout est éteint';
-      else text = value ? plural(value, '1 allumée', '{n} allumées') : card.kind === 'room' ? 'Éteinte' : 'Toutes éteintes';
-      if (!members.length) text = card.kind === 'room' && !card.room ? 'Choisissez la pièce' : 'Aucun appareil';
+      if (card.kind === 'plugs') text = value ? plural(value, tr("1 en marche"), tr('{n} en marche')) : tr("Toutes coupées");
+      else if (card.kind === 'leave') text = value ? plural(value, tr("1 appareil en marche"), tr('{n} appareils en marche')) : tr("Tout est éteint");
+      else text = value ? plural(value, tr("1 allumée"), tr('{n} allumées')) : card.kind === 'room' ? tr("Éteinte") : tr("Toutes éteintes");
+      if (!members.length) text = card.kind === 'room' && !card.room ? tr("Choisissez la pièce") : tr("Aucun appareil");
       break;
     }
     case 'people': {
@@ -100,7 +101,7 @@ export function houseEntity(card, ctx) {
       const here = people.filter((p) => p.state?.value === 'home');
       value = here.length;
       active = value > 0;
-      text = !people.length ? 'Aucune personne suivie' : here.length ? here.map((p) => p.name).join(', ') : 'Personne';
+      text = !people.length ? tr("Aucune personne suivie") : here.length ? here.map((p) => p.name).join(', ') : tr("Personne");
       members = people;
       break;
     }
@@ -119,7 +120,7 @@ export function houseEntity(card, ctx) {
         .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
       value = members.length;
       active = value > 0;
-      text = value ? members.map((e) => e.name).join(', ') : 'Rien à signaler';
+      text = value ? members.map((e) => e.name).join(', ') : tr("Rien à signaler");
       break;
     }
     case 'batteries': {
@@ -127,7 +128,7 @@ export function houseEntity(card, ctx) {
         (e) => visible(e) && e.capabilities?.kind === 'battery' && typeof e.state?.value === 'number' && e.state.value <= BATTERY_LOW,
       );
       value = members.length;
-      text = value ? plural(value, '1 à changer', '{n} à changer') : 'Toutes bonnes';
+      text = value ? plural(value, tr("1 à changer"), tr('{n} à changer')) : tr("Toutes bonnes");
       break;
     }
     case 'offline': {
@@ -140,30 +141,30 @@ export function houseEntity(card, ctx) {
       }
       members = [...seen.values()];
       value = members.length;
-      text = value ? plural(value, '1 ne répond plus', '{n} ne répondent plus') : 'Tout répond';
+      text = value ? plural(value, tr("1 ne répond plus"), tr('{n} ne répondent plus')) : tr("Tout répond");
       break;
     }
     case 'sun': {
       const next = nextSun(ctx.sun, now);
       value = next?.kind ?? null;
       icon = next?.kind === 'set' ? 'sun' : 'moon';
-      text = next ? `${next.kind === 'rise' ? 'Lever' : 'Coucher'} à ${hhmm(next.at)}` : 'Réglez le lieu';
+      text = next ? `${next.kind === 'rise' ? tr("Lever") : tr("Coucher")} à ${hhmm(next.at)}` : tr("Réglez le lieu");
       break;
     }
     case 'clock': {
       const d = new Date(now);
-      value = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      text = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      value = d.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+      text = d.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
       icon = 'timer';
       break;
     }
     default:
       text = '';
   }
-  const SHORT = { lights: 'Lumières', plugs: 'Prises', batteries: 'Piles', offline: 'Injoignables', people: 'À la maison' };
+  const SHORT = { lights: tr("Lumières"), plugs: tr("Prises"), batteries: tr("Piles"), offline: tr("Injoignables"), people: tr("À la maison") };
   const name =
     SHORT[card.kind] ??
-    (card.kind === 'room' ? card.room || 'Une pièce' : card.kind === 'sun' ? 'Soleil' : card.kind === 'clock' ? 'Horloge' : info.name);
+    (card.kind === 'room' ? card.room || tr("Une pièce") : card.kind === 'sun' ? tr("Soleil") : card.kind === 'clock' ? tr("Horloge") : info.name);
   return {
     entity_id: `house.${card.kind}${card.room ? '_' + card.room : ''}`,
     domain: 'house',
@@ -197,19 +198,19 @@ export function houseActionLabel(action, kind) {
   const lights = kind === 'lights' || kind === 'room';
   switch (action) {
     case 'off':
-      return lights ? 'Tout éteindre' : 'Tout couper';
+      return lights ? tr("Tout éteindre") : tr("Tout couper");
     case 'on':
-      return lights ? 'Tout allumer' : 'Tout mettre en marche';
+      return lights ? tr("Tout allumer") : tr("Tout mettre en marche");
     case 'toggle':
-      return 'Basculer (tout éteindre, sinon tout allumer)';
+      return tr("Basculer (tout éteindre, sinon tout allumer)");
     case 'run':
-      return 'Tout couper';
+      return tr("Tout couper");
     case 'details':
-      return 'Ouvrir la liste';
+      return tr("Ouvrir la liste");
     case 'rearm':
-      return 'Tout réarmer';
+      return tr("Tout réarmer");
     default:
-      return 'Rien';
+      return tr("Rien");
   }
 }
 

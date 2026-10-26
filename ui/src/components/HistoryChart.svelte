@@ -1,4 +1,5 @@
 <script>
+  import { tr, locale } from '../lib/i18n.js';
   // Courbe d'une valeur (température, humidité, puissance…) sur 24 h ou 7 jours.
   // Dessinée en SVG, sans bibliothèque : légère pour le Pi comme pour le téléphone.
   import { api } from '../lib/store.svelte.js';
@@ -56,7 +57,7 @@
 
   const fmt = (v) => (Number.isInteger(v) ? String(v) : v.toFixed(1).replace('.', ','));
   const fmtT = (t) =>
-    new Date(t * 1000).toLocaleString('fr-FR', hours > 24 ? { weekday: 'short', hour: '2-digit' } : { hour: '2-digit', minute: '2-digit' });
+    new Date(t * 1000).toLocaleString(locale(), hours > 24 ? { weekday: 'short', hour: '2-digit' } : { hour: '2-digit', minute: '2-digit' });
 
   function onMove(e) {
     if (!stats) return;
@@ -71,7 +72,7 @@
 <div class="chart">
   <div class="head">
     {#if stats}
-      <span class="num">min {fmt(stats.min)}{unit} · max {fmt(stats.max)}{unit}</span>
+      <span class="num">{tr("min {fmt}{unit} · max {fmt2}{unit2}", { fmt: fmt(stats.min), unit, fmt2: fmt(stats.max), unit2: unit })}</span>
     {:else}
       <span></span>
     {/if}
@@ -84,7 +85,7 @@
     <svg
       viewBox="0 0 {W} {H}"
       role="img"
-      aria-label="Courbe sur {hours === 24 ? '24 heures' : '7 jours'}"
+      aria-label={tr("Courbe sur {v}", { v: hours === 24 ? tr("24 heures") : tr("7 jours") })}
       onpointermove={onMove}
       onpointerleave={() => (hover = null)}
     >
@@ -105,9 +106,9 @@
       {#if hover}{fmtT(hover.t)} : <strong>{fmt(hover.v)}{unit}</strong>{:else}&nbsp;{/if}
     </p>
   {:else if loading}
-    <p class="muted">Chargement…</p>
+    <p class="muted">{tr("Chargement…")}</p>
   {:else}
-    <p class="muted">Pas encore assez de mesures : la courbe se remplit au fil des heures (un point toutes les 5 minutes au plus).</p>
+    <p class="muted">{tr("Pas encore assez de mesures : la courbe se remplit au fil des heures (un point toutes les 5 minutes au plus).")}</p>
   {/if}
 </div>
 

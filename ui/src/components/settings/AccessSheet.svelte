@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // Ce qu'un membre ou un invité peut faire : son tableau de bord (imposé ou libre), modifier
   // et ajouter des cartes, les onglets qu'il voit, les appareils qu'il ne peut pas commander.
   // C'est vérifié par le Raspberry Pi lui-même, pas seulement masqué dans l'interface.
@@ -30,9 +31,9 @@
   );
 
   const TABS = [
-    ['appareils', 'Appareils'],
-    ['scenes', 'Scènes'],
-    ['automatismes', 'Automatismes'],
+    ['appareils', tr("Appareils")],
+    ['scenes', tr("Scènes")],
+    ['automatismes', tr("Automatismes")],
   ];
 
   function toggle(list, id) {
@@ -47,7 +48,7 @@
     if (!body.board) delete body.board;
     try {
       await api(`/users/${user.id}/access`, { method: 'PUT', body });
-      toast(`Droits de ${user.name} enregistrés`);
+      toast(tr("Droits de {name} enregistrés", { name: user.name }));
       onsaved?.();
       onclose();
     } catch (e) {
@@ -57,26 +58,26 @@
   }
 </script>
 
-<Sheet title="Ce que peut faire {user.name}" {onclose}>
-  <h3>Tableau de bord</h3>
+<Sheet title={tr("Ce que peut faire {name}", { name: user.name })} {onclose}>
+  <h3>{tr("Tableau")}</h3>
   <label class="field">
-    <span>Tableau</span>
+    <span>{tr("Tableau")}</span>
     <select class="input" bind:value={access.board}>
-      <option value="">Libre : tous ceux qui ne sont pas cachés</option>
-      {#each boards as b (b.id)}<option value={b.id}>Imposé : {b.name}{b.hidden ? ' (caché)' : ''}</option>{/each}
+      <option value="">{tr("Libre : tous ceux qui ne sont pas cachés")}</option>
+      {#each boards as b (b.id)}<option value={b.id}>{tr("Imposé : {name}{v}", { name: b.name, v: b.hidden ? tr(" (caché)") : '' })}</option>{/each}
     </select>
   </label>
-  {#if access.board}<p class="muted small">{user.name} ne verra que ce tableau, sans pouvoir en changer.</p>{/if}
+  {#if access.board}<p class="muted small">{tr("{name} ne verra que ce tableau, sans pouvoir en changer.", { name: user.name })}</p>{/if}
   <label class="check">
     <input type="checkbox" bind:checked={access.can_edit} />
-    <span><strong>Modifier les cartes</strong><em>Déplacer, agrandir, régler, retirer</em></span>
+    <span><strong>{tr("Modifier les tuiles")}</strong><em>{tr("Déplacer, agrandir, régler, retirer")}</em></span>
   </label>
   <label class="check">
     <input type="checkbox" bind:checked={access.can_add} />
-    <span><strong>Ajouter des cartes</strong></span>
+    <span><strong>{tr("Ajouter des tuiles")}</strong></span>
   </label>
 
-  <h3>Onglets visibles</h3>
+  <h3>{tr("Onglets visibles")}</h3>
   <div class="seg wrap">
     {#each TABS as [id, label] (id)}
       {@const hidden = access.hidden_tabs.includes(id)}
@@ -87,27 +88,27 @@
     {/each}
   </div>
 
-  <h3>Appareils en lecture seule <span class="count">{access.readonly.length}</span></h3>
-  <p class="muted small">{user.name} les voit mais ne peut pas les allumer ni les éteindre (chauffage, congélateur…).</p>
-  <input class="input" type="search" placeholder="Chercher un appareil" bind:value={query} aria-label="Chercher un appareil" />
+  <h3>{tr("Appareils en lecture seule")} <span class="count">{access.readonly.length}</span></h3>
+  <p class="muted small">{tr("{name} les voit mais ne peut pas les allumer ni les éteindre (chauffage, congélateur…).", { name: user.name })}</p>
+  <input class="input" type="search" placeholder={tr("Chercher un appareil")} bind:value={query} aria-label={tr("Chercher un appareil")} />
   <ul class="devs">
     {#each controllable as e (e.entity_id)}
       {@const ro = access.readonly.includes(e.entity_id)}
       <li>
         <label>
           <span class="ic" class:ro><Icon name={e.domain === 'group' ? 'bulb' : iconFor(e)} size={18} /></span>
-          <span class="txt"><strong>{e.name}</strong><span>{e.room || 'Sans pièce'}</span></span>
-          <input type="checkbox" checked={ro} onchange={() => toggle('readonly', e.entity_id)} aria-label="{e.name} en lecture seule" />
+          <span class="txt"><strong>{e.name}</strong><span>{e.room || tr("Sans pièce")}</span></span>
+          <input type="checkbox" checked={ro} onchange={() => toggle('readonly', e.entity_id)} aria-label={tr("{name} en lecture seule", { name: e.name })} />
         </label>
       </li>
     {:else}
-      <li class="none">Aucun appareil.</li>
+      <li class="none">{tr("Aucun appareil.")}</li>
     {/each}
   </ul>
 
   <div class="actions">
-    <button class="btn" onclick={save} disabled={saving}>Enregistrer</button>
-    <button class="btn quiet" onclick={onclose}>Annuler</button>
+    <button class="btn" onclick={save} disabled={saving}>{tr("Enregistrer")}</button>
+    <button class="btn quiet" onclick={onclose}>{tr("Annuler")}</button>
   </div>
 </Sheet>
 

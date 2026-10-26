@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // L'accueil : un ou plusieurs tableaux de bord. On passe de l'un à l'autre en glissant
   // (petits points en bas, comme sur iPhone) ou par des onglets, au choix dans Apparence.
   // « Personnaliser » : sections, cartes de 1×1 à 4×4, déplacées au doigt, redimensionnées
@@ -76,7 +77,7 @@
   const sections = $derived(
     raw.map((sec, s) => ({
       title: sec.title,
-      unsorted: board?.auto && sec.title === 'À ranger',
+      unsorted: board?.auto && sec.title === tr('À ranger'),
       cards: (sec.cards ?? [])
         .map((c, i) => resolve(c, s, i))
         .filter((c) => editing || c.card.type || (c.entity && !c.entity.hidden && !c.device?.hidden)),
@@ -111,7 +112,7 @@
   }
 
   async function resetToAuto() {
-    if (!confirm(`Ranger « ${board.name} » tout seul par pièce ? Ses cartes seront effacées.`)) return;
+    if (!confirm(tr("Ranger « {name} » tout seul par pièce ? Ses tuiles seront effacées.", { name: board.name }))) return;
     const list = $state.snapshot(home.boards.boards).map((b) => (b.id === board.id ? { ...b, auto: true, sections: [] } : b));
     if (await saveBoards(list)) editing = false;
   }
@@ -165,10 +166,10 @@
     const r = resolveHouseAction(action, c.card, c.entity);
     if (r.kind === 'details') return openDetails(c);
     if (r.kind === 'rearm') {
-      if (!isMember()) return toast('Réservé aux membres', 'alert');
-      if (!r.automations.length) return toast('Rien à réarmer');
+      if (!isMember()) return toast(tr("Réservé aux membres"), 'alert');
+      if (!r.automations.length) return toast(tr("Rien à réarmer"));
       await Promise.allSettled(r.automations.map((id) => api(`/automations/${id}/op`, { method: 'POST', body: { state: 'rearm' } })));
-      return toast(r.automations.length > 1 ? `${r.automations.length} automatismes réarmés` : 'Réarmé');
+      return toast(r.automations.length > 1 ? tr("{length} automatismes réarmés", { length: r.automations.length }) : tr("Réarmé"));
     }
     if (r.kind !== 'commands') return;
     for (const x of r.commands) command(x.entity_id, x.action);
@@ -177,12 +178,12 @@
         await api('/security/arm', { method: 'POST', body: { mode: r.arm } });
         loadSecurity();
       } catch (e) {
-        toast(`Alarme : ${e.message}`, 'alert');
+        toast(tr("Alarme : {message}", { message: e.message }), 'alert');
       }
     }
     const n = r.commands.length;
-    if (!n && !r.arm) return toast(action === 'on' ? 'Tout est déjà allumé' : 'Tout est déjà éteint');
-    if (c.card.kind === 'leave') toast(n ? `${n} appareil${n > 1 ? 's' : ''} coupé${n > 1 ? 's' : ''}. Bonne journée !` : 'Bonne journée !');
+    if (!n && !r.arm) return toast(action === 'on' ? tr("Tout est déjà allumé") : tr("Tout est déjà éteint"));
+    if (c.card.kind === 'leave') toast(n === 1 ? tr("1 appareil coupé. Bonne journée !") : n ? tr("{n} appareils coupés. Bonne journée !", { n }) : tr("Bonne journée !"));
   }
 
   async function runAction(action, c) {
@@ -190,16 +191,16 @@
     const r = resolveAction(action, c.card, c.entity);
     if (r.kind === 'details') return openDetails(c);
     if (r.kind === 'command') {
-      if (c.entity.state?.available === false) return toast(`${c.card.name || c.entity.name} ne répond pas`, 'alert');
+      if (c.entity.state?.available === false) return toast(tr("{v} ne répond pas", { v: c.card.name || c.entity.name }), 'alert');
       if (!isMember() && c.entity.entity_id.startsWith('siren.')) return;
       if (r.action !== 'turn_off' && c.card.for_min && !isOn(c.entity)) return turnOnFor(r.entity_id, c.card.for_min);
       return command(r.entity_id, r.action);
     }
     if (r.kind === 'automation') {
-      if (!isMember()) return toast('Réservé aux membres', 'alert');
+      if (!isMember()) return toast(tr("Réservé aux membres"), 'alert');
       try {
         await api(`/automations/${r.automation}/op`, { method: 'POST', body: r.body });
-        if (r.body.state === 'rearm') toast(`${c.card.name || c.entity.name} : réarmé`);
+        if (r.body.state === 'rearm') toast(tr("{v} : réarmé", { v: c.card.name || c.entity.name }));
       } catch (e) {
         toast(e.message, 'alert');
       }
@@ -209,7 +210,7 @@
   function addAndEdit(sectionIndex, card) {
     let pos = 0;
     mutate((d) => {
-      if (!d.sections.length) d.sections.push({ title: 'Accueil', cards: [] });
+      if (!d.sections.length) d.sections.push({ title: tr("Accueil"), cards: [] });
       const s = Math.min(sectionIndex, d.sections.length - 1);
       d.sections[s].cards.push(card);
       pos = d.sections[s].cards.length - 1;
@@ -217,7 +218,7 @@
     });
     if (!rights.edit) {
       sheet = null;
-      return toast('Carte ajoutée');
+      return toast(tr("Tuile ajoutée"));
     }
     // Tout de suite ses réglages : nom, appui long, règles…
     sheet = { kind: 'card', ref: resolve(card, sectionIndex, pos) };
@@ -483,14 +484,14 @@
 
 {#if empty && !zigbeeConfigured}
   <section class="setup">
-    <h2>Connectez vos appareils Zigbee</h2>
-    <p>Heim lit vos appareils via Zigbee2MQTT. Indiquez l'adresse de la machine où tourne le broker MQTT (souvent celle de Home Assistant).</p>
+    <h2>{tr("Connectez vos appareils Zigbee")}</h2>
+    <p>{tr("Heim lit vos appareils via Zigbee2MQTT. Indiquez l'adresse de la machine où tourne le broker MQTT (souvent celle de Home Assistant).")}</p>
     <ConnectionForm />
   </section>
 {/if}
 
 {#if look.nav === 'tabs' && pages.length > 1 && !editing}
-  <nav class="board-tabs" aria-label="Tableaux de bord">
+  <nav class="board-tabs" aria-label={tr("Tableaux")}>
     {#each pages as b (b.id)}
       <button class:on={b.id === board?.id} aria-current={b.id === board?.id ? 'page' : undefined} onclick={() => showBoard(b.id)}>
         <Icon name={b.icon || 'house'} size={17} />
@@ -503,19 +504,19 @@
 {#if home.loaded && board}
   <div class="bar">
     {#if editing}
-      <button class="btn" onclick={() => (editing = false)}><Icon name="check" size={18} /> Terminé</button>
-      {#if rights.add}<button class="btn quiet" onclick={() => (sheet = { kind: 'add' })}><Icon name="plus" size={18} /> Ajouter une carte</button>{/if}
-      {#if rights.edit && rights.add}<button class="btn quiet" onclick={() => mutate((d) => d.sections.push({ title: 'Nouvelle section', cards: [] }))}>Nouvelle section</button>{/if}
+      <button class="btn" onclick={() => (editing = false)}><Icon name="check" size={18} /> {tr("Terminé")}</button>
+      {#if rights.add}<button class="btn quiet" onclick={() => (sheet = { kind: 'add' })}><Icon name="plus" size={18} /> {tr("Ajouter une tuile")}</button>{/if}
+      {#if rights.edit && rights.add}<button class="btn quiet" onclick={() => mutate((d) => d.sections.push({ title: tr("Nouvelle section"), cards: [] }))}>{tr("Nouvelle section")}</button>{/if}
       {#if rights.manage}
-        <button class="btn quiet" onclick={() => (sheet = { kind: 'boards' })}><Icon name="grid" size={17} /> Tableaux</button>
-        <button class="btn danger" onclick={resetToAuto}>Rangement automatique</button>
+        <button class="btn quiet" onclick={() => (sheet = { kind: 'boards' })}><Icon name="grid" size={17} /> {tr("Tableaux")}</button>
+        <button class="btn danger" onclick={resetToAuto}>{tr("Rangement automatique")}</button>
       {/if}
     {:else}
-      {#if pages.length > 1 || board.hidden}<h1 class="board-name">{board.name}{#if board.hidden}<span class="hidden-tag">caché</span>{/if}</h1>{/if}
+      {#if pages.length > 1 || (board.hidden && !home.screen?.kiosk)}<h1 class="board-name">{board.name}{#if board.hidden && !home.screen?.kiosk}<span class="hidden-tag">{tr("caché")}</span>{/if}</h1>{/if}
       {#if (rights.edit || rights.add) && (!board.auto || (rights.edit && rights.add))}
-        <button class="link" onclick={startEditing}><Icon name="pencil" size={16} /> Personnaliser</button>
+        <button class="link" onclick={startEditing}><Icon name="pencil" size={16} /> {tr("Personnaliser")}</button>
       {/if}
-      {#if rights.manage}<button class="link" onclick={() => (sheet = { kind: 'boards' })}><Icon name="grid" size={16} /> Tableaux</button>{/if}
+      {#if rights.manage}<button class="link" onclick={() => (sheet = { kind: 'boards' })}><Icon name="grid" size={16} /> {tr("Tableaux")}</button>{/if}
     {/if}
   </div>
 {/if}
@@ -523,10 +524,9 @@
 {#if editing}
   <p class="hint">
     {#if rights.edit}
-      Appui long sur une carte pour la déplacer, poignée en bas à droite pour l’agrandir ou la réduire. Touchez-la pour ses réglages :
-      fonction (appui court, long, double) et apparence (taille, disposition, couleurs…).
+      {tr("Appui long sur une tuile pour la déplacer, poignée en bas à droite pour l’agrandir ou la réduire. Touchez-la pour ses réglages : fonction (appui court, long, double) et apparence (taille, disposition, couleurs…).")}
     {:else}
-      Votre compte peut ajouter des cartes à ce tableau, sans modifier les autres.
+      {tr("Votre compte peut ajouter des tuiles à ce tableau, sans modifier les autres.")}
     {/if}
   </p>
 {/if}
@@ -551,17 +551,17 @@
             <input
               class="title-input"
               value={sec.title}
-              aria-label="Nom de la section"
+              aria-label={tr("Nom de la section")}
               onchange={(e) => mutate((d) => (d.sections[s].title = e.currentTarget.value.trim()))}
-              placeholder="Sans titre"
+              placeholder={tr("Sans titre")}
             />
             <div class="sec-tools">
-              <button class="mini" onclick={() => moveSection(s, -1)} disabled={s === 0} aria-label="Monter la section">↑</button>
-              <button class="mini" onclick={() => moveSection(s, 1)} disabled={s === sections.length - 1} aria-label="Descendre la section">↓</button>
+              <button class="mini" onclick={() => moveSection(s, -1)} disabled={s === 0} aria-label={tr("Monter la section")}>↑</button>
+              <button class="mini" onclick={() => moveSection(s, 1)} disabled={s === sections.length - 1} aria-label={tr("Descendre la section")}>↓</button>
               <button
                 class="mini"
-                aria-label="Supprimer la section"
-                onclick={() => confirm(`Supprimer la section « ${sec.title || 'sans titre'} » ? Les appareils restent dans Appareils.`) && mutate((d) => d.sections.splice(s, 1))}
+                aria-label={tr("Supprimer la section")}
+                onclick={() => confirm(tr("Supprimer la section « {v} » ? Les appareils restent dans Appareils.", { v: sec.title || tr("sans titre") })) && mutate((d) => d.sections.splice(s, 1))}
               ><Icon name="close" size={16} /></button>
             </div>
           </header>
@@ -572,11 +572,11 @@
               {sec.title}
             </h2>
             {#if sec.unsorted}
-              <p>Touchez le crayon d'un appareil pour lui donner un nom et une pièce.</p>
+              <p>{tr("Touchez le crayon d'un appareil pour lui donner un nom et une pièce.")}</p>
             {:else if lights.length > 1}
               {@const lit = lights.some((c) => isOn(c.entity))}
               <button class="group" class:lit onclick={() => toggleSection(sec)}>
-                {lit ? 'Éteindre la pièce' : 'Allumer la pièce'}
+                {lit ? tr("Éteindre la pièce") : tr("Allumer la pièce")}
               </button>
             {/if}
           </header>
@@ -590,7 +590,7 @@
             {@const special = c.house && ['scenes', 'timers', 'clock'].includes(c.card.kind)}
             <div
               role="group"
-              aria-label={c.card.name || c.entity?.name || c.card.text || 'Carte'}
+              aria-label={c.card.name || c.entity?.name || c.card.text || tr("Tuile")}
               class="slot"
               class:dragging
               class:drop={dropBefore}
@@ -608,15 +608,15 @@
             >
               {#if c.card.type === 'title'}
                 <div class="title-card" class:center={c.card.align === 'center'}>
-                  <h3>{c.card.text || 'Titre'}</h3>
+                  <h3>{c.card.text || tr("Titre")}</h3>
                   {#if c.card.subtitle}<p>{c.card.subtitle}</p>{/if}
                 </div>
               {:else if c.card.type === 'spacer'}
-                <div class="spacer" aria-hidden="true">{#if editing}Espace{/if}</div>
+                <div class="spacer" aria-hidden="true">{#if editing}{tr("Espace")}{/if}</div>
               {:else if special}
                 <HouseSpecial card={c.card} preview={editing} />
               {:else if !c.entity}
-                <div class="ghost">Introuvable (supprimé ?)</div>
+                <div class="ghost">{tr("Introuvable (supprimé ?)")}</div>
               {:else}
                 <Tile
                   card={c.card.w || c.card.h ? c.card : { ...c.card, ...size }}
@@ -631,7 +631,7 @@
                 <span class="size-badge num" aria-hidden="true">{size.w}×{size.h}</span>
                 <button
                   class="grip"
-                  aria-label="Redimensionner"
+                  aria-label={tr("Redimensionner")}
                   onpointerdown={(e) => resizeDown(e, s, i, c.card)}
                   onpointermove={resizeMove}
                   onpointerup={resizeUp}
@@ -644,20 +644,20 @@
             </div>
           {/each}
           {#if editing && rights.add && !sec.cards.length}
-            <button class="empty-slot" onclick={() => (sheet = { kind: 'add', section: s })}>Ajouter une carte ici</button>
+            <button class="empty-slot" onclick={() => (sheet = { kind: 'add', section: s })}>{tr("Ajouter une tuile ici")}</button>
           {/if}
         </div>
       </section>
     {:else}
       {#if home.loaded && board}
-        <p class="nothing">Ce tableau est vide.{#if rights.add} Touchez « Personnaliser » pour y mettre des cartes.{/if}</p>
+        <p class="nothing">{tr("Ce tableau est vide.")}{#if rights.add} {tr("Touchez « Personnaliser » pour y mettre des tuiles.")}{/if}</p>
       {/if}
     {/each}
   </div>
 </div>
 
 {#if pages.length > 1 && look.nav === 'swipe' && !editing}
-  <div class="dots" class:kiosk={home.screen?.kiosk} role="tablist" aria-label="Tableaux de bord">
+  <div class="dots" class:kiosk={home.screen?.kiosk} role="tablist" aria-label={tr("Tableaux")}>
     {#each pages as b, k (b.id)}
       <button
         role="tab"
@@ -680,7 +680,7 @@
 {:else if sheet?.kind === 'house'}
   <HouseListSheet card={sheet.card} onclose={() => (sheet = null)} />
 {:else if sheet?.kind === 'alarm'}
-  <Sheet title="Alarme" onclose={() => (sheet = null)}><AlarmCard /></Sheet>
+  <Sheet title={tr("Alarme")} onclose={() => (sheet = null)}><AlarmCard /></Sheet>
 {:else if sheet?.kind === 'boards'}
   <BoardsSheet onclose={() => (sheet = null)} />
 {:else if sheet?.kind === 'card'}
@@ -753,7 +753,8 @@
       align-items: start;
     }
 
-    .unsorted {
+    .unsorted,
+    .room:only-child {
       grid-column: 1 / -1;
     }
   }

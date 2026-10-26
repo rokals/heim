@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // Tuya en local : importer le fichier de tinytuya, ou ajouter un appareil à la main.
   import { onMount } from 'svelte';
   import Icon from '../Icon.svelte';
@@ -24,9 +25,9 @@
 
   function deviceState(d) {
     const e = d.entities.map((id) => home.entities[id]).find(Boolean);
-    if (!d.supported) return { text: 'non pris en charge en local (caméra, sonnette ou appareil sur pile)', bad: true };
-    if (!e?.state) return { text: d.ip ? 'connexion…' : "en attente de son annonce réseau (ou indiquez l'adresse IP)" };
-    return e.state.available ? { text: 'connecté', ok: true } : { text: 'injoignable', bad: true };
+    if (!d.supported) return { text: tr("non pris en charge en local (caméra, sonnette ou appareil sur pile)"), bad: true };
+    if (!e?.state) return { text: d.ip ? 'connexion…' : tr("en attente de son annonce réseau (ou indiquez l'adresse IP)") };
+    return e.state.available ? { text: tr("connecté"), ok: true } : { text: 'injoignable', bad: true };
   }
 
   async function save(devices, enabled = cfg.enabled) {
@@ -38,7 +39,7 @@
           devices: devices.map((d) => ({ id: d.id, name: d.name, key: d.key || null, ip: d.ip || null, version: d.version || null, category: d.category || null })),
         },
       });
-      toast('Tuya enregistré');
+      toast(tr("Tuya enregistré"));
       return true;
     } catch (e) {
       toast(e.message, 'alert');
@@ -56,7 +57,7 @@
       const data = await r.json();
       if (!r.ok) throw new Error(data.error);
       cfg = data;
-      toast(data.added ? `${data.added} appareil(s) ajouté(s)` : 'Appareils mis à jour');
+      toast(data.added ? tr("{added} appareil(s) ajouté(s)", { added: data.added }) : tr("Appareils mis à jour"));
     } catch (err) {
       toast(err.message, 'alert');
     }
@@ -84,27 +85,27 @@
   }
 
   async function remove(d) {
-    if (!confirm(`Retirer « ${d.name} » de Heim ?`)) return;
+    if (!confirm(tr("Retirer « {name} » de Heim ?", { name: d.name }))) return;
     await save(cfg.devices.filter((x) => x.id !== d.id));
   }
 
   const known = (id) => cfg?.devices.some((d) => d.id === id);
 </script>
 
-<p class="muted">Prises, ampoules et interrupteurs Wi-Fi Tuya (LSC Action, Lidl, Silvercrest…), pilotés directement sur le réseau, sans le cloud. Il faut une fois la « clé locale » de chaque appareil.</p>
+<p class="muted">{tr("Prises, ampoules et interrupteurs Wi-Fi Tuya (LSC Action, Lidl, Silvercrest…), pilotés directement sur le réseau, sans le cloud. Il faut une fois la « clé locale » de chaque appareil.")}</p>
 
 {#if cfg}
   {#if !embedded}
     <label class="check big">
       <input type="checkbox" checked={cfg.enabled} onchange={(e) => save(cfg.devices, e.currentTarget.checked)} />
-      <strong>Activer Tuya</strong>
+      <strong>{tr("Activer Tuya")}</strong>
       {#if status?.detail}<span class="muted">— {status.detail}</span>{/if}
     </label>
   {/if}
 
-  <h2>Appareils</h2>
+  <h2>{tr("Appareils")}</h2>
   {#if !cfg.devices.length}
-    <p class="muted">Aucun appareil pour l'instant.</p>
+    <p class="muted">{tr("Aucun appareil pour l'instant.")}</p>
   {:else}
     <ul class="rows">
       {#each cfg.devices as d (d.id)}
@@ -115,22 +116,22 @@
             <strong>{d.name}</strong>
             <span>{d.product_name ?? d.category ?? ''}{d.ip ? ` · ${d.ip}` : ''}{d.version ? ` · v${d.version}` : ''} · {s.text}</span>
           </div>
-          <button class="mini" aria-label="Modifier {d.name}" onclick={() => (editing = { ...d, key: '' })}><Icon name="pencil" size={16} /></button>
-          <button class="mini" aria-label="Retirer {d.name}" onclick={() => remove(d)}><Icon name="close" size={16} /></button>
+          <button class="mini" aria-label={tr("Modifier {name}", { name: d.name })} onclick={() => (editing = { ...d, key: '' })}><Icon name="pencil" size={16} /></button>
+          <button class="mini" aria-label={tr("Retirer {name}", { name: d.name })} onclick={() => remove(d)}><Icon name="close" size={16} /></button>
         </li>
         {#if editing?.id === d.id}
           <li class="edit">
             <form onsubmit={saveEdit}>
-              <input class="input" bind:value={editing.name} placeholder="Nom" />
-              <input class="input" bind:value={editing.ip} placeholder="Adresse IP (vide : trouvée toute seule)" inputmode="decimal" />
+              <input class="input" bind:value={editing.name} placeholder={tr("Nom")} />
+              <input class="input" bind:value={editing.ip} placeholder={tr("Adresse IP (vide : trouvée toute seule)")} inputmode="decimal" />
               <select class="input" bind:value={editing.version}>
-                <option value="">Version : automatique</option>
+                <option value="">{tr("Version : automatique")}</option>
                 <option value="3.3">3.3</option><option value="3.4">3.4</option><option value="3.5">3.5</option>
               </select>
-              <input class="input" bind:value={editing.key} placeholder="Nouvelle clé locale (vide : garder l'actuelle)" autocomplete="off" />
+              <input class="input" bind:value={editing.key} placeholder={tr("Nouvelle clé locale (vide : garder l'actuelle)")} autocomplete="off" />
               <div class="row">
-                <button class="btn" type="submit">Enregistrer</button>
-                <button class="btn quiet" type="button" onclick={() => (editing = null)}>Annuler</button>
+                <button class="btn" type="submit">{tr("Enregistrer")}</button>
+                <button class="btn quiet" type="button" onclick={() => (editing = null)}>{tr("Annuler")}</button>
               </div>
             </form>
           </li>
@@ -141,52 +142,52 @@
 
   <div class="row">
     <label class="btn">
-      <Icon name="plus" size={18} /> Importer devices.json
+      <Icon name="plus" size={18} /> {tr("Importer devices.json")}
       <input type="file" accept=".json,application/json" onchange={importFile} hidden />
     </label>
-    <button class="btn quiet" onclick={() => (adding = !adding)}>Ajouter à la main</button>
-    <button class="btn quiet" disabled={scanning} onclick={scan}>{scanning ? 'Écoute du réseau…' : 'Chercher sur le réseau'}</button>
+    <button class="btn quiet" onclick={() => (adding = !adding)}>{tr("Ajouter à la main")}</button>
+    <button class="btn quiet" disabled={scanning} onclick={scan}>{scanning ? tr("Écoute du réseau…") : tr("Chercher sur le réseau")}</button>
   </div>
 
   {#if adding}
     <form class="manual" onsubmit={addManual}>
-      <input class="input" bind:value={draft.name} placeholder="Nom (Prise salon)" />
-      <input class="input" bind:value={draft.id} placeholder="Identifiant (bf…)" autocomplete="off" />
-      <input class="input" bind:value={draft.key} placeholder="Clé locale (16 caractères)" autocomplete="off" />
-      <input class="input" bind:value={draft.ip} placeholder="Adresse IP (facultatif)" inputmode="decimal" />
+      <input class="input" bind:value={draft.name} placeholder={tr("Nom (Prise salon)")} />
+      <input class="input" bind:value={draft.id} placeholder={tr("Identifiant (bf…)")} autocomplete="off" />
+      <input class="input" bind:value={draft.key} placeholder={tr("Clé locale (16 caractères)")} autocomplete="off" />
+      <input class="input" bind:value={draft.ip} placeholder={tr("Adresse IP (facultatif)")} inputmode="decimal" />
       <select class="input" bind:value={draft.category}>
-        <option value="cz">Prise</option>
-        <option value="kg">Interrupteur</option>
-        <option value="dj">Ampoule</option>
+        <option value="cz">{tr("Prise")}</option>
+        <option value="kg">{tr("Interrupteur")}</option>
+        <option value="dj">{tr("Ampoule")}</option>
       </select>
-      <button class="btn" type="submit" disabled={!draft.id || draft.key.length !== 16}>Ajouter</button>
+      <button class="btn" type="submit" disabled={!draft.id || draft.key.length !== 16}>{tr("Ajouter")}</button>
     </form>
   {/if}
 
   {#if found}
-    <h2>Sur le réseau</h2>
+    <h2>{tr("Sur le réseau")}</h2>
     {#if !found.length}
-      <p class="muted">Aucun appareil Tuya entendu en 6 secondes. Ils s'annoncent toutes les 5 s quand ils sont branchés et sur le même réseau que Heim.</p>
+      <p class="muted">{tr("Aucun appareil Tuya entendu en 6 secondes. Ils s'annoncent toutes les 5 s quand ils sont branchés et sur le même réseau que Heim.")}</p>
     {:else}
       <ul class="rows">
         {#each found as a (a.id)}
           <li>
             <span class="dot" class:ok={known(a.id)}></span>
-            <div class="txt"><strong class="num">{a.id}</strong><span>{a.ip} · v{a.version}{known(a.id) ? ' · déjà dans Heim' : ' · clé locale à fournir'}</span></div>
+            <div class="txt"><strong class="num">{a.id}</strong><span>{a.ip} · v{a.version}{known(a.id) ? tr(" · déjà dans Heim") : tr(" · clé locale à fournir")}</span></div>
           </li>
         {/each}
       </ul>
     {/if}
   {/if}
 
-  <h2>Obtenir les clés locales</h2>
+  <h2>{tr("Obtenir les clés locales")}</h2>
   <ol class="steps">
-    <li>Créez un compte gratuit sur <strong>platform.tuya.com</strong>, puis un « Cloud Project » (région Europe centrale).</li>
-    <li>Dans le projet : <em>Devices</em> &gt; <em>Link App Account</em>, et scannez le QR code avec l'application Smart Life ou LSC Smart Connect. Vos appareils apparaissent.</li>
-    <li>Sur votre PC : <code>pip install tinytuya</code> puis <code>python -m tinytuya wizard</code>, avec l'« Access ID » et l'« Access Secret » du projet.</li>
-    <li>Importez ici le fichier <code>devices.json</code> qu'il a créé. Heim reconnaît tout seul prises, ampoules et interrupteurs.</li>
+    <li>{tr("Créez un compte gratuit sur")} <strong>{tr("platform.tuya.com")}</strong>{tr(", puis un « Cloud Project » (région Europe centrale).")}</li>
+    <li>{tr("Dans le projet :")} <em>{tr("Devices")}</em> &gt; <em>{tr("Link App Account")}</em>{tr(", et scannez le QR code avec l'application Smart Life ou LSC Smart Connect. Vos appareils apparaissent.")}</li>
+    <li>{tr("Sur votre PC :")} <code>pip install tinytuya</code> {tr("puis")} <code>python -m tinytuya wizard</code>{tr(", avec l'« Access ID » et l'« Access Secret » du projet.")}</li>
+    <li>{tr("Importez ici le fichier")} <code>devices.json</code> {tr("qu'il a créé. Heim reconnaît tout seul prises, ampoules et interrupteurs.")}</li>
   </ol>
-  <p class="muted small">Si un appareil est aussi relié à Home Assistant par LocalTuya ou Tuya Local, coupez-le là-bas : beaucoup d'appareils Tuya n'acceptent qu'une connexion locale à la fois. Les appareils sur pile (sonnettes, capteurs) dorment et ne parlent qu'au cloud : ils ne marchent pas en local. Changer le Wi-Fi ou réappairer un appareil change sa clé : réimportez alors le fichier.</p>
+  <p class="muted small">{tr("Si un appareil est aussi relié à Home Assistant par LocalTuya ou Tuya Local, coupez-le là-bas : beaucoup d'appareils Tuya n'acceptent qu'une connexion locale à la fois. Les appareils sur pile (sonnettes, capteurs) dorment et ne parlent qu'au cloud : ils ne marchent pas en local. Changer le Wi-Fi ou réappairer un appareil change sa clé : réimportez alors le fichier.")}</p>
 {/if}
 
 <style>

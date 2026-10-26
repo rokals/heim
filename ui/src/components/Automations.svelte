@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   import Icon from './Icon.svelte';
   import AutomationEditor from './AutomationEditor.svelte';
   import { describeTrigger, PRESETS } from '../lib/automation.js';
@@ -30,7 +31,7 @@
   async function rearm(a) {
     try {
       await api(`/automations/${a.id}/op`, { method: 'POST', body: { state: 'rearm' } });
-      toast(`${a.name} : réarmé`);
+      toast(tr("{name} : réarmé", { name: a.name }));
       await loadAutomations();
     } catch (e) {
       toast(e.message, 'alert');
@@ -39,18 +40,18 @@
 
   function summary(a) {
     const when = a.triggers.map((t) => describeTrigger(t, home.entities)).join(' ou ');
-    return when ? `Quand ${when}` : '';
+    return when ? tr("Quand {when}", { when }) : '';
   }
 </script>
 
 <header class="top">
-  <h1>Automatismes</h1>
-  {#if isAdmin()}<button class="btn" onclick={() => (editing = { automation: null })}><Icon name="plus" size={18} /> Nouvel automatisme</button>{/if}
+  <h1>{tr("Automatismes")}</h1>
+  {#if isAdmin()}<button class="btn" onclick={() => (editing = { automation: null })}><Icon name="plus" size={18} /> {tr("Nouvel automatisme")}</button>{/if}
 </header>
-<p class="intro">Quand quelque chose se passe, et si les conditions sont réunies, Heim agit tout seul.</p>
+<p class="intro">{tr("Quand quelque chose se passe, et si les conditions sont réunies, Heim agit tout seul.")}</p>
 
 {#if !home.automations.length && isAdmin()}
-  <h2>Pour commencer</h2>
+  <h2>{tr("Pour commencer")}</h2>
   <div class="presets">
     {#each PRESETS as p (p.title)}
       <button class="preset" onclick={() => (editing = { preset: structuredClone(p.value) })}>
@@ -67,22 +68,22 @@
       <button class="main" onclick={() => isAdmin() && (editing = { automation: a })}>
         <strong>
           {a.name}
-          <span class="flag" class:up={a.state !== a.rest_state}>{a.state ? 'Vrai' : 'Faux'}</span>
+          <span class="flag" class:up={a.state !== a.rest_state}>{a.state ? tr("Vrai") : tr("Faux")}</span>
         </strong>
         <span>{summary(a)}</span>
         {#if a.last_error}
-          <span class="err">Dernier essai : {a.last_error}</span>
+          <span class="err">{tr("Dernier essai : {last_error}", { last_error: a.last_error })}</span>
         {:else if a.last_check && !a.last_check.ran}
-          <span class="skip">Pas lancé {ago(a.last_check.at, home.now)} : {a.last_check.reason}</span>
+          <span class="skip">{tr("Pas lancé {ago} : {reason}", { ago: ago(a.last_check.at, home.now), reason: a.last_check.reason })}</span>
         {:else if a.last_run}
-          <span class="ran">Exécuté {ago(a.last_run, home.now)}</span>
+          <span class="ran">{tr("Exécuté {ago}", { ago: ago(a.last_run, home.now) })}</span>
         {/if}
       </button>
       {#if a.state !== a.rest_state}
-        <button class="btn quiet rearm" onclick={() => rearm(a)}>Réarmer</button>
+        <button class="btn quiet rearm" onclick={() => rearm(a)}>{tr("Réarmer")}</button>
       {/if}
-      <label class="switch" title={a.enabled ? 'Actif' : 'En pause'}>
-        <input type="checkbox" checked={a.enabled} disabled={!isAdmin()} onchange={() => toggle(a)} aria-label="Activer {a.name}" />
+      <label class="switch" title={a.enabled ? tr("Actif") : tr("En pause")}>
+        <input type="checkbox" checked={a.enabled} disabled={!isAdmin()} onchange={() => toggle(a)} aria-label={tr("Activer {name}", { name: a.name })} />
         <span></span>
       </label>
     </li>

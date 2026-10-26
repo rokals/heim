@@ -1,4 +1,5 @@
 <script>
+  import { tr, locale } from '../lib/i18n.js';
   // Les cartes Maison qui ne ressemblent pas à un bouton : la barre des scènes, les
   // minuteurs, l'horloge. Même cadre que les autres cartes, contenu à elles.
   import Icon from './Icon.svelte';
@@ -23,8 +24,8 @@
       .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'fr'));
   });
   const now = $derived(new Date(home.now));
-  const time = $derived(now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }));
-  const date = $derived(now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }));
+  const time = $derived(now.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' }));
+  const date = $derived(now.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' }));
 
   function scene(s) {
     if (preview) return;
@@ -33,21 +34,21 @@
 </script>
 
 {#if card.kind === 'scenes'}
-  <div class="frame scenes" class:wrap={size.h > 1} data-noswipe role="group" aria-label={card.name || 'Scènes'}>
+  <div class="frame scenes" class:wrap={size.h > 1} data-noswipe role="group" aria-label={card.name || tr("Scènes")}>
     {#each scenes as s (s.entity_id)}
       {@const active = isOn(s)}
       <button class="scene" class:active style:--tint={s.capabilities?.color || null} aria-pressed={active} onclick={() => scene(s)}>
         <Icon name={s.capabilities?.icon || 'scene'} size={17} />
         {s.name}
-        {#if s.state?.attributes?.partial}<span class="partial">en partie</span>{/if}
+        {#if s.state?.attributes?.partial}<span class="partial">{tr("en partie")}</span>{/if}
       </button>
     {:else}
-      <p class="empty">Pas encore de scène : créez-en une dans l'onglet Scènes.</p>
+      <p class="empty">{tr("Pas encore de scène : créez-en une dans l'onglet Scènes.")}</p>
     {/each}
   </div>
 {:else if card.kind === 'timers'}
   <div class="frame timers" data-noswipe>
-    {#each timers as t (t.entity_id)}<TimerTile entity={t} compact />{:else}<p class="empty">Aucun minuteur.</p>{/each}
+    {#each timers as t (t.entity_id)}<TimerTile entity={t} compact />{:else}<p class="empty">{tr("Aucun minuteur.")}</p>{/each}
   </div>
 {:else if card.kind === 'clock'}
   <div class="frame clock" class:big={size.h >= 2} class:row={size.h === 1}>

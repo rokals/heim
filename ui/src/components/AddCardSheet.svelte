@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Ajouter un bouton à l'accueil : tout est là, rangé en trois onglets (Appareils, Scènes,
   // Automatismes). On touche une chose, puis on choisit ce que fera le bouton.
   import { untrack } from 'svelte';
@@ -27,30 +28,30 @@
   const devices = $derived.by(() => {
     const out = [];
     for (const g of all.filter((e) => e.domain === 'group')) {
-      out.push({ entity: g, name: g.name, where: `Groupe · ${g.room || 'Sans pièce'}`, icon: 'bulb' });
+      out.push({ entity: g, name: g.name, where: tr("Groupe · {v}", { v: g.room || tr("Sans pièce") }), icon: 'bulb' });
     }
     for (const d of groupDevices(all).filter((d) => !d.hidden)) {
       if (d.controls.length) {
         for (const c of d.controls)
-          out.push({ entity: c, name: d.controls.length > 1 ? c.name : d.name, where: d.room || 'Sans pièce', icon: iconFor(c) });
+          out.push({ entity: c, name: d.controls.length > 1 ? c.name : d.name, where: d.room || tr("Sans pièce"), icon: iconFor(c) });
       } else if (d.readings.length) {
         // Un capteur à plusieurs mesures : chacune peut avoir son bouton.
         for (const r of d.readings)
           out.push({
             entity: r,
             name: d.readings.length > 1 ? `${d.name} · ${r.name.replace(d.name, '').trim() || r.name}` : d.name,
-            where: d.room || 'Sans pièce',
+            where: d.room || tr("Sans pièce"),
             icon: iconFor(r),
           });
       }
     }
-    for (const p of all.filter((e) => e.domain === 'person')) out.push({ entity: p, name: p.name, where: 'Personne', icon: 'user' });
+    for (const p of all.filter((e) => e.domain === 'person')) out.push({ entity: p, name: p.name, where: tr("Personne suivie"), icon: 'user' });
     return out.filter((m) => match(m.name, m.where)).sort((a, b) => a.where.localeCompare(b.where, 'fr') || byName(a, b));
   });
   const scenes = $derived(
     all
       .filter((e) => e.domain === 'scene' && !e.hidden)
-      .map((e) => ({ entity: e, name: e.name, where: 'Scène', icon: 'scene' }))
+      .map((e) => ({ entity: e, name: e.name, where: tr("Scène"), icon: 'scene' }))
       .filter((m) => match(m.name))
       .sort(byName),
   );
@@ -60,7 +61,7 @@
       .map((e) => ({
         entity: e,
         name: e.name,
-        where: e.state?.attributes?.enabled === false ? 'Désactivé' : e.state?.value === 'on' ? 'État : vrai' : 'État : faux',
+        where: e.state?.attributes?.enabled === false ? tr("Désactivé") : e.state?.value === 'on' ? tr("État : vrai") : tr("État : faux"),
         icon: 'auto',
       }))
       .filter((m) => match(m.name))
@@ -74,14 +75,14 @@
   );
   const alarmReady = $derived(isConfigured(home.security?.config));
   const OTHERS = [
-    { id: 'title', name: 'Titre', hint: 'Un intertitre pour regrouper des cartes', icon: 'pencil', card: { type: 'title', text: 'Titre', w: 4, h: 1 } },
-    { id: 'spacer', name: 'Espace vide', hint: 'Une case vide pour aérer ou aligner', icon: 'plus', card: { type: 'spacer', w: 1, h: 1 } },
+    { id: 'title', name: tr("Titre"), hint: tr("Un intertitre pour regrouper des tuiles"), icon: 'pencil', card: { type: 'title', text: tr("Titre"), w: 4, h: 1 } },
+    { id: 'spacer', name: tr("Espace vide"), hint: tr("Une case vide pour aérer ou aligner"), icon: 'plus', card: { type: 'spacer', w: 1, h: 1 } },
   ];
   const TABS = $derived([
-    { id: 'devices', label: 'Appareils', items: devices },
-    { id: 'scenes', label: 'Scènes', items: scenes },
-    { id: 'automations', label: 'Automatismes', items: automations },
-    { id: 'house', label: 'Maison', items: HOUSE },
+    { id: 'devices', label: tr("Appareils"), items: devices },
+    { id: 'scenes', label: tr("Scènes"), items: scenes },
+    { id: 'automations', label: tr("Automatismes"), items: automations },
+    { id: 'house', label: tr("Maison"), items: HOUSE },
   ]);
   const items = $derived(TABS.find((t) => t.id === tab).items);
 
@@ -90,7 +91,7 @@
   }
 </script>
 
-<Sheet title="Ajouter une carte" {onclose}>
+<Sheet title={tr("Ajouter une tuile")} {onclose}>
   <div class="tabs" role="tablist">
     {#each TABS as t (t.id)}
       <button role="tab" aria-selected={tab === t.id} class:on={tab === t.id} onclick={() => ((tab = t.id), (open = null))}>
@@ -101,20 +102,20 @@
 
   <div class="search">
     <Icon name="search" size={18} />
-    <input class="input" type="search" placeholder="Chercher par nom ou pièce" bind:value={query} aria-label="Chercher" />
+    <input class="input" type="search" placeholder={tr("Chercher par nom ou pièce")} bind:value={query} aria-label={tr("Chercher")} />
   </div>
 
   {#if dashboard?.sections?.length > 1}
     <label class="field">
-      <span>Dans la section</span>
+      <span>{tr("Dans la section")}</span>
       <select class="input" bind:value={target}>
-        {#each dashboard.sections as sec, k (k)}<option value={k}>{sec.title || 'En haut (sans titre)'}</option>{/each}
+        {#each dashboard.sections as sec, k (k)}<option value={k}>{sec.title || tr("En haut (sans titre)")}</option>{/each}
       </select>
     </label>
   {/if}
 
   {#if tab === 'house'}
-    <p class="muted small">Ces cartes ne sont liées à aucun appareil : elles se recalculent toutes seules, une lampe ajoutée demain compte aussitôt.</p>
+    <p class="muted small">{tr("Ces tuiles ne sont liées à aucun appareil : elles se recalculent toutes seules, une lampe ajoutée demain compte aussitôt.")}</p>
     <ul>
       {#each HOUSE as o (o.id)}
         {@const multi = o.id === 'room' || (o.id === 'leave' && alarmReady)}
@@ -127,15 +128,15 @@
           {#if open === o.id && o.id === 'room'}
             <div class="choices">
               {#each homeRooms() as r (r)}
-                <button class="choice" onclick={() => onadd(target, { ...structuredClone(o.card), room: r })}><strong>{r}</strong><span>Lumières de la pièce</span></button>
+                <button class="choice" onclick={() => onadd(target, { ...structuredClone(o.card), room: r })}><strong>{r}</strong><span>{tr("Lumières de la pièce")}</span></button>
               {:else}
-                <p class="muted">Aucune pièce : créez-en dans Réglages, Maison.</p>
+                <p class="muted">{tr("Aucune pièce : créez-en dans Réglages, Maison.")}</p>
               {/each}
             </div>
           {:else if open === o.id && o.id === 'leave'}
             <div class="choices">
-              <button class="choice" onclick={() => onadd(target, structuredClone(o.card))}><strong>Tout couper</strong><span>Lumières et prises</span></button>
-              <button class="choice" onclick={() => onadd(target, { ...structuredClone(o.card), arm: true })}><strong>Et activer l’alarme</strong><span>Mode Absent</span></button>
+              <button class="choice" onclick={() => onadd(target, structuredClone(o.card))}><strong>{tr("Tout couper")}</strong><span>{tr("Lumières et prises")}</span></button>
+              <button class="choice" onclick={() => onadd(target, { ...structuredClone(o.card), arm: true })}><strong>{tr("Et activer l’alarme")}</strong><span>{tr("Mode Absent")}</span></button>
             </div>
           {/if}
         </li>
@@ -143,7 +144,7 @@
     </ul>
   {:else if !items.length}
     <p class="muted">
-      {#if q}Rien ne correspond à « {query} ».{:else if tab === 'automations'}Pas encore d'automatisme : créez-en un dans l'onglet Automatismes.{:else if tab === 'scenes'}Pas encore de scène.{:else}Aucun appareil.{/if}
+      {#if q}{tr("Rien ne correspond à « {query} ».", { query })}{:else if tab === 'automations'}{tr("Pas encore d'automatisme : créez-en un dans l'onglet Automatismes.")}{:else if tab === 'scenes'}{tr("Pas encore de scène.")}{:else}{tr("Aucun appareil.")}{/if}
     </p>
   {/if}
 
@@ -155,7 +156,7 @@
           <span class="ic"><Icon name={m.icon || defaultIcon(m.entity)} size={20} /></span>
           <span class="txt">
             <strong>{m.name}</strong>
-            <span>{m.where}{used.has(m.entity.entity_id) ? ' · déjà sur l’accueil' : ''}</span>
+            <span>{m.where}{used.has(m.entity.entity_id) ? tr(" · déjà sur l’accueil") : ''}</span>
           </span>
           <span class="chev" aria-hidden="true">{choices.length === 1 ? '+' : open === m.entity.entity_id ? '–' : '›'}</span>
         </button>

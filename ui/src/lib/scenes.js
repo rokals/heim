@@ -1,5 +1,6 @@
 // Scènes : mots, modèles et petites conversions de l'éditeur. Fonctions pures (npm test).
 
+import { tr, locale } from './i18n.js';
 export const toKelvin = (mired) => Math.round(1e6 / mired / 50) * 50;
 export const toMired = (k) => Math.round(1e6 / k);
 
@@ -16,13 +17,13 @@ export function dimmable(entity) {
 /** « Allumé · 40 % · 2 700 K », « Éteint », « Allumé · couleur ». */
 export function summary(target, entity) {
   if (!target) return '';
-  if (!target.on) return 'Éteint';
-  const parts = ['Allumé'];
+  if (!target.on) return tr("Éteint");
+  const parts = [tr("Allumé")];
   if (target.brightness != null) parts.push(`${Math.max(1, Math.round((target.brightness / 255) * 100))} %`);
   if (target.color) parts.push('couleur');
   else if (target.color_temp != null) parts.push(`${String(toKelvin(target.color_temp)).replace(/\B(?=(\d{3})+$)/g, '\u00a0')}\u00a0K`);
   if (target.effect) parts.push(`effet ${target.effect}`);
-  if (parts.length === 1 && entity?.domain === 'light') parts.push('sans changer le reste');
+  if (parts.length === 1 && entity?.domain === 'light') parts.push(tr("sans changer le reste"));
   return parts.join(' · ');
 }
 
@@ -43,11 +44,11 @@ export function sameTarget(a, b) {
 
 /** Modèles prêts : luminosité en %, blanc en kelvins (ramené à ce que sait faire chaque lampe). */
 export const TEMPLATES = [
-  { id: 'soiree', name: 'Soirée', icon: 'sofa', color: '#f2a541', pct: 45, kelvin: 2700, hint: 'Chaud et doux' },
-  { id: 'lecture', name: 'Lecture', icon: 'bulb', color: '#ffd23f', pct: 100, kelvin: 4000, hint: 'Lumière franche' },
-  { id: 'cine', name: 'Ciné', icon: 'moon', color: '#8e4ec6', pct: 12, kelvin: 2200, hint: 'Presque éteint' },
-  { id: 'nuit', name: 'Nuit', icon: 'moon', color: '#3e63dd', pct: 5, kelvin: 2200, hint: 'Veilleuse' },
-  { id: 'reveil', name: 'Réveil', icon: 'sun', color: '#ffb224', pct: 70, kelvin: 4000, hint: 'Pour se lever' },
+  { id: 'soiree', name: tr("Soirée"), icon: 'sofa', color: '#f2a541', pct: 45, kelvin: 2700, hint: tr("Chaud et doux") },
+  { id: 'lecture', name: tr("Lecture"), icon: 'bulb', color: '#ffd23f', pct: 100, kelvin: 4000, hint: tr("Lumière franche") },
+  { id: 'cine', name: tr("Ciné"), icon: 'moon', color: '#8e4ec6', pct: 12, kelvin: 2200, hint: tr("Presque éteint") },
+  { id: 'nuit', name: tr("Nuit"), icon: 'moon', color: '#3e63dd', pct: 5, kelvin: 2200, hint: tr("Veilleuse") },
+  { id: 'reveil', name: tr("Réveil"), icon: 'sun', color: '#ffb224', pct: 70, kelvin: 4000, hint: tr("Pour se lever") },
 ];
 
 /** Les réglages d'un modèle pour une lampe donnée. */
@@ -70,11 +71,11 @@ export function sceneCandidates(entities) {
 /** « Active jusqu'à 22:40 », « Active, en partie », « Inactive ». */
 export function sceneStatus(entity, now = Date.now()) {
   const on = entity?.state?.value === 'on';
-  if (!on) return 'Inactive';
+  if (!on) return tr("Inactive");
   const until = entity?.state?.attributes?.until;
   if (until && new Date(until).getTime() > now) {
-    const t = new Date(until).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    return `Active jusqu'à ${t}`;
+    const t = new Date(until).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
+    return tr("Active jusqu'à {t}", { t });
   }
-  return entity?.state?.attributes?.partial ? 'Active, en partie' : 'Active';
+  return entity?.state?.attributes?.partial ? tr("Active, en partie") : tr("Active");
 }

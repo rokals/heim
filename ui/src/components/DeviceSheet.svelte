@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Tout un appareil : le commander, le régler (tous ses réglages, pas seulement allumé /
   // éteint), le ranger, et voir ce qu'il dit de lui.
   import { onMount, untrack } from 'svelte';
@@ -82,10 +83,10 @@
   }
 
   async function removeFromZigbee() {
-    if (!confirm(`Retirer « ${name} » du réseau Zigbee ? Il faudra le réappairer pour l'utiliser.`)) return;
-    const force = dead && confirm("L'appareil ne répond pas. Le retirer de force (sans attendre sa réponse) ?");
+    if (!confirm(tr("Retirer « {name} » du réseau Zigbee ? Il faudra le réappairer pour l'utiliser.", { name }))) return;
+    const force = dead && confirm(tr("L'appareil ne répond pas. Le retirer de force (sans attendre sa réponse) ?"));
     if (await action('remove', force)) {
-      toast(`${name} retiré du réseau`);
+      toast(tr("{name} retiré du réseau", { name }));
       setTimeout(removeDevice, 3000);
     }
   }
@@ -112,26 +113,26 @@
   }
 
   async function forget() {
-    if (!confirm(`Supprimer « ${name} » de Heim ? S'il revient sur le réseau, il réapparaîtra dans « À ranger ».`)) return;
+    if (!confirm(tr("Supprimer « {name} » de Heim ? S'il revient sur le réseau, il réapparaîtra dans « À ranger ».", { name }))) return;
     await removeDevice();
-    toast(`${name} supprimé`);
+    toast(tr("{name} supprimé", { name }));
   }
 
   function addToHome() {
     const board = currentBoard();
     const sections = $state.snapshot(board.sections);
-    if (!sections.length) sections.push({ title: 'Accueil', cards: [] });
+    if (!sections.length) sections.push({ title: tr("Accueil"), cards: [] });
     const wide = !device.controls.length;
     sections[sections.length - 1].cards.push({ entity_id: (control ?? device.primary).entity_id, ...(wide ? { w: 4, h: 1 } : { w: 2, h: 2 }) });
     saveBoard(board.id, sections);
-    toast(`${name} ajouté à l'accueil`);
+    toast(tr("{name} ajouté à l'accueil", { name }));
   }
 
   async function save(extra = {}) {
     saving = true;
     try {
       await updateDevice(device, { name, room: room.trim(), ...extra }, nameTarget);
-      toast(extra.hidden ? `${name} est masqué. Réglages pour le retrouver.` : 'Modifications enregistrées');
+      toast(extra.hidden ? tr("{name} est masqué. Réglages pour le retrouver.", { name }) : tr("Modifications enregistrées"));
       onclose();
     } catch (e) {
       toast(e.message, 'alert');
@@ -142,10 +143,10 @@
 
   const TABS = $derived(
     [
-      { id: 'use', label: 'Commandes' },
-      (isAdmin() || settings.length) && { id: 'settings', label: 'Réglages' },
-      { id: 'history', label: 'Historique' },
-      { id: 'info', label: 'Infos' },
+      { id: 'use', label: tr("Commandes") },
+      (isAdmin() || settings.length) && { id: 'settings', label: tr("Réglages") },
+      { id: 'history', label: tr("Historique") },
+      { id: 'info', label: tr("Infos") },
     ].filter(Boolean),
   );
 
@@ -162,7 +163,7 @@
   async function batteryChanged() {
     try {
       await api(`/entities/${encodeURIComponent(batteryEntity.entity_id)}/battery_reset`, { method: 'POST' });
-      toast('Noté : le nouveau niveau s’affichera dès que l’appareil le donnera');
+      toast(tr("Noté : le nouveau niveau s’affichera dès que l’appareil le donnera"));
       if (zigbee) action('read_battery');
     } catch (e) {
       toast(e.message, 'alert');
@@ -171,18 +172,18 @@
 
   const infoRows = $derived(
     [
-      ['Fabricant', ctl?.info?.vendor ?? device.primary.capabilities?.manufacturer],
-      ['Modèle', ctl?.info?.description ? `${ctl.info.description} (${ctl.info.model})` : (ctl?.info?.model ?? device.primary.capabilities?.model)],
-      ['Alimentation', ctl?.info?.power_source],
-      ['Logiciel interne', ctl?.info?.software_build_id ?? ctl?.info?.date_code],
-      ['Protocole', ctl?.info?.protocol ? `Tuya ${ctl.info.protocol}` : null],
-      ['Identifiant', deviceId],
+      [tr("Fabricant"), ctl?.info?.vendor ?? device.primary.capabilities?.manufacturer],
+      [tr("Modèle"), ctl?.info?.description ? `${ctl.info.description} (${ctl.info.model})` : (ctl?.info?.model ?? device.primary.capabilities?.model)],
+      [tr("Alimentation"), ctl?.info?.power_source],
+      [tr("Logiciel interne"), ctl?.info?.software_build_id ?? ctl?.info?.date_code],
+      [tr("Protocole"), ctl?.info?.protocol ? tr("Tuya {protocol}", { protocol: ctl.info.protocol }) : null],
+      [tr("Identifiant"), deviceId],
     ].filter(([, v]) => v),
   );
 </script>
 
 <Sheet title={initialName} {onclose}>
-  <nav class="tabs" aria-label="Sections de l'appareil">
+  <nav class="tabs" aria-label={tr("Sections de l'appareil")}>
     {#each TABS as t (t.id)}
       <button class:sel={tab === t.id} aria-pressed={tab === t.id} onclick={() => (tab = t.id)}>{t.label}</button>
     {/each}
@@ -196,7 +197,7 @@
       {@const on = c.state?.value === 'on'}
       <div class="switchrow">
         <span><Icon name="plug" size={18} /> {c.name}</span>
-        <button class="power" class:on onclick={() => command(c.entity_id, on ? 'turn_off' : 'turn_on')} aria-pressed={on}>{on ? 'Allumé' : 'Éteint'}</button>
+        <button class="power" class:on onclick={() => command(c.entity_id, on ? 'turn_off' : 'turn_on')} aria-pressed={on}>{on ? tr("Allumé") : tr("Éteint")}</button>
       </div>
     {/each}
     {#if !device.controls.length && !device.sirens?.length}
@@ -208,10 +209,10 @@
     {/if}
     <div class="row">
       {#if control}
-        <button class="btn quiet" type="button" onclick={() => (forOpen = true)}><Icon name="timer" size={18} /> Allumer pour…</button>
+        <button class="btn quiet" type="button" onclick={() => (forOpen = true)}><Icon name="timer" size={18} /> {tr("Allumer pour…")}</button>
       {/if}
       {#if device.sirens?.length && isMember()}
-        <button class="btn quiet" type="button" disabled={testing} onclick={testSiren}>{testing ? 'Elle sonne…' : 'Tester la sirène (3 s)'}</button>
+        <button class="btn quiet" type="button" disabled={testing} onclick={testSiren}>{testing ? tr("Elle sonne…") : tr("Tester la sirène (3 s)")}</button>
       {/if}
     </div>
   {:else if tab === 'settings'}
@@ -224,34 +225,34 @@
         }}
       >
         <label class="field">
-          <span>Nom</span>
+          <span>{tr("Nom")}</span>
           <input class="input" bind:value={name} autocomplete="off" />
         </label>
         <label class="field">
-          <span>Pièce</span>
+          <span>{tr("Pièce")}</span>
           <select class="input" bind:value={room}>
-            <option value="">Sans pièce</option>
+            <option value="">{tr("Sans pièce")}</option>
             {#each rooms as r (r)}<option value={r}>{r}</option>{/each}
             {#if room && !rooms.includes(room)}<option value={room}>{room}</option>{/if}
           </select>
         </label>
         <div class="row">
-          <button class="btn" type="submit" disabled={saving}>Enregistrer</button>
+          <button class="btn" type="submit" disabled={saving}>{tr("Enregistrer")}</button>
           {#if device.hidden}
-            <button class="btn quiet" type="button" disabled={saving} onclick={() => save({ hidden: false })}>Afficher à nouveau</button>
+            <button class="btn quiet" type="button" disabled={saving} onclick={() => save({ hidden: false })}>{tr("Afficher à nouveau")}</button>
           {:else}
-            <button class="btn quiet" type="button" disabled={saving} onclick={() => save({ hidden: true })}>Masquer</button>
+            <button class="btn quiet" type="button" disabled={saving} onclick={() => save({ hidden: true })}>{tr("Masquer")}</button>
           {/if}
           {#if currentBoard() && !currentBoard().auto && boardRights().add && !onDashboard && !device.hidden && !device.sirens?.length}
-            <button class="btn quiet" type="button" onclick={addToHome}>Ajouter à l'accueil</button>
+            <button class="btn quiet" type="button" onclick={addToHome}>{tr("Ajouter à l'accueil")}</button>
           {/if}
         </div>
-        <p class="hint">Les pièces se créent dans Réglages, <a href="#reglages/maison" onclick={onclose}>Maison</a>.</p>
+        <p class="hint">{tr("Les pièces se créent dans Réglages,")} <a href="#reglages/maison" onclick={onclose}>{tr("Maison")}</a>.</p>
       </form>
     {/if}
 
     {#if settings.length}
-      <h3>Réglages de l'appareil</h3>
+      <h3>{tr("Réglages de l'appareil")}</h3>
       {#each groups.main as c (c.key)}
         <ControlField control={c} value={valueAt(ctl.values, c.key)} disabled={!isMember()} onchange={(v) => setValue(c.key, v)} />
       {/each}
@@ -259,7 +260,7 @@
         <ControlField control={c} value={valueAt(ctl.values, c.key)} disabled={!isAdmin()} onchange={(v) => setValue(c.key, v)} />
       {/each}
     {:else if ctl}
-      <p class="hint">Cet appareil n'a pas d'autre réglage.</p>
+      <p class="hint">{tr("Cet appareil n'a pas d'autre réglage.")}</p>
     {/if}
   {:else if tab === 'history'}
     {#each curves as e (e.entity_id)}
@@ -269,24 +270,24 @@
       </section>
     {/each}
     {#if isMember()}
-      <h3>Journal</h3>
+      <h3>{tr("Journal")}</h3>
       <JournalList entities={logged} limit={30} compact />
     {/if}
   {:else}
     <section class="health">
       <div>
-        <span class="k">Signal</span>
-        <span class="v">{#if lqi != null}<SignalBars {lqi} /> <span class="num">{lqi} / 255</span>{:else}inconnu{/if}</span>
+        <span class="k">{tr("Signal")}</span>
+        <span class="v">{#if lqi != null}<SignalBars {lqi} /> <span class="num">{lqi} / 255</span>{:else}{tr("inconnu")}{/if}</span>
       </div>
       <div>
-        <span class="k">Dernier message</span>
+        <span class="k">{tr("Dernier message")}</span>
         <span class="v">{ago(seen, home.now)}</span>
       </div>
       {#if batteryEntity}
         <div>
-          <span class="k">Pile</span>
+          <span class="k">{tr("Pile")}</span>
           <span class="v num" class:low={device.battery != null && device.battery <= 20}>
-            {#if waitingBattery}en attente{:else if device.battery != null}{device.battery} %{:else}–{/if}
+            {#if waitingBattery}{tr("en attente")}{:else if device.battery != null}{device.battery} %{:else}–{/if}
           </span>
         </div>
       {/if}
@@ -296,19 +297,16 @@
       <section class="battery-box">
         <p>
           {#if waitingBattery}
-            Pile changée {ago(batteryEntity.state.attributes.stale_since, home.now)}. L'ancien niveau est ignoré : le
-            nouveau s'affichera au prochain envoi de l'appareil (souvent au bout de quelques heures). Appuyez sur son bouton
-            pour le réveiller plus vite.
+            {tr("Pile changée {ago}. L'ancien niveau est ignoré : le nouveau s'affichera au prochain envoi de l'appareil (souvent au bout de quelques heures). Appuyez sur son bouton pour le réveiller plus vite.", { ago: ago(batteryEntity.state.attributes.stale_since, home.now) })}
           {:else if batteryEntity.state?.last_changed}
-            Niveau changé pour la dernière fois {ago(batteryEntity.state.last_changed, home.now)}. Un appareil sur pile ne
-            l'envoie que de temps en temps.
+            {tr("Niveau changé pour la dernière fois {ago}. Un appareil sur pile ne l'envoie que de temps en temps.", { ago: ago(batteryEntity.state.last_changed, home.now) })}
           {/if}
         </p>
         {#if isMember()}
           <div class="row">
-            <button class="btn quiet" onclick={batteryChanged}><Icon name="battery" size={17} /> Pile changée</button>
+            <button class="btn quiet" onclick={batteryChanged}><Icon name="battery" size={17} /> {tr("Pile changée")}</button>
             {#if zigbee && isAdmin()}
-              <button class="btn quiet" onclick={() => action('read_battery') && toast('Demande envoyée : appuyez sur le bouton de l’appareil pour le réveiller')}>Relire le niveau</button>
+              <button class="btn quiet" onclick={() => action('read_battery') && toast(tr("Demande envoyée : appuyez sur le bouton de l’appareil pour le réveiller"))}>{tr("Relire le niveau")}</button>
             {/if}
           </div>
         {/if}
@@ -318,27 +316,27 @@
     {#if update && zigbee}
       <section class="ota" class:avail={update.state === 'available'}>
         {#if update.state === 'available'}
-          <strong>Mise à jour du logiciel interne disponible</strong>
+          <strong>{tr("Mise à jour du logiciel interne disponible")}</strong>
           <span>{update.installed_version ?? '?'} → {update.latest_version ?? '?'}</span>
-          {#if isAdmin()}<button class="btn" onclick={() => action('ota_update') && toast('Mise à jour lancée : elle peut prendre une heure, sans débrancher')}>Mettre à jour</button>{/if}
+          {#if isAdmin()}<button class="btn" onclick={() => action('ota_update') && toast(tr("Mise à jour lancée : elle peut prendre une heure, sans débrancher"))}>{tr("Mettre à jour")}</button>{/if}
         {:else if update.state === 'updating'}
-          <strong>Mise à jour en cours… {update.progress != null ? `${Math.round(update.progress)} %` : ''}</strong>
+          <strong>{tr("Mise à jour en cours… {v}", { v: update.progress != null ? `${Math.round(update.progress)} %` : '' })}</strong>
         {:else}
-          <span>Logiciel interne à jour</span>
+          <span>{tr("Logiciel interne à jour")}</span>
         {/if}
       </section>
     {/if}
 
-    <h3>Ce que l'appareil indique</h3>
+    <h3>{tr("Ce que l'appareil indique")}</h3>
     <ul class="readings">
       {#each device.entities as e (e.entity_id)}
         <li>
           {#if e.domain === 'siren'}
-            <span>Sirène</span>
-            <strong>{e.state?.value === 'on' ? 'Sonne' : 'Silencieuse'}</strong>
+            <span>{tr("Sirène")}</span>
+            <strong>{e.state?.value === 'on' ? tr("Sonne") : tr("Silencieuse")}</strong>
           {:else}
             <span>{e.domain === 'light' || e.domain === 'switch' ? e.name : label(e)}</span>
-            <strong class="num">{e.domain === 'light' || e.domain === 'switch' ? (e.state?.value === 'on' ? 'Allumé' : 'Éteint') : formatValue(e)}</strong>
+            <strong class="num">{e.domain === 'light' || e.domain === 'switch' ? (e.state?.value === 'on' ? tr("Allumé") : tr("Éteint")) : formatValue(e)}</strong>
           {/if}
         </li>
       {/each}
@@ -353,11 +351,11 @@
     {#if isAdmin()}
       <div class="row danger-zone">
         {#if zigbee}
-          <button class="btn quiet" onclick={() => action('ota_check') && toast('Recherche de mise à jour envoyée')}>Chercher une mise à jour</button>
-          <button class="btn danger" onclick={removeFromZigbee}>Retirer du réseau Zigbee</button>
+          <button class="btn quiet" onclick={() => action('ota_check') && toast(tr("Recherche de mise à jour envoyée"))}>{tr("Chercher une mise à jour")}</button>
+          <button class="btn danger" onclick={removeFromZigbee}>{tr("Retirer du réseau Zigbee")}</button>
         {/if}
         {#if dead}
-          <button class="btn danger" onclick={forget}>Supprimer de Heim</button>
+          <button class="btn danger" onclick={forget}>{tr("Supprimer de Heim")}</button>
         {/if}
       </div>
     {/if}

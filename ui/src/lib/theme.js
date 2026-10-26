@@ -2,6 +2,7 @@
 // texte, arrondi, espacement, fond, et façon de changer de tableau (glisser ou onglets).
 // L'apparence de la maison sert de base ; celle du compte, puis celle de l'écran s'y ajoutent.
 
+import { tr, LANGS } from './i18n.js';
 export const DEFAULT_LOOK = {
   theme: 'system',
   accent: '',
@@ -14,18 +15,18 @@ export const DEFAULT_LOOK = {
 
 /** Couleurs proposées pour l'interface ('' = la braise d'origine). */
 export const ACCENTS = [
-  { id: '', label: 'Braise', hex: '#f0a93a' },
-  { id: '#e5484d', label: 'Rouge' },
-  { id: '#f76b15', label: 'Orange' },
-  { id: '#ffc53d', label: 'Soleil' },
-  { id: '#46a758', label: 'Vert' },
-  { id: '#12a594', label: 'Turquoise' },
-  { id: '#0090ff', label: 'Ciel' },
-  { id: '#3e63dd', label: 'Bleu' },
-  { id: '#8e4ec6', label: 'Violet' },
-  { id: '#d6409f', label: 'Rose' },
-  { id: '#8d6e63', label: 'Bois' },
-  { id: '#6f7b80', label: 'Ardoise' },
+  { id: '', label: tr("Braise"), hex: '#f0a93a' },
+  { id: '#e5484d', label: tr("Rouge") },
+  { id: '#f76b15', label: tr("Orange") },
+  { id: '#ffc53d', label: tr("Soleil") },
+  { id: '#46a758', label: tr("Vert") },
+  { id: '#12a594', label: tr("Turquoise") },
+  { id: '#0090ff', label: tr("Ciel") },
+  { id: '#3e63dd', label: tr("Bleu") },
+  { id: '#8e4ec6', label: tr("Violet") },
+  { id: '#d6409f', label: tr("Rose") },
+  { id: '#8d6e63', label: tr("Bois") },
+  { id: '#6f7b80', label: tr("Ardoise") },
 ];
 
 const CHOICES = {
@@ -48,6 +49,7 @@ export function cleanLook(look) {
     if (allowed.includes(look?.[k])) out[k] = look[k];
   }
   if (look?.accent === '' || isHex(look?.accent)) out.accent = look.accent;
+  if (LANGS.some((l) => l.id === look?.lang)) out.lang = look.lang;
   return out;
 }
 

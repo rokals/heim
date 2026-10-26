@@ -1,4 +1,5 @@
 <script>
+  import { tr, locale } from '../../lib/i18n.js';
   import Icon from '../Icon.svelte';
   import { onMount } from 'svelte';
   import { api, toast } from '../../lib/store.svelte.js';
@@ -33,7 +34,7 @@
   async function saveSettings(patch) {
     try {
       up.settings = await api('/update/settings', { method: 'PUT', body: { ...$state.snapshot(up.settings), ...patch } });
-      toast('Réglage enregistré');
+      toast(tr("Réglage enregistré"));
       if (patch.repo !== undefined) check();
     } catch (e) {
       toast(e.message, 'alert');
@@ -54,11 +55,11 @@
       await new Promise((r) => setTimeout(r, 2000));
     }
     restarting = false;
-    toast("Heim ne répond pas encore : rechargez la page dans un instant", 'alert');
+    toast(tr("Heim ne répond pas encore : rechargez la page dans un instant"), 'alert');
   }
 
   async function install() {
-    if (!confirm(`Installer Heim ${up.status.latest.version} ? Vos données sont sauvegardées avant, et Heim revient tout seul à la version actuelle si la nouvelle ne démarre pas.`)) return;
+    if (!confirm(tr("Installer Heim {version} ? Vos données sont sauvegardées avant, et Heim revient tout seul à la version actuelle si la nouvelle ne démarre pas.", { version: up.status.latest.version }))) return;
     busy = true;
     try {
       await api('/update/install', { method: 'POST' });
@@ -71,8 +72,8 @@
   }
 
   async function restart(kind) {
-    const what = kind === 'reboot' ? 'le Raspberry Pi (environ une minute)' : 'Heim';
-    if (!confirm(`Redémarrer ${what} ?`)) return;
+    const what = kind === 'reboot' ? tr("le Raspberry Pi (environ une minute)") : tr("Heim");
+    if (!confirm(tr("Redémarrer {what} ?", { what }))) return;
     try {
       await api(kind === 'reboot' ? '/system/reboot' : '/system/restart', { method: 'POST' });
       waitBack();
@@ -84,7 +85,7 @@
   let stopped = $state(false);
 
   async function powerOff() {
-    if (!confirm("Éteindre le Raspberry Pi ? Heim s'arrête proprement. Pour le rallumer, il faudra débrancher puis rebrancher son alimentation.")) return;
+    if (!confirm(tr("Éteindre le Raspberry Pi ? Heim s'arrête proprement. Pour le rallumer, il faudra débrancher puis rebrancher son alimentation."))) return;
     try {
       await api('/system/poweroff', { method: 'POST' });
       stopped = true;
@@ -93,18 +94,18 @@
     }
   }
 
-  const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
+  const fmtDate = (d) => (d ? new Date(d).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' }) : '');
 
   function uptime(s) {
     const d = Math.floor(s / 86400);
     const h = Math.floor((s % 86400) / 3600);
     const m = Math.floor((s % 3600) / 60);
-    return d ? `${d} j ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
+    return d ? `${d} j ${h} h` : h ? tr("{h} h {m} min", { h, m }) : `${m} min`;
   }
 
   function size(b) {
     if (b == null) return '–';
-    return b > 1_048_576 ? `${(b / 1_048_576).toFixed(1)} Mo` : `${Math.round(b / 1024)} Ko`;
+    return b > 1_048_576 ? tr("{toFixed} Mo", { toFixed: (b / 1_048_576).toFixed(1) }) : tr("{round} Ko", { round: Math.round(b / 1024) });
   }
 
   const address = $derived(info?.ip ? `http://${info.ip}${info.port === 80 ? '' : `:${info.port}`}` : null);
@@ -113,39 +114,39 @@
 {#if restarting}
   <section class="card restarting" role="status">
     <span class="spin" aria-hidden="true"></span>
-    <div><strong>Heim redémarre…</strong><span>La page se rechargera toute seule.</span></div>
+    <div><strong>{tr("Heim redémarre…")}</strong><span>{tr("La page se rechargera toute seule.")}</span></div>
   </section>
 {/if}
 
 {#if up}
   {@const st = up.status}
   <section class="card update" class:avail={st.available}>
-    <h2>Mises à jour</h2>
+    <h2>{tr("Mises à jour")}</h2>
     {#if st.pending}
-      <p class="muted">Version {st.pending} en cours de validation : si elle tient 90 secondes, elle est adoptée.</p>
+      <p class="muted">{tr("Version {pending} en cours de validation : si elle tient 90 secondes, elle est adoptée.", { pending: st.pending })}</p>
     {/if}
     {#if st.available && st.latest}
-      <p class="big">Heim <strong>{st.latest.version}</strong> est disponible <span class="muted">(vous avez la {st.current})</span></p>
-      {#if st.latest.published}<p class="muted">Publiée le {fmtDate(st.latest.published)}</p>{/if}
+      <p class="big">{tr("Heim")} <strong>{st.latest.version}</strong> {tr("est disponible")} <span class="muted">{tr("(vous avez la {current})", { current: st.current })}</span></p>
+      {#if st.latest.published}<p class="muted">{tr("Publiée le {fmtDate}", { fmtDate: fmtDate(st.latest.published) })}</p>{/if}
       {#if st.latest.notes}<pre class="notes">{st.latest.notes}</pre>{/if}
       {#if st.can_install && st.latest.has_asset}
-        <button class="btn" disabled={busy || st.installing} onclick={install}>{st.installing ? 'Installation…' : 'Installer la mise à jour'}</button>
+        <button class="btn" disabled={busy || st.installing} onclick={install}>{st.installing ? tr("Installation…") : tr("Installer la mise à jour")}</button>
       {:else}
-        <p class="muted">{st.install_blocker ?? "Pas de fichier pour cette machine dans cette version."}</p>
-        {#if st.latest.url?.startsWith('https://github.com/')}<a class="btn quiet" href={st.latest.url} target="_blank" rel="noopener">Voir sur GitHub</a>{/if}
+        <p class="muted">{st.install_blocker ?? tr("Pas de fichier pour cette machine dans cette version.")}</p>
+        {#if st.latest.url?.startsWith('https://github.com/')}<a class="btn quiet" href={st.latest.url} target="_blank" rel="noopener">{tr("Voir sur GitHub")}</a>{/if}
       {/if}
     {:else if st.latest}
-      <p>Heim est à jour (version {st.current}).</p>
+      <p>{tr("Heim est à jour (version {current}).", { current: st.current })}</p>
     {:else}
-      <p>Version {st.current}.</p>
+      <p>{tr("Version {current}.", { current: st.current })}</p>
     {/if}
     {#if st.error}<p class="error">{st.error}</p>{/if}
     <div class="row">
-      <button class="btn quiet" disabled={busy} onclick={check}>{busy ? 'Vérification…' : 'Vérifier maintenant'}</button>
-      {#if st.checked}<span class="muted small">Vérifié {new Date(st.checked).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>{/if}
+      <button class="btn quiet" disabled={busy} onclick={check}>{busy ? tr("Vérification…") : tr("Vérifier maintenant")}</button>
+      {#if st.checked}<span class="muted small">{tr("Vérifié {toLocaleString}", { toLocaleString: new Date(st.checked).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) })}</span>{/if}
     </div>
     <details>
-      <summary>Réglages des mises à jour</summary>
+      <summary>{tr("Réglages des mises à jour")}</summary>
       <form
         class="repo"
         onsubmit={(e) => {
@@ -154,39 +155,39 @@
         }}
       >
         <label class="field">
-          <span>Dépôt GitHub{up.default_repo ? ` (par défaut : ${up.default_repo})` : ''}</span>
+          <span>{tr("Dépôt GitHub{v}", { v: up.default_repo ? tr("(par défaut : {default_repo})", { default_repo: up.default_repo }) : '' })}</span>
           <input class="input" bind:value={repo} placeholder={up.default_repo ?? 'proprietaire/heim'} autocomplete="off" autocapitalize="off" />
         </label>
-        <button class="btn quiet" type="submit">Enregistrer</button>
+        <button class="btn quiet" type="submit">{tr("Enregistrer")}</button>
       </form>
-      <label class="check"><input type="checkbox" checked={up.settings.auto_check} onchange={(e) => saveSettings({ auto_check: e.currentTarget.checked })} /> Vérifier toute seule deux fois par jour et prévenir les admins</label>
-      <label class="check"><input type="checkbox" checked={up.settings.prereleases} onchange={(e) => saveSettings({ prereleases: e.currentTarget.checked })} /> Proposer aussi les versions d'essai</label>
+      <label class="check"><input type="checkbox" checked={up.settings.auto_check} onchange={(e) => saveSettings({ auto_check: e.currentTarget.checked })} /> {tr("Vérifier toute seule deux fois par jour et prévenir les admins")}</label>
+      <label class="check"><input type="checkbox" checked={up.settings.prereleases} onchange={(e) => saveSettings({ prereleases: e.currentTarget.checked })} /> {tr("Proposer aussi les versions d'essai")}</label>
     </details>
   </section>
 {/if}
 
 {#if !info}
-  <p class="muted">Chargement…</p>
+  <p class="muted">{tr("Chargement…")}</p>
 {:else}
   <dl>
-    <dt>Version</dt><dd>Heim {info.version}</dd>
-    <dt>Adresse sur le réseau</dt><dd>{#if address}<a href={address}>{address}</a>{:else}inconnue{/if}</dd>
-    <dt>Nom de la machine</dt><dd>{info.hostname ?? '–'}</dd>
-    <dt>En marche depuis</dt><dd class="num">{uptime(info.uptime_s)}</dd>
-    <dt>Mémoire utilisée</dt><dd class="num">{info.memory_kib ? `${(info.memory_kib / 1024).toFixed(1)} Mo` : '–'}</dd>
-    <dt>Base de données</dt><dd class="num">{size(info.db_bytes)}, {info.entities} entités</dd>
-    <dt>Système</dt><dd>{info.os} {info.arch}</dd>
-    <dt>Dossier des données</dt><dd class="path">{info.data_dir}</dd>
+    <dt>{tr("Version")}</dt><dd>{tr("Heim {version}", { version: info.version })}</dd>
+    <dt>{tr("Adresse sur le réseau")}</dt><dd>{#if address}<a href={address}>{address}</a>{:else}{tr("inconnue")}{/if}</dd>
+    <dt>{tr("Nom de la machine")}</dt><dd>{info.hostname ?? '–'}</dd>
+    <dt>{tr("En marche depuis")}</dt><dd class="num">{uptime(info.uptime_s)}</dd>
+    <dt>{tr("Mémoire utilisée")}</dt><dd class="num">{info.memory_kib ? tr("{toFixed} Mo", { toFixed: (info.memory_kib / 1024).toFixed(1) }) : '–'}</dd>
+    <dt>{tr("Base de données")}</dt><dd class="num">{tr("{size}, {entities} entités", { size: size(info.db_bytes), entities: info.entities })}</dd>
+    <dt>{tr("Système")}</dt><dd>{info.os} {info.arch}</dd>
+    <dt>{tr("Dossier des données")}</dt><dd class="path">{info.data_dir}</dd>
   </dl>
-  <p class="muted">Ouvrez l'adresse ci-dessus sur un téléphone connecté au même Wi-Fi, puis « Ajouter à l'écran d'accueil » pour l'utiliser comme une application.</p>
+  <p class="muted">{tr("Ouvrez l'adresse ci-dessus sur un téléphone connecté au même Wi-Fi, puis « Ajouter à l'écran d'accueil » pour l'utiliser comme une application.")}</p>
   {#if info.supervised || info.netsetup}
-    <h2>Alimentation</h2>
-    <p class="muted">Pour arrêter proprement plutôt que de débrancher : la base est écrite, la carte SD ne risque rien.</p>
+    <h2>{tr("Alimentation")}</h2>
+    <p class="muted">{tr("Pour arrêter proprement plutôt que de débrancher : la base est écrite, la carte SD ne risque rien.")}</p>
     <div class="row power">
-      {#if info.supervised}<button class="btn quiet" onclick={() => restart('heim')}><Icon name="restart" size={17} /> Redémarrer Heim</button>{/if}
+      {#if info.supervised}<button class="btn quiet" onclick={() => restart('heim')}><Icon name="restart" size={17} /> {tr("Redémarrer Heim")}</button>{/if}
       {#if info.os === 'linux'}
-        <button class="btn quiet" onclick={() => restart('reboot')}><Icon name="restart" size={17} /> Redémarrer le Raspberry Pi</button>
-        <button class="btn danger" onclick={powerOff}><Icon name="power" size={17} /> Éteindre</button>
+        <button class="btn quiet" onclick={() => restart('reboot')}><Icon name="restart" size={17} /> {tr("Redémarrer le Raspberry Pi")}</button>
+        <button class="btn danger" onclick={powerOff}><Icon name="power" size={17} /> {tr("Éteindre")}</button>
       {/if}
     </div>
   {/if}
@@ -196,8 +197,8 @@
   <div class="off-veil" role="alertdialog">
     <div>
       <Icon name="power" size={34} />
-      <strong>Le Raspberry Pi s'éteint</strong>
-      <span>Attendez une dizaine de secondes que son voyant vert ne clignote plus, puis vous pouvez le débrancher. Pour le rallumer, rebranchez-le.</span>
+      <strong>{tr("Le Raspberry Pi s'éteint")}</strong>
+      <span>{tr("Attendez une dizaine de secondes que son voyant vert ne clignote plus, puis vous pouvez le débrancher. Pour le rallumer, rebranchez-le.")}</span>
     </div>
   </div>
 {/if}

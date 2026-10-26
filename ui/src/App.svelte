@@ -1,4 +1,5 @@
 <script>
+  import { tr } from './lib/i18n.js';
   import Icon from './components/Icon.svelte';
   import Home from './components/Home.svelte';
   import Scenes from './components/Scenes.svelte';
@@ -7,15 +8,16 @@
   import Settings from './components/Settings.svelte';
   import LoginScreen from './components/LoginScreen.svelte';
   import SetupWizard from './components/SetupWizard.svelte';
-  import { connect, currentBoard, hiddenTabs, home, isMember, setToken, showBoard } from './lib/store.svelte.js';
+  import { connect, currentBoard, hiddenTabs, home, isAdmin, isMember, setToken, showBoard } from './lib/store.svelte.js';
   import { applyLook, effectiveLook } from './lib/theme.js';
+  import { currentLang, setLang } from './lib/i18n.js';
 
   const TABS = [
-    { id: 'maison', label: 'Accueil', icon: 'house' },
-    { id: 'appareils', label: 'Appareils', icon: 'grid' },
-    { id: 'scenes', label: 'Scènes', icon: 'scene' },
-    { id: 'automatismes', label: 'Automatismes', icon: 'flow' },
-    { id: 'reglages', label: 'Réglages', icon: 'sliders' },
+    { id: 'maison', label: tr("Accueil"), icon: 'house' },
+    { id: 'appareils', label: tr("Appareils"), icon: 'grid' },
+    { id: 'scenes', label: tr("Scènes"), icon: 'scene' },
+    { id: 'automatismes', label: tr("Automatismes"), icon: 'flow' },
+    { id: 'reglages', label: tr("Réglages"), icon: 'sliders' },
   ];
 
   // Adresse du type #reglages/connexions : l'onglet, puis la page dans l'onglet.
@@ -29,6 +31,14 @@
   // ---- Apparence : maison, puis compte, puis écran ----
   const look = $derived(effectiveLook(home.look?.house, home.look?.mine, home.screen?.appearance));
   $effect(() => applyLook(look));
+  // La langue choisie (maison, compte ou écran) : la page se recharge pour l'appliquer.
+  // (Un court délai : laisser partir l'enregistrement avant de recharger.)
+  $effect(() => {
+    if (!home.look?.house || !look.lang || look.lang === currentLang()) return;
+    const next = look.lang;
+    const id = setTimeout(() => setLang(next), 600);
+    return () => clearTimeout(id);
+  });
 
   // ---- Écran réglé par l'admin (Réglages > Écrans) ----
   const kiosk = $derived(Boolean(home.screen?.kiosk));
@@ -123,16 +133,16 @@
 </script>
 
 <div class="shell" class:kiosk>
-  <header class="bar" hidden={kiosk}>
-    <a class="mark" href="#maison" onclick={(e) => { e.preventDefault(); go('maison'); }} aria-label="Heim, accueil">
+  <header class="bar" hidden={kiosk || (home.setup?.needed && (!home.setup.accounts || (home.me?.user && isAdmin())))}>
+    <a class="mark" href="#maison" onclick={(e) => { e.preventDefault(); go('maison'); }} aria-label={tr("Heim, accueil")}>
       <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
         <path d="M6 15 16 7l10 8v11H6z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" />
         <path d="M13 26v-6h6v6" fill="none" stroke="var(--ember)" stroke-width="2.4" stroke-linejoin="round" />
       </svg>
-      <span>Heim</span>
+      <span>{tr("Heim")}</span>
     </a>
     {#if !home.needLogin && !home.needToken && !home.setup?.needed}
-    <nav class="tabs" aria-label="Sections">
+    <nav class="tabs" aria-label={tr("Sections")}>
       {#each shown as t (t.id)}
         <button class="tab" class:current={tab === t.id} aria-current={tab === t.id ? 'page' : undefined} onclick={() => go(t.id)}>
           <Icon name={t.icon} size={22} />
@@ -144,22 +154,22 @@
   </header>
 
   <main>
-    {#if home.setup?.needed && (!home.setup.accounts || home.me?.user)}
+    {#if home.setup?.needed && (!home.setup.accounts || (home.me?.user && isAdmin()))}
       <SetupWizard />
     {:else if home.needLogin}
       <LoginScreen />
     {:else if home.needToken}
       <section class="gate">
-        <h1>Code d'accès</h1>
-        <p>Ce Heim est protégé. Entrez le code défini au démarrage (HEIM_TOKEN).</p>
+        <h1>{tr("Code d'accès")}</h1>
+        <p>{tr("Ce Heim est protégé. Entrez le code défini au démarrage (HEIM_TOKEN).")}</p>
         <form
           onsubmit={(e) => {
             e.preventDefault();
             setToken(code);
           }}
         >
-          <input class="input" type="password" bind:value={code} autocomplete="current-password" aria-label="Code d'accès" />
-          <button class="btn" type="submit" disabled={!code.trim()}>Entrer</button>
+          <input class="input" type="password" bind:value={code} autocomplete="current-password" aria-label={tr("Code d'accès")} />
+          <button class="btn" type="submit" disabled={!code.trim()}>{tr("Entrer")}</button>
         </form>
       </section>
     {:else if tab === 'scenes'}
@@ -177,21 +187,21 @@
 </div>
 
 {#if offline}
-  <div class="veil" role="alertdialog" aria-live="assertive" aria-label="Connexion perdue">
+  <div class="veil" role="alertdialog" aria-live="assertive" aria-label={tr("Connexion perdue")}>
     <div class="lost">
       <span class="dot" aria-hidden="true"></span>
-      <strong>Connexion à Heim perdue</strong>
-      <span>Reconnexion en cours… Les boutons sont en pause pour ne rien envoyer dans le vide.</span>
-      <button class="btn quiet" onclick={() => connect()}>Réessayer maintenant</button>
+      <strong>{tr("Connexion à Heim perdue")}</strong>
+      <span>{tr("Reconnexion en cours… Les boutons sont en pause pour ne rien envoyer dans le vide.")}</span>
+      <button class="btn quiet" onclick={() => connect()}>{tr("Réessayer maintenant")}</button>
     </div>
   </div>
 {/if}
 
 {#if home.identify}
   <div class="identify" role="status">
-    <span>Cet écran</span>
-    <strong>{home.screen?.name || 'Écran'}</strong>
-    {#if currentBoard()}<em>Tableau « {currentBoard().name} »</em>{/if}
+    <span>{tr("Cet écran")}</span>
+    <strong>{home.screen?.name || tr("Écran")}</strong>
+    {#if currentBoard()}<em>{tr("Tableau « {name} »", { name: currentBoard().name })}</em>{/if}
   </div>
 {/if}
 

@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // La liste derrière une carte Maison : les lumières (à allumer une par une), les prises,
   // les personnes, les piles à changer, les appareils qui ne répondent plus.
   import Sheet from './Sheet.svelte';
@@ -35,15 +36,15 @@
         <span class="txt">
           <strong>{e.name}</strong>
           <span>
-            {#if card.kind === 'fired'}depuis {sinceText(e.state?.attributes?.fired_at || e.state?.last_changed, home.now)}
-            {:else if card.kind === 'people'}{e.state?.value === 'home' ? 'À la maison' : 'Absent'}
+            {#if card.kind === 'fired'}{tr("depuis {sinceText}", { sinceText: sinceText(e.state?.attributes?.fired_at || e.state?.last_changed, home.now) })}
+            {:else if card.kind === 'people'}{e.state?.value === 'home' ? tr("À la maison") : tr("Absent")}
             {:else if card.kind === 'batteries'}{formatValue(e)}{e.room ? ` · ${e.room}` : ''}
-            {:else if card.kind === 'offline'}Injoignable{e.state?.last_changed ? ` depuis ${sinceText(e.state.last_changed, home.now)}` : ''}{e.room ? ` · ${e.room}` : ''}
-            {:else}{e.room || 'Sans pièce'}{/if}
+            {:else if card.kind === 'offline'}{e.state?.last_changed ? tr("Injoignable depuis {since}", { since: sinceText(e.state.last_changed, home.now) }) : tr("Injoignable")}{e.room ? ` · ${e.room}` : ''}
+            {:else}{e.room || tr("Sans pièce")}{/if}
           </span>
         </span>
         {#if card.kind === 'fired' && isMember()}
-          <button class="btn quiet" onclick={() => rearm(e)}>Réarmer</button>
+          <button class="btn quiet" onclick={() => rearm(e)}>{tr("Réarmer")}</button>
         {/if}
         {#if toggles}
           <button
@@ -51,12 +52,12 @@
             class:on={isOn(e)}
             disabled={e.state?.available === false}
             onclick={() => command(e.entity_id, isOn(e) ? 'turn_off' : 'turn_on')}
-            aria-label="{e.name} : {isOn(e) ? 'éteindre' : 'allumer'}"
+            aria-label="{e.name} : {isOn(e) ? tr("éteindre") : 'allumer'}"
           ><span></span></button>
         {/if}
       </li>
     {:else}
-      <li class="none">Rien à afficher.</li>
+      <li class="none">{tr("Rien à afficher.")}</li>
     {/each}
   </ul>
 </Sheet>

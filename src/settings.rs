@@ -138,6 +138,16 @@ impl Settings {
         Ok(())
     }
 
+    /// Efface un réglage.
+    pub fn remove(&self, key: &str) {
+        if self.lock().remove(key).is_some() {
+            self.store.delete(Table::Settings, key);
+            self.bus.publish(Event::SettingsChanged {
+                key: key.to_string(),
+            });
+        }
+    }
+
     /// Prévient les écrans ouverts sans rien enregistrer (un compte a changé…).
     pub fn touch(&self, key: &str) {
         self.bus.publish(Event::SettingsChanged {

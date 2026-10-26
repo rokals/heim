@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Le détail de ce qui n'est pas un appareil : un automatisme (état, réarmer, activer,
   // pourquoi il ne s'est pas lancé), une scène, un groupe, une personne. Avec son journal.
   import Sheet from './Sheet.svelte';
@@ -36,48 +37,48 @@
 
 <Sheet title={entity?.name ?? entityId} {onclose}>
   {#if !entity}
-    <p class="muted">Introuvable : supprimé entre-temps ?</p>
+    <p class="muted">{tr("Introuvable : supprimé entre-temps ?")}</p>
   {:else if d === 'automation'}
     <div class="state" class:fired={attrs.fired}>
-      <span class="big">{on ? 'Vrai' : 'Faux'}</span>
+      <span class="big">{on ? tr("Vrai") : tr("Faux")}</span>
       <span class="muted">
-        {#if attrs.fired && attrs.fired_at}déclenché il y a {sinceText(attrs.fired_at, home.now)}{:else}au repos{/if}
-        · {attrs.enabled === false ? 'désactivé' : 'activé'}
+        {#if attrs.fired && attrs.fired_at}{tr("déclenché il y a {sinceText}", { sinceText: sinceText(attrs.fired_at, home.now) })}{:else}{tr("au repos")}{/if}
+        · {attrs.enabled === false ? tr("désactivé") : tr("activé")}
       </span>
     </div>
     {#if isMember()}
       <div class="actions">
         {#if attrs.fired}
-          <button class="btn" disabled={busy} onclick={() => op({ state: 'rearm' }, 'Réarmé')}><Icon name="restart" size={17} /> Réarmer</button>
+          <button class="btn" disabled={busy} onclick={() => op({ state: 'rearm' }, tr("Réarmé"))}><Icon name="restart" size={17} /> {tr("Réarmer")}</button>
         {/if}
-        <button class="btn quiet" disabled={busy} onclick={() => op({ enabled: attrs.enabled === false }, attrs.enabled === false ? 'Activé' : 'Désactivé')}>
-          {attrs.enabled === false ? 'Activer' : 'Désactiver'}
+        <button class="btn quiet" disabled={busy} onclick={() => op({ enabled: attrs.enabled === false }, attrs.enabled === false ? tr("Activé") : tr("Désactivé"))}>
+          {attrs.enabled === false ? tr("Activer") : tr("Désactiver")}
         </button>
-        <button class="btn quiet" disabled={busy} onclick={() => op({ run: true }, 'Lancé')}><Icon name="play" size={16} /> Lancer maintenant</button>
+        <button class="btn quiet" disabled={busy} onclick={() => op({ run: true }, tr("Lancé"))}><Icon name="play" size={16} /> {tr("Lancer maintenant")}</button>
         {#if isAdmin() && onopen}
-          <button class="btn quiet" onclick={() => onopen(autoId)}><Icon name="pencil" size={16} /> Modifier</button>
+          <button class="btn quiet" onclick={() => onopen(autoId)}><Icon name="pencil" size={16} /> {tr("Modifier")}</button>
         {/if}
       </div>
     {/if}
     <dl>
-      {#if attrs.last_run}<dt>Dernière exécution</dt><dd>{when(attrs.last_run, new Date(home.now))}</dd>{/if}
+      {#if attrs.last_run}<dt>{tr("Dernière exécution")}</dt><dd>{when(attrs.last_run, new Date(home.now))}</dd>{/if}
       {#if attrs.last_check}
-        <dt>Dernier déclenchement</dt>
+        <dt>{tr("Dernier déclenchement")}</dt>
         <dd>
           {when(attrs.last_check.at, new Date(home.now))} :
-          {#if attrs.last_check.ran}lancé{:else}<span class="warn">pas lancé, {attrs.last_check.reason}</span>{/if}
+          {#if attrs.last_check.ran}{tr("lancé")}{:else}<span class="warn">{tr("pas lancé, {reason}", { reason: attrs.last_check.reason })}</span>{/if}
         </dd>
       {/if}
-      {#if attrs.last_error}<dt>Dernière erreur</dt><dd class="warn">{attrs.last_error}</dd>{/if}
+      {#if attrs.last_error}<dt>{tr("Dernière erreur")}</dt><dd class="warn">{attrs.last_error}</dd>{/if}
     </dl>
   {:else if d === 'scene' || d === 'group'}
     <div class="state" class:lit={on}>
-      <span class="big">{on ? (d === 'scene' ? 'Active' : 'Allumé') : d === 'scene' ? 'Inactive' : 'Éteint'}</span>
-      {#if d === 'group'}<span class="muted">{attrs.on_count ?? 0} sur {members.length} allumé(s)</span>{/if}
+      <span class="big">{on ? (d === 'scene' ? tr("Active") : tr("Allumé")) : d === 'scene' ? tr("Inactive") : tr("Éteint")}</span>
+      {#if d === 'group'}<span class="muted">{tr("{v} sur {length} allumé(s)", { v: attrs.on_count ?? 0, length: members.length })}</span>{/if}
     </div>
     <div class="actions">
       <button class="btn" onclick={() => command(entityId, on ? 'turn_off' : 'turn_on')}>
-        {on ? (d === 'scene' ? 'Désactiver' : 'Éteindre') : d === 'scene' ? 'Activer' : 'Allumer'}
+        {on ? (d === 'scene' ? tr("Désactiver") : tr("Éteindre")) : d === 'scene' ? tr("Activer") : tr("Allumer")}
       </button>
     </div>
     {#if d === 'group' && members.length}
@@ -86,7 +87,7 @@
           <li>
             <span>{m.name}</span>
             <button class="pill" class:on={m.state?.value === 'on'} onclick={() => command(m.entity_id, 'toggle')}>
-              {m.state?.value === 'on' ? 'Allumé' : 'Éteint'}
+              {m.state?.value === 'on' ? tr("Allumé") : tr("Éteint")}
             </button>
           </li>
         {/each}
@@ -94,13 +95,13 @@
     {/if}
   {:else}
     <div class="state">
-      <span class="big">{entity.state?.value === 'home' ? 'À la maison' : entity.state?.value === 'away' ? 'Absent' : entity.state?.value ?? '–'}</span>
-      {#if entity.state?.last_changed}<span class="muted">depuis {sinceText(entity.state.last_changed, home.now)}</span>{/if}
+      <span class="big">{entity.state?.value === 'home' ? tr("À la maison") : entity.state?.value === 'away' ? tr("Absent") : entity.state?.value ?? '–'}</span>
+      {#if entity.state?.last_changed}<span class="muted">{tr("depuis {sinceText}", { sinceText: sinceText(entity.state.last_changed, home.now) })}</span>{/if}
     </div>
   {/if}
 
   {#if entity && isMember()}
-    <h3>Historique</h3>
+    <h3>{tr("Historique")}</h3>
     <JournalList entity={entityId} limit={20} compact />
   {/if}
 </Sheet>

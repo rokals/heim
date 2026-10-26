@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Panneau qui monte du bas de l'écran (ou fenêtre centrée sur ordinateur).
   import Icon from './Icon.svelte';
 
@@ -26,7 +27,7 @@
   <div class="panel">
     <header>
       <h2 id="sheet-title">{title}</h2>
-      <button class="close" onclick={() => dialog.close()} aria-label="Fermer"><Icon name="close" /></button>
+      <button class="close" onclick={() => dialog.close()} aria-label={tr("Fermer")}><Icon name="close" /></button>
     </header>
     {@render children()}
   </div>

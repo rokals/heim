@@ -1,10 +1,12 @@
 <script>
+  import { tr, LANGS, currentLang } from '../../lib/i18n.js';
   // Les choix d'apparence, pour soi, pour la maison ou pour un écran.
   // look : les choix faits (une clé absente = « comme au-dessus ») ; onchange(nouveaux choix).
   import Icon from '../Icon.svelte';
   import { ACCENTS, DEFAULT_LOOK } from '../../lib/theme.js';
 
-  let { look = {}, base = DEFAULT_LOOK, onchange, nav = true } = $props();
+  /** lang : proposer aussi la langue (pas dans l'assistant, qui la choisit à part). */
+  let { look = {}, base = DEFAULT_LOOK, onchange, nav = true, lang = true } = $props();
 
   const val = (k) => look?.[k] ?? base[k];
   const custom = $derived(val('accent') && !ACCENTS.some((a) => a.id === val('accent')));
@@ -14,17 +16,28 @@
   }
 
   const GROUPS = [
-    { key: 'theme', label: 'Thème', options: [['system', 'Comme l’appareil'], ['light', 'Clair'], ['dark', 'Sombre']] },
-    { key: 'text', label: 'Taille du texte', options: [['normal', 'Normale'], ['large', 'Grande']] },
-    { key: 'radius', label: 'Arrondi des cartes', options: [['square', 'Carré'], ['normal', 'Normal'], ['round', 'Très rond']] },
-    { key: 'density', label: 'Espacement', options: [['compact', 'Compact'], ['normal', 'Normal'], ['airy', 'Aéré']] },
-    { key: 'background', label: 'Fond', options: [['plain', 'Uni'], ['gradient', 'Léger dégradé']] },
+    { key: 'theme', label: tr("Thème"), options: [['system', tr("Comme l’appareil")], ['light', tr("Clair")], ['dark', tr("Sombre")]] },
+    { key: 'text', label: tr("Taille du texte"), options: [['normal', tr("Normale")], ['large', tr("Grande")]] },
+    { key: 'radius', label: tr("Arrondi des tuiles"), options: [['square', tr("Carré")], ['normal', tr("Normal")], ['round', tr("Très rond")]] },
+    { key: 'density', label: tr("Espacement"), options: [['compact', tr("Compact")], ['normal', tr("Normal")], ['airy', tr("Aéré")]] },
+    { key: 'background', label: tr("Fond"), options: [['plain', tr("Uni")], ['gradient', tr("Léger dégradé")]] },
   ];
 </script>
 
+{#if lang}
+  <div class="field">
+    <span>{tr('Langue')}</span>
+    <div class="seg wrap">
+      {#each LANGS as l (l.id)}
+        <button class:on={(look?.lang ?? base.lang ?? currentLang()) === l.id} onclick={() => set('lang', l.id)} lang={l.id}>{l.label}</button>
+      {/each}
+    </div>
+  </div>
+{/if}
+
 <div class="field">
-  <span>Couleur de l'interface</span>
-  <div class="accents" role="radiogroup" aria-label="Couleur de l'interface">
+  <span>{tr("Couleur de l'interface")}</span>
+  <div class="accents" role="radiogroup" aria-label={tr("Couleur de l'interface")}>
     {#each ACCENTS as a (a.id)}
       <button
         class="sw"
@@ -37,8 +50,8 @@
         title={a.label}
       >{#if val('accent') === a.id}<Icon name="check" size={16} />{/if}</button>
     {/each}
-    <label class="sw pick" class:sel={custom} title="Autre couleur" style:background={custom ? val('accent') : null}>
-      <input type="color" value={custom ? val('accent') : '#f0a93a'} onchange={(e) => set('accent', e.currentTarget.value)} aria-label="Autre couleur" />
+    <label class="sw pick" class:sel={custom} title={tr("Autre couleur")} style:background={custom ? val('accent') : null}>
+      <input type="color" value={custom ? val('accent') : '#f0a93a'} onchange={(e) => set('accent', e.currentTarget.value)} aria-label={tr("Autre couleur")} />
       {#if !custom}<Icon name="plus" size={16} />{/if}
     </label>
   </div>
@@ -57,10 +70,10 @@
 
 {#if nav}
   <div class="field">
-    <span>Changer de tableau de bord</span>
+    <span>{tr("Changer de tableau")}</span>
     <div class="seg wrap">
-      <button class:on={val('nav') === 'swipe'} onclick={() => set('nav', 'swipe')}>En glissant (petits points)</button>
-      <button class:on={val('nav') === 'tabs'} onclick={() => set('nav', 'tabs')}>Par onglets</button>
+      <button class:on={val('nav') === 'swipe'} onclick={() => set('nav', 'swipe')}>{tr("En glissant (petits points)")}</button>
+      <button class:on={val('nav') === 'tabs'} onclick={() => set('nav', 'tabs')}>{tr("Par onglets")}</button>
     </div>
   </div>
 {/if}

@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // Présence par le Wi-Fi : chaque personne a son (ou ses) téléphone(s), Heim regarde s'ils
   // sont connectés au réseau de la maison.
   import { onMount } from 'svelte';
@@ -33,7 +34,7 @@
   async function save() {
     try {
       await api('/presence/config', { method: 'PUT', body: $state.snapshot(cfg) });
-      toast('Présence enregistrée');
+      toast(tr("Présence enregistrée"));
       await load();
     } catch (e) {
       toast(e.message, 'alert');
@@ -52,8 +53,8 @@
   }
 
   function addPhone(mac, user_id, label = null) {
-    if (!user_id) return toast('Choisissez à qui est ce téléphone', 'alert');
-    if (cfg.phones.some((p) => p.mac === mac)) return toast('Ce téléphone est déjà suivi', 'alert');
+    if (!user_id) return toast(tr("Choisissez à qui est ce téléphone"), 'alert');
+    if (cfg.phones.some((p) => p.mac === mac)) return toast(tr("Ce téléphone est déjà suivi"), 'alert');
     cfg.phones.push({ mac, user_id, label });
     cfg.enabled = true;
     touch();
@@ -62,12 +63,12 @@
   const fmtAgo = (t) => ago(t, home.now);
 </script>
 
-<p class="muted">Heim regarde si les téléphones sont connectés au Wi-Fi de la maison. Pas de GPS, rien à installer. Chaque personne peut servir dans les automatismes (« quand Alex rentre… »).</p>
+<p class="muted">{tr("Heim regarde si les téléphones sont connectés au Wi-Fi de la maison. Pas de GPS, rien à installer. Chaque personne peut servir dans les automatismes (« quand Alex rentre… »).")}</p>
 
 {#if cfg}
   <label class="check big">
     <input type="checkbox" bind:checked={cfg.enabled} onchange={touch} />
-    <strong>Suivre la présence</strong>
+    <strong>{tr("Suivre la présence")}</strong>
   </label>
 
   {#if data.people.length}
@@ -77,53 +78,52 @@
           <span class="avatar" aria-hidden="true">{p.name.slice(0, 1).toUpperCase()}</span>
           <div class="txt">
             <strong>{p.name}</strong>
-            <span>{p.home === true ? 'À la maison' : p.home === false ? 'Absent' : 'En attente'} · {p.last_seen ? `vu ${fmtAgo(p.last_seen)}` : 'pas encore vu'}</span>
+            <span>{p.home === true ? tr("À la maison") : p.home === false ? tr("Absent") : tr("En attente")} · {p.last_seen ? `vu ${fmtAgo(p.last_seen)}` : tr("pas encore vu")}</span>
           </div>
         </li>
       {/each}
     </ul>
   {/if}
 
-  <h2>Téléphones suivis</h2>
+  <h2>{tr("Téléphones suivis")}</h2>
   {#if !cfg.phones.length}
-    <p class="muted">Aucun pour l'instant.</p>
+    <p class="muted">{tr("Aucun pour l'instant.")}</p>
   {:else}
     <ul class="rows">
       {#each cfg.phones as p, i (p.mac)}
         <li>
           <Icon name="link" size={18} />
           <div class="txt"><strong>{nameOf(p.user_id)}</strong><span class="num">{p.mac}</span></div>
-          <button class="btn danger" onclick={() => (cfg.phones.splice(i, 1), touch())}>Retirer</button>
+          <button class="btn danger" onclick={() => (cfg.phones.splice(i, 1), touch())}>{tr("Retirer")}</button>
         </li>
       {/each}
     </ul>
   {/if}
 
-  <h2>Ajouter un téléphone</h2>
+  <h2>{tr("Ajouter un téléphone")}</h2>
   <div class="tip">
-    <strong>Sur iPhone</strong> : Réglages, Wi-Fi, touchez <span class="i">i</span> à côté du réseau de la maison.
-    Mettez <em>Adresse Wi-Fi privée</em> sur <strong>Fixe</strong> (ou désactivée), puis notez l'<em>Adresse Wi-Fi</em> affichée juste en dessous : c'est elle qu'il faut choisir ici.
+    <strong>{tr("Sur iPhone")}</strong> {tr(": Réglages, Wi-Fi, touchez")} <span class="i">i</span> {tr("à côté du réseau de la maison. Mettez")} <em>{tr("Adresse Wi-Fi privée")}</em> {tr("sur")} <strong>{tr("Fixe")}</strong> {tr("(ou désactivée), puis notez l'")}<em>{tr("Adresse Wi-Fi")}</em> {tr("affichée juste en dessous : c'est elle qu'il faut choisir ici.")}
   </div>
 
-  <button class="btn quiet" disabled={scanning} onclick={scan}>{scanning ? 'Recherche…' : 'Chercher sur le réseau'}</button>
+  <button class="btn quiet" disabled={scanning} onclick={scan}>{scanning ? tr("Recherche…") : tr("Chercher sur le réseau")}</button>
 
   {#if found}
     {#if !found.length}
-      <p class="muted">Rien trouvé. Heim tourne-t-il bien sur le réseau de la maison (et pas sur Tailscale seulement) ?</p>
+      <p class="muted">{tr("Rien trouvé. Heim tourne-t-il bien sur le réseau de la maison (et pas sur Tailscale seulement) ?")}</p>
     {:else}
       <ul class="rows found">
         {#each found as n (n.mac)}
           <li>
             <div class="txt">
               <strong class="num">{n.mac}</strong>
-              <span class="num">{n.ip}{n.private ? ' · adresse privée (téléphone ?)' : ''}{n.phone_of ? ` · ${nameOf(n.phone_of)}` : ''}</span>
+              <span class="num">{n.ip}{n.private ? tr(" · adresse privée (téléphone ?)") : ''}{n.phone_of ? ` · ${nameOf(n.phone_of)}` : ''}</span>
             </div>
             {#if !n.phone_of}
-              <select class="input sel" bind:value={pick[n.mac]} aria-label="À qui est {n.mac}">
-                <option value="">À qui ?</option>
+              <select class="input sel" bind:value={pick[n.mac]} aria-label={tr("À qui est {mac}", { mac: n.mac })}>
+                <option value="">{tr("À qui ?")}</option>
                 {#each users as u (u.id)}<option value={u.id}>{u.name}</option>{/each}
               </select>
-              <button class="btn quiet small" disabled={!pick[n.mac]} onclick={() => addPhone(n.mac, pick[n.mac])}>Ajouter</button>
+              <button class="btn quiet small" disabled={!pick[n.mac]} onclick={() => addPhone(n.mac, pick[n.mac])}>{tr("Ajouter")}</button>
             {/if}
           </li>
         {/each}
@@ -136,42 +136,42 @@
     onsubmit={(e) => {
       e.preventDefault();
       const mac = manual.mac.trim().toLowerCase().replace(/-/g, ':');
-      if (!/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(mac)) return toast("Adresse invalide (exemple : aa:bb:cc:12:34:56)", 'alert');
+      if (!/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/.test(mac)) return toast(tr("Adresse invalide (exemple : aa:bb:cc:12:34:56)"), 'alert');
       addPhone(mac, manual.user_id);
       manual = { mac: '', user_id: '' };
     }}
   >
-    <input class="input" placeholder="Ou tapez l'adresse : aa:bb:cc:12:34:56" bind:value={manual.mac} autocomplete="off" />
-    <select class="input" bind:value={manual.user_id} aria-label="À qui">
-      <option value="">À qui ?</option>
+    <input class="input" placeholder={tr("Ou tapez l'adresse : aa:bb:cc:12:34:56")} bind:value={manual.mac} autocomplete="off" />
+    <select class="input" bind:value={manual.user_id} aria-label={tr("À qui")}>
+      <option value="">{tr("À qui ?")}</option>
       {#each users as u (u.id)}<option value={u.id}>{u.name}</option>{/each}
     </select>
-    <button class="btn quiet" type="submit" disabled={!manual.mac || !manual.user_id}>Ajouter</button>
+    <button class="btn quiet" type="submit" disabled={!manual.mac || !manual.user_id}>{tr("Ajouter")}</button>
   </form>
   {#if !users.length}
-    <p class="muted">Créez d'abord les comptes de la maison dans <a href="#reglages/comptes">Comptes</a>.</p>
+    <p class="muted">{tr("Créez d'abord les comptes de la maison dans")} <a href="#reglages/comptes">{tr("Comptes")}</a>.</p>
   {/if}
 
-  <h2>Réglages</h2>
+  <h2>{tr("Réglages")}</h2>
   <label class="field">
-    <span>Considérer parti après</span>
-    <span class="unit"><input class="input num" type="number" min="1" max="120" bind:value={cfg.away_after_min} oninput={touch} /> minutes sans nouvelles</span>
+    <span>{tr("Considérer parti après")}</span>
+    <span class="unit"><input class="input num" type="number" min="1" max="120" bind:value={cfg.away_after_min} oninput={touch} /> {tr("minutes sans nouvelles")}</span>
   </label>
-  <p class="muted small">Un iPhone en veille répond parfois mal : 10 minutes évitent les faux départs.</p>
+  <p class="muted small">{tr("Un iPhone en veille répond parfois mal : 10 minutes évitent les faux départs.")}</p>
   <label class="field">
-    <span>Quand tout le monde est parti</span>
+    <span>{tr("Quand tout le monde est parti")}</span>
     <select class="input" bind:value={cfg.everyone_left} onchange={touch}>
-      <option value="suggest">Proposer d'activer l'alarme (notification)</option>
-      <option value="arm">Activer l'alarme Absent toute seule</option>
-      <option value="nothing">Ne rien faire</option>
+      <option value="suggest">{tr("Proposer d'activer l'alarme (notification)")}</option>
+      <option value="arm">{tr("Activer l'alarme Absent toute seule")}</option>
+      <option value="nothing">{tr("Ne rien faire")}</option>
     </select>
   </label>
-  <p class="muted small">L'alarme ne se désactive jamais toute seule quand quelqu'un rentre : un téléphone volé ne doit pas ouvrir la maison. Heim prévient simplement que l'alarme est toujours activée.</p>
+  <p class="muted small">{tr("L'alarme ne se désactive jamais toute seule quand quelqu'un rentre : un téléphone volé ne doit pas ouvrir la maison. Heim prévient simplement que l'alarme est toujours activée.")}</p>
 
   {#if dirty}
     <div class="savebar">
-      <button class="btn" onclick={save}>Enregistrer</button>
-      <button class="btn quiet" onclick={load}>Annuler</button>
+      <button class="btn" onclick={save}>{tr("Enregistrer")}</button>
+      <button class="btn quiet" onclick={load}>{tr("Annuler")}</button>
     </div>
   {/if}
 {/if}

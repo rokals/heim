@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // La même carte pour chaque intégration : nom, état, résumé, interrupteur, et un clic
   // pour ouvrir ses réglages. Une nouvelle intégration n'a qu'à fournir ces champs.
   import Icon from '../Icon.svelte';
@@ -6,19 +7,19 @@
   let { item, onopen = null, ontoggle, busy = false } = $props();
 
   const STATUS = {
-    connected: { text: 'Connecté', tone: 'ok' },
-    starting: { text: 'Connexion…', tone: 'wait' },
-    disconnected: { text: 'Injoignable', tone: 'bad' },
-    failed: { text: 'En échec', tone: 'bad' },
-    stopped: { text: 'Désactivé', tone: 'off' },
+    connected: { text: tr("Connecté"), tone: 'ok' },
+    starting: { text: tr("Connexion…"), tone: 'wait' },
+    disconnected: { text: tr("Injoignable"), tone: 'bad' },
+    failed: { text: tr("En échec"), tone: 'bad' },
+    stopped: { text: tr("Désactivé"), tone: 'off' },
   };
   const st = $derived(
-    !item.configured ? { text: 'À configurer', tone: 'off' } : !item.enabled ? { text: 'Désactivé', tone: 'off' } : (STATUS[item.status] ?? { text: 'Démarrage…', tone: 'wait' }),
+    !item.configured ? { text: tr("À configurer"), tone: 'off' } : !item.enabled ? { text: tr("Désactivé"), tone: 'off' } : (STATUS[item.status] ?? { text: tr("Démarrage…"), tone: 'wait' }),
   );
 </script>
 
 <article class="card" class:off={!item.enabled}>
-  <button class="main" onclick={onopen} disabled={!onopen} aria-label="Réglages de {item.name}">
+  <button class="main" onclick={onopen} disabled={!onopen} aria-label={tr("Réglages de {name}", { name: item.name })}>
     <span class="ic"><Icon name={item.icon} size={24} /></span>
     <span class="txt">
       <span class="top">
@@ -27,7 +28,7 @@
       </span>
       <span class="desc">{item.description}</span>
       <span class="meta">
-        {#if item.enabled && item.configured}{item.devices} appareil(s){item.detail ? ` · ${item.detail}` : ''}{:else if item.summary}{item.summary}{/if}
+        {#if item.enabled && item.configured}{tr("{devices} appareil(s){v}", { devices: item.devices, v: item.detail ? ` · ${item.detail}` : '' })}{:else if item.summary}{item.summary}{/if}
       </span>
     </span>
     {#if onopen}<span class="chev" aria-hidden="true">›</span>{/if}
@@ -37,9 +38,9 @@
     class:on={item.enabled}
     role="switch"
     aria-checked={item.enabled}
-    aria-label="{item.enabled ? 'Désactiver' : 'Activer'} {item.name}"
+    aria-label="{item.enabled ? tr("Désactiver") : tr("Activer")} {item.name}"
     disabled={busy || (!item.configured && !item.enabled)}
-    title={!item.configured ? 'Configurez-la d’abord' : ''}
+    title={!item.configured ? tr("Configurez-la d’abord") : ''}
     onclick={() => ontoggle(!item.enabled)}
   ><span></span></button>
 </article>

@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // La position sert uniquement à calculer le lever et le coucher du soleil, sur place.
   import { onMount } from 'svelte';
   import { api, toast } from '../../lib/store.svelte.js';
@@ -18,7 +19,7 @@
     e?.preventDefault();
     try {
       await api('/settings/location', { method: 'PUT', body: { latitude: Number(lat), longitude: Number(lon) } });
-      toast('Lieu enregistré');
+      toast(tr("Lieu enregistré"));
     } catch (err) {
       toast(err.message, 'alert');
     }
@@ -26,7 +27,7 @@
 
   function locate() {
     if (!navigator.geolocation) {
-      toast("Ce navigateur ne donne pas sa position. Saisissez-la à la main.", 'alert');
+      toast(tr("Ce navigateur ne donne pas sa position. Saisissez-la à la main."), 'alert');
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -35,27 +36,27 @@
         lon = Math.round(p.coords.longitude * 100) / 100;
         save();
       },
-      () => toast("Position refusée ou indisponible (souvent le cas hors https). Saisissez-la à la main.", 'alert'),
+      () => toast(tr("Position refusée ou indisponible (souvent le cas hors https). Saisissez-la à la main."), 'alert'),
     );
   }
 </script>
 
-<p class="muted">Utilisée seulement pour savoir quand il fait nuit, sans passer par Internet. Deux décimales suffisent : inutile d'être précis.</p>
+<p class="muted">{tr("Utilisée seulement pour savoir quand il fait nuit, sans passer par Internet. Deux décimales suffisent : inutile d'être précis.")}</p>
 
 <form onsubmit={save}>
   <div class="two">
     <label class="field">
-      <span>Latitude</span>
+      <span>{tr("Latitude")}</span>
       <input class="input num" type="number" step="0.01" min="-90" max="90" bind:value={lat} />
     </label>
     <label class="field">
-      <span>Longitude</span>
+      <span>{tr("Longitude")}</span>
       <input class="input num" type="number" step="0.01" min="-180" max="180" bind:value={lon} />
     </label>
   </div>
   <div class="row">
-    <button class="btn" type="submit">Enregistrer</button>
-    <button class="btn quiet" type="button" onclick={locate}>Utiliser ma position</button>
+    <button class="btn" type="submit">{tr("Enregistrer")}</button>
+    <button class="btn quiet" type="button" onclick={locate}>{tr("Utiliser ma position")}</button>
   </div>
 </form>
 

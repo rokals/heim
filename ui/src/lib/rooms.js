@@ -1,20 +1,21 @@
 // Pièces courantes, avec une icône, pour aller vite.
+import { tr } from './i18n.js';
 export const ROOM_PRESETS = [
-  { name: 'Salon', icon: 'sofa' },
-  { name: 'Cuisine', icon: 'kitchen' },
-  { name: 'Chambre', icon: 'bed' },
-  { name: 'Chambre d’amis', icon: 'bed' },
-  { name: 'Chambre enfant', icon: 'child' },
-  { name: 'Salle de bain', icon: 'bath' },
-  { name: 'Toilettes', icon: 'bath' },
-  { name: 'Entrée', icon: 'door' },
-  { name: 'Couloir', icon: 'door' },
-  { name: 'Bureau', icon: 'desk' },
-  { name: 'Buanderie', icon: 'laundry' },
-  { name: 'Garage', icon: 'car' },
-  { name: 'Jardin', icon: 'tree' },
-  { name: 'Terrasse', icon: 'sun' },
-  { name: 'Escalier', icon: 'stairs' },
+  { name: tr("Salon"), icon: 'sofa' },
+  { name: tr("Cuisine"), icon: 'kitchen' },
+  { name: tr("Chambre"), icon: 'bed' },
+  { name: tr("Chambre d’amis"), icon: 'bed' },
+  { name: tr("Chambre enfant"), icon: 'child' },
+  { name: tr("Salle de bain"), icon: 'bath' },
+  { name: tr("Toilettes"), icon: 'bath' },
+  { name: tr("Entrée"), icon: 'door' },
+  { name: tr("Couloir"), icon: 'door' },
+  { name: tr("Bureau"), icon: 'desk' },
+  { name: tr("Buanderie"), icon: 'laundry' },
+  { name: tr("Garage"), icon: 'car' },
+  { name: tr("Jardin"), icon: 'tree' },
+  { name: tr("Terrasse"), icon: 'sun' },
+  { name: tr("Escalier"), icon: 'stairs' },
 ];
 
 export const ROOM_ICONS = ['house', 'sofa', 'kitchen', 'bed', 'child', 'bath', 'door', 'desk', 'laundry', 'car', 'tree', 'sun', 'stairs', 'bulb'];
@@ -27,4 +28,4 @@ export function roomIcon(room) {
   return hit?.icon ?? 'house';
 }
 
-export const FLOOR_PRESETS = ['Rez-de-chaussée', 'Étage', 'Sous-sol', 'Combles', 'Extérieur'];
+export const FLOOR_PRESETS = [tr("Rez-de-chaussée"), tr("Étage"), 'Sous-sol', tr("Combles"), tr("Extérieur")];

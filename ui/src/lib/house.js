@@ -2,6 +2,7 @@
 // des appareils (une ampoule = une carte, même si elle publie 5 valeurs), rangés par pièce.
 // Fonctions pures : testées avec `npm test`.
 
+import { tr } from './i18n.js';
 export const UNSORTED = '';
 
 const CONTROL = new Set(['light', 'switch']);
@@ -174,12 +175,12 @@ export function lastSeen(device) {
 
 /** « à l'instant », « il y a 5 min », « il y a 3 h », « il y a 2 j » */
 export function ago(iso, now = Date.now()) {
-  if (!iso) return 'jamais vu';
+  if (!iso) return tr("jamais vu");
   const s = Math.max(0, (now - new Date(iso).getTime()) / 1000);
-  if (s < 60) return "à l'instant";
-  if (s < 3600) return `il y a ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `il y a ${Math.floor(s / 3600)} h`;
-  return `il y a ${Math.floor(s / 86400)} j`;
+  if (s < 60) return tr("à l'instant");
+  if (s < 3600) return tr("il y a {floor} min", { floor: Math.floor(s / 60) });
+  if (s < 86400) return tr("il y a {floor} h", { floor: Math.floor(s / 3600) });
+  return tr("il y a {floor} j", { floor: Math.floor(s / 86400) });
 }
 
 /** Identifiant de la minuterie automatique d'une entité (même règle que le noyau). */
@@ -217,7 +218,7 @@ export function dashboardFromRooms(entities, order = []) {
   const rooms = buildRooms(entities, order)
     .filter((r) => r.controls.length || r.sensors.length)
     .map((r) => ({
-      title: r.name === UNSORTED ? 'À ranger' : r.name,
+      title: r.name === UNSORTED ? tr("À ranger") : r.name,
       cards: [
         ...r.controls.map((c) => ({ entity_id: c.entity.entity_id, w: 2, h: 2 })),
         ...r.sensors.map((d) => ({ entity_id: d.primary.entity_id, w: 4, h: 1 })),

@@ -25,6 +25,7 @@ pub mod dashboards;
 pub mod devices;
 pub mod groups;
 pub mod history;
+pub mod i18n;
 pub mod integrations;
 pub mod model;
 pub mod netsetup;
@@ -211,6 +212,13 @@ impl Core {
             store.clone(),
         );
         let settings = Settings::new(loaded.take(Table::Settings), store.clone(), bus.clone());
+        // La langue de la maison (notifications push, messages sans lecteur connu).
+        i18n::set_house_lang(
+            settings
+                .get_raw(api_boards::APPEARANCE_KEY)
+                .and_then(|v| v.get("lang").and_then(|l| l.as_str()).map(str::to_string))
+                .as_deref(),
+        );
         // Clés VAPID : créées une fois, elles identifient ce Heim auprès d'Apple et Google.
         let vapid = match settings.get::<push::Vapid>(push::SETTINGS_KEY) {
             Some(v) => v,

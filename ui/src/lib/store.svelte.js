@@ -1,3 +1,4 @@
+import { tr, currentLang, hasStoredLang, setLang } from './i18n.js';
 import { roomNames } from './house.js';
 
 // État partagé de l'interface : la liste des entités tenue à jour par le WebSocket,
@@ -82,10 +83,10 @@ export function deviceLabel() {
   const ua = navigator.userAgent;
   if (/iPhone/.test(ua)) return 'iPhone';
   if (/iPad/.test(ua)) return 'iPad';
-  if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'Téléphone Android' : 'Tablette Android';
-  if (/Windows/.test(ua)) return 'Ordinateur Windows';
-  if (/Mac/.test(ua)) return 'Mac';
-  return 'Navigateur';
+  if (/Android/.test(ua)) return /Mobile/.test(ua) ? tr("Téléphone Android") : tr("Tablette Android");
+  if (/Windows/.test(ua)) return tr("Ordinateur Windows");
+  if (/Mac/.test(ua)) return tr("Mac");
+  return tr("Navigateur");
 }
 
 /** Ce que le navigateur dit être, pour la page Écrans (le nom, lui, peut être changé). */
@@ -93,10 +94,10 @@ export function deviceKind() {
   const ua = navigator.userAgent;
   if (/iPhone/.test(ua)) return 'iPhone';
   if (/iPad|Macintosh.*Mobile/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iPad';
-  if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'Téléphone Android' : 'Tablette Android';
-  if (/Windows/.test(ua)) return 'Ordinateur Windows';
-  if (/Mac/.test(ua)) return 'Mac';
-  return 'Navigateur';
+  if (/Android/.test(ua)) return /Mobile/.test(ua) ? tr("Téléphone Android") : tr("Tablette Android");
+  if (/Windows/.test(ua)) return tr("Ordinateur Windows");
+  if (/Mac/.test(ua)) return tr("Mac");
+  return tr("Navigateur");
 }
 
 export function rememberDeviceLabel(name) {
@@ -112,7 +113,8 @@ export function toast(text, kind = 'info') {
 }
 
 export async function api(path, { method = 'GET', body } = {}) {
-  const headers = {};
+  // Les messages du Pi (erreurs…) arrivent dans la langue de l'interface.
+  const headers = { 'X-Heim-Lang': currentLang() };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = 'Bearer ' + token;
   const res = await fetch('/api' + path, {
@@ -122,11 +124,11 @@ export async function api(path, { method = 'GET', body } = {}) {
   });
   if (res.status === 401 && !path.startsWith('/auth/login')) {
     await needAuth();
-    throw new Error('Connexion requise');
+    throw new Error(tr("Connexion requise"));
   }
   const data = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) {
-    const err = new Error(data?.error || `Erreur ${res.status}`);
+    const err = new Error(data?.error || tr("Erreur {status}", { status: res.status }));
     // Certaines réponses en disent plus (alarme : quels capteurs sont ouverts).
     err.status = res.status;
     err.data = data;
@@ -139,6 +141,8 @@ export async function api(path, { method = 'GET', body } = {}) {
 async function needAuth() {
   try {
     const st = await fetch('/api/auth/status').then((r) => r.json());
+    // Premier passage sur cet appareil : la langue de la maison plutôt que celle du navigateur.
+    if (!hasStoredLang() && st.lang) setLang(st.lang);
     if (st.open) home.needToken = true;
     else {
       home.loginUsers = st.users;
@@ -204,7 +208,7 @@ let retryTimer;
 /** Premier démarrage : faut-il l'assistant ? (route publique) */
 export async function loadSetup() {
   try {
-    const st = await fetch('/api/setup').then((r) => r.json());
+    const st = await fetch('/api/setup', { headers: { 'X-Heim-Lang': currentLang() } }).then((r) => r.json());
     home.setup = st.needed ? st : null;
     return st;
   } catch {
@@ -228,7 +232,7 @@ export async function connect() {
     retry = 1000;
     lastMessage = Date.now();
     home.connected = true;
-    ws.send(JSON.stringify({ type: 'hello', target_id: deviceId(), name: deviceLabel(), kind: deviceKind() }));
+    ws.send(JSON.stringify({ type: 'hello', target_id: deviceId(), name: deviceLabel(), kind: deviceKind(), lang: currentLang() }));
     refreshIntegrations();
     loadBoards();
     loadScreen();
@@ -305,7 +309,7 @@ function handle(ev) {
     }
     case 'command_timeout': {
       const name = home.entities[ev.entity_id]?.name || ev.entity_id;
-      toast(`${name} ne répond pas. Vérifiez qu'il est alimenté.`, 'alert');
+      toast(tr("{name} ne répond pas. Vérifiez qu'il est alimenté.", { name }), 'alert');
       clearPending(ev.entity_id);
       break;
     }
@@ -361,7 +365,7 @@ function handle(ev) {
     case 'automation_ran':
       home.lastRun[ev.id] = { ok: ev.ok, detail: ev.detail, at: Date.now() };
       loadAutomations();
-      if (!ev.ok && ev.detail) toast(`Automatisme : ${ev.detail}`, 'alert');
+      if (!ev.ok && ev.detail) toast(tr("Automatisme : {detail}", { detail: ev.detail }), 'alert');
       break;
     case 'error':
       if (ev.entity_id) clearPending(ev.entity_id);

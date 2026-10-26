@@ -1,34 +1,35 @@
 // Affichage des valeurs de capteurs en français clair.
 
-const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+import { tr, locale } from './i18n.js';
+const number = new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 });
 
 const BINARY = {
-  contact: ['Ouverte', 'Fermée'],
-  occupancy: ['Présence', 'Personne'],
-  presence: ['Présence', 'Personne'],
-  water_leak: ['Fuite', 'Au sec'],
-  smoke: ['Fumée', 'Normal'],
-  vibration: ['Vibration', 'Calme'],
-  tamper: ['Ouvert', 'Normal'],
-  battery_low: ['Pile faible', 'Pile OK'],
+  contact: [tr("Ouverte"), tr("Fermée")],
+  occupancy: [tr("Présence"), tr("Personne")],
+  presence: [tr("Présence"), tr("Personne")],
+  water_leak: [tr("Fuite"), tr("Au sec")],
+  smoke: [tr("Fumée"), tr("Normal")],
+  vibration: [tr("Vibration"), tr("Calme")],
+  tamper: [tr("Ouvert"), tr("Normal")],
+  battery_low: [tr("Pile faible"), tr("Pile OK")],
 };
 
 const LABEL = {
-  temperature: 'Température',
-  humidity: 'Humidité',
-  pressure: 'Pression',
-  illuminance: 'Luminosité',
-  illuminance_lux: 'Luminosité',
-  power: 'Puissance',
-  energy: 'Consommation',
-  voltage: 'Tension',
-  current: 'Courant',
-  battery: 'Batterie',
+  temperature: tr("Température"),
+  humidity: tr("Humidité"),
+  pressure: tr("Pression"),
+  illuminance: tr("Luminosité"),
+  illuminance_lux: tr("Luminosité"),
+  power: tr("Puissance"),
+  energy: tr("Consommation"),
+  voltage: tr("Tension"),
+  current: tr("Courant"),
+  battery: tr("Batterie"),
   co2: 'CO₂',
-  contact: 'Ouverture',
-  occupancy: 'Présence',
-  water_leak: 'Fuite',
-  device_temperature: 'Température interne',
+  contact: tr("Ouverture"),
+  occupancy: tr("Présence"),
+  water_leak: tr("Fuite"),
+  device_temperature: tr("Température interne"),
 };
 
 export function kindOf(entity) {
@@ -46,7 +47,7 @@ export function formatValue(entity) {
   if (s.available === false) return 'injoignable';
   const kind = kindOf(entity);
   if (entity.domain === 'binary_sensor') {
-    const pair = BINARY[kind] || ['Actif', 'Inactif'];
+    const pair = BINARY[kind] || [tr("Actif"), tr("Inactif")];
     return s.value === 'on' ? pair[0] : pair[1];
   }
   if (typeof s.value === 'number') {

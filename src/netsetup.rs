@@ -41,6 +41,75 @@ pub struct NetState {
     pub networks: Vec<WifiNetwork>,
     pub last_error: Option<String>,
     pub busy: bool,
+    /// Un câble réseau branché et connecté (même si le Wi-Fi « Heim-XXXX » est encore ouvert).
+    pub ethernet: bool,
+    pub ethernet_ip: Option<String>,
+}
+
+/// Adresse fixe (option avancée de l'assistant) : « 192.168.1.50/24 », passerelle, DNS.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct StaticIp {
+    pub address: String,
+    #[serde(default)]
+    pub gateway: String,
+    #[serde(default)]
+    pub dns: String,
+}
+
+impl StaticIp {
+    /// Vérifie les adresses (IPv4) et ajoute /24 quand on n'a pas précisé le masque.
+    pub fn check(&self) -> Result<(String, String, String), String> {
+        let (ip, prefix) = match self.address.trim().split_once('/') {
+            Some((ip, p)) => (ip.trim(), p.trim()),
+            None => (self.address.trim(), "24"),
+        };
+        ip.parse::<std::net::Ipv4Addr>()
+            .map_err(|_| "adresse IP invalide (ex. 192.168.1.50)".to_string())?;
+        let prefix: u8 = prefix
+            .parse()
+            .ok()
+            .filter(|p| (8..=30).contains(p))
+            .ok_or("masque invalide (ex. /24)")?;
+        let gw = self.gateway.trim();
+        if !gw.is_empty() {
+            gw.parse::<std::net::Ipv4Addr>()
+                .map_err(|_| "passerelle invalide (ex. 192.168.1.1)".to_string())?;
+        }
+        let dns: Vec<&str> = self
+            .dns
+            .split([',', ' '])
+            .map(str::trim)
+            .filter(|d| !d.is_empty())
+            .collect();
+        for d in &dns {
+            d.parse::<std::net::Ipv4Addr>()
+                .map_err(|_| "serveur DNS invalide (ex. 1.1.1.1)".to_string())?;
+        }
+        Ok((format!("{ip}/{prefix}"), gw.to_string(), dns.join(",")))
+    }
+}
+
+/// Un nom de machine valable : minuscules, chiffres, tirets (« heim-salon »).
+pub fn clean_hostname(name: &str) -> Option<String> {
+    let n = name.trim().to_lowercase();
+    (!n.is_empty()
+        && n.len() <= 30
+        && !n.starts_with('-')
+        && !n.ends_with('-')
+        && n.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'))
+    .then_some(n)
+}
+
+/// Un fuseau horaire connu du système (« Europe/Paris »).
+pub fn clean_timezone(tz: &str) -> Option<String> {
+    let tz = tz.trim();
+    let ok = !tz.is_empty()
+        && tz.len() <= 64
+        && !tz.contains("..")
+        && tz
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '_' | '-' | '+'));
+    (ok && std::path::Path::new("/usr/share/zoneinfo").join(tz).is_file()).then(|| tz.to_string())
 }
 
 /// `nmcli -t` sépare par « : » et échappe « \: ».
@@ -206,7 +275,26 @@ impl NetSetup {
             })
             .filter(|s| !s.is_empty());
         let name = hotspot_name().await;
+        let ethernet = nmcli(&["-t", "-f", "TYPE,STATE", "device"])
+            .await
+            .map(|t| t.lines().any(|l| l == "ethernet:connected"))
+            .unwrap_or(false);
+        let mut ethernet_ip = None;
+        if ethernet
+            && let Some(dev) = nmcli(&["-t", "-f", "DEVICE,TYPE", "device"])
+                .await
+                .ok()
+                .and_then(|t| t.lines().find_map(|l| l.strip_suffix(":ethernet").map(str::to_string)))
+        {
+            ethernet_ip = nmcli(&["-g", "IP4.ADDRESS", "device", "show", &dev])
+                .await
+                .ok()
+                .and_then(|t| t.lines().next().map(|l| l.split('/').next().unwrap_or_default().to_string()))
+                .filter(|s| !s.is_empty());
+        }
         let mut s = self.lock();
+        s.ethernet = ethernet;
+        s.ethernet_ip = ethernet_ip;
         s.mode = mode;
         s.ssid = ssid;
         s.ip = ip;
@@ -276,12 +364,25 @@ impl NetSetup {
         Ok(())
     }
 
+    /// Le câble est branché : on referme « Heim-XXXX », la suite se fait sur le réseau de la maison.
+    pub async fn use_ethernet(&self) {
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        self.stop_hotspot().await;
+        self.refresh().await;
+    }
+
     pub async fn stop_hotspot(&self) {
         let _ = nmcli(&["connection", "down", AP_CONNECTION]).await;
     }
 
     /// Rejoint un Wi-Fi. En cas d'échec, rouvre « Heim-XXXX » et garde l'erreur pour l'assistant.
-    pub async fn connect(&self, ssid: &str, password: &str) -> Result<(), String> {
+    pub async fn connect(
+        &self,
+        ssid: &str,
+        password: &str,
+        hidden: bool,
+        fixed: Option<(String, String, String)>,
+    ) -> Result<(), String> {
         self.lock().busy = true;
         let was_hotspot = self.lock().mode == "hotspot";
         self.stop_hotspot().await;
@@ -292,8 +393,35 @@ impl NetSetup {
         if !password.is_empty() {
             args.extend(["password", password]);
         }
+        if hidden {
+            args.extend(["hidden", "yes"]);
+        }
         args.extend(["ifname", "wlan0"]);
-        let result = nmcli(&args).await;
+        let mut result = nmcli(&args).await;
+        // Adresse fixe demandée : on la règle sur le profil qui vient de marcher.
+        if result.is_ok()
+            && let Some((address, gateway, dns)) = &fixed
+        {
+            let mut m = vec![
+                "connection",
+                "modify",
+                ssid,
+                "ipv4.method",
+                "manual",
+                "ipv4.addresses",
+                address.as_str(),
+            ];
+            if !gateway.is_empty() {
+                m.extend(["ipv4.gateway", gateway.as_str()]);
+            }
+            if !dns.is_empty() {
+                m.extend(["ipv4.dns", dns.as_str()]);
+            }
+            result = match nmcli(&m).await {
+                Ok(_) => nmcli(&["connection", "up", ssid]).await,
+                Err(e) => Err(e),
+            };
+        }
         let outcome = match result {
             Ok(_) => {
                 tracing::info!("Wi-Fi « {ssid} » rejoint");
@@ -395,6 +523,35 @@ impl NetSetup {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn checks_setup_values() {
+        let s = StaticIp {
+            address: "192.168.1.50".into(),
+            gateway: "192.168.1.1".into(),
+            dns: "1.1.1.1, 9.9.9.9".into(),
+        };
+        assert_eq!(
+            s.check().unwrap(),
+            (
+                "192.168.1.50/24".into(),
+                "192.168.1.1".into(),
+                "1.1.1.1,9.9.9.9".into()
+            )
+        );
+        assert!(
+            StaticIp {
+                address: "192.168.1.500".into(),
+                ..Default::default()
+            }
+            .check()
+            .is_err()
+        );
+        assert_eq!(clean_hostname(" Heim-Salon ").as_deref(), Some("heim-salon"));
+        assert!(clean_hostname("heim salon").is_none());
+        assert!(clean_hostname("-heim").is_none());
+        assert!(clean_timezone("../../etc/passwd").is_none());
+    }
 
     #[test]
     fn parses_nmcli_output() {

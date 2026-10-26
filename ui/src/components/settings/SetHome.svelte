@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // La maison : nom, étages, pièces (dans l'ordre voulu), et les appareils à ranger.
   import Icon from '../Icon.svelte';
   import GroupsEditor from './GroupsEditor.svelte';
@@ -31,7 +32,7 @@
   function addRoom(name, icon = null) {
     name = name.trim();
     if (!name) return;
-    if (layout.rooms.some((r) => r.name.toLowerCase() === name.toLowerCase())) return toast('Cette pièce existe déjà', 'alert');
+    if (layout.rooms.some((r) => r.name.toLowerCase() === name.toLowerCase())) return toast(tr("Cette pièce existe déjà"), 'alert');
     const l = copy();
     l.rooms.push({ name, icon: icon ?? undefined, floor: l.floors.length === 1 ? l.floors[0] : undefined });
     save(l);
@@ -64,7 +65,7 @@
   async function remove(i) {
     const r = layout.rooms[i];
     const n = countIn(r.name);
-    if (!confirm(n ? `Supprimer la pièce « ${r.name} » ? Ses ${n} appareil(s) passeront dans « Sans pièce ».` : `Supprimer la pièce « ${r.name} » ?`)) return;
+    if (!confirm(n ? tr("Supprimer la pièce « {name} » ? Ses {n} appareil(s) passeront dans « Sans pièce ».", { name: r.name, n }) : tr("Supprimer la pièce « {name} » ?", { name: r.name }))) return;
     try {
       if (n) await api('/rooms/rename', { method: 'POST', body: { from: r.name, to: null } });
       const l = copy();
@@ -123,20 +124,20 @@
 </script>
 
 <label class="field">
-  <span>Nom de la maison</span>
+  <span>{tr("Nom de la maison")}</span>
   <input
     class="input"
     value={layout.name}
-    placeholder="La maison, Chez nous…"
+    placeholder={tr("La maison, Chez nous…")}
     onchange={(e) => save({ ...copy(), name: e.currentTarget.value })}
   />
 </label>
 
-<h2>Étages</h2>
-<p class="muted">Facultatif : pour une maison de plain-pied, n'en créez aucun.</p>
+<h2>{tr("Étages")}</h2>
+<p class="muted">{tr("Facultatif : pour une maison de plain-pied, n'en créez aucun.")}</p>
 <div class="chips">
   {#each layout.floors as f (f)}
-    <span class="chip on">{f}<button aria-label="Retirer {f}" onclick={() => removeFloor(f)}><Icon name="close" size={14} /></button></span>
+    <span class="chip on">{f}<button aria-label={tr("Retirer {f}", { f })} onclick={() => removeFloor(f)}><Icon name="close" size={14} /></button></span>
   {/each}
   {#each FLOOR_PRESETS.filter((f) => !layout.floors.includes(f)) as f (f)}
     <button class="chip" onclick={() => addFloor(f)}><Icon name="plus" size={14} /> {f}</button>
@@ -149,38 +150,38 @@
     addFloor(newFloor);
   }}
 >
-  <input class="input" bind:value={newFloor} placeholder="Autre étage" />
-  <button class="btn quiet" type="submit" disabled={!newFloor.trim()}>Ajouter</button>
+  <input class="input" bind:value={newFloor} placeholder={tr("Autre étage")} />
+  <button class="btn quiet" type="submit" disabled={!newFloor.trim()}>{tr("Ajouter")}</button>
 </form>
 
-<h2>Pièces</h2>
+<h2>{tr("Pièces")}</h2>
 {#if !layout.rooms.length}
-  <p class="muted">Ajoutez vos pièces : elles serviront à ranger les appareils et l'accueil suivra cet ordre.</p>
+  <p class="muted">{tr("Ajoutez vos pièces : elles serviront à ranger les appareils et l'accueil suivra cet ordre.")}</p>
 {/if}
 
 {#each byFloor as g (g.floor ?? '—')}
-  {#if layout.floors.length}<h3>{g.floor ?? 'Sans étage'}</h3>{/if}
+  {#if layout.floors.length}<h3>{g.floor ?? tr("Sans étage")}</h3>{/if}
   <ul class="rooms">
     {#each g.rooms as { r, i } (r.name)}
       <li>
-        <button class="ic" aria-label="Icône de {r.name}" onclick={() => (iconFor = iconFor === i ? null : i)}><Icon name={roomIcon(r)} size={22} /></button>
+        <button class="ic" aria-label={tr("Icône de {name}", { name: r.name })} onclick={() => (iconFor = iconFor === i ? null : i)}><Icon name={roomIcon(r)} size={22} /></button>
         <div class="txt">
           {#if editing === i}
             <input class="input" value={r.name} onblur={(e) => rename(i, e.currentTarget.value)} onkeydown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
           {:else}
             <button class="name" onclick={() => (editing = i)}>{r.name}</button>
           {/if}
-          <span>{countIn(r.name) ? `${countIn(r.name)} appareil(s)` : 'vide'}</span>
+          <span>{countIn(r.name) ? tr('{n} appareil(s)', { n: countIn(r.name) }) : tr('vide')}</span>
         </div>
         {#if layout.floors.length}
-          <select class="input floor" value={r.floor ?? ''} onchange={(e) => setFloor(i, e.currentTarget.value)} aria-label="Étage de {r.name}">
+          <select class="input floor" value={r.floor ?? ''} onchange={(e) => setFloor(i, e.currentTarget.value)} aria-label={tr("Étage de {name}", { name: r.name })}>
             <option value="">—</option>
             {#each layout.floors as f (f)}<option value={f}>{f}</option>{/each}
           </select>
         {/if}
-        <button class="mini" aria-label="Monter {r.name}" disabled={i === 0} onclick={() => move(i, -1)}>↑</button>
-        <button class="mini" aria-label="Descendre {r.name}" disabled={i === layout.rooms.length - 1} onclick={() => move(i, 1)}>↓</button>
-        <button class="mini" aria-label="Supprimer {r.name}" onclick={() => remove(i)}><Icon name="close" size={15} /></button>
+        <button class="mini" aria-label={tr("Monter {name}", { name: r.name })} disabled={i === 0} onclick={() => move(i, -1)}>↑</button>
+        <button class="mini" aria-label={tr("Descendre {name}", { name: r.name })} disabled={i === layout.rooms.length - 1} onclick={() => move(i, 1)}>↓</button>
+        <button class="mini" aria-label={tr("Supprimer {name}", { name: r.name })} onclick={() => remove(i)}><Icon name="close" size={15} /></button>
       </li>
       {#if iconFor === i}
         <li class="icons">
@@ -200,8 +201,8 @@
     addRoom(newRoom);
   }}
 >
-  <input class="input" bind:value={newRoom} placeholder="Nouvelle pièce" />
-  <button class="btn" type="submit" disabled={!newRoom.trim()}>Ajouter</button>
+  <input class="input" bind:value={newRoom} placeholder={tr("Nouvelle pièce")} />
+  <button class="btn" type="submit" disabled={!newRoom.trim()}>{tr("Ajouter")}</button>
 </form>
 {#if presets.length}
   <div class="chips">
@@ -209,25 +210,25 @@
   </div>
 {/if}
 
-<h2>Groupes</h2>
+<h2>{tr("Groupes")}</h2>
 <GroupsEditor />
 
 {#if strays.length}
-  <h2>Trouvées sur vos appareils</h2>
-  <p class="muted">Ces pièces sont utilisées par des appareils mais pas encore dans la maison.</p>
+  <h2>{tr("Trouvées sur vos appareils")}</h2>
+  <p class="muted">{tr("Ces pièces sont utilisées par des appareils mais pas encore dans la maison.")}</p>
   <div class="chips">
     {#each strays as s (s)}<button class="chip" onclick={() => addRoom(s)}><Icon name="plus" size={14} /> {s}</button>{/each}
   </div>
 {/if}
 
 {#if unsorted.length && layout.rooms.length}
-  <h2>Appareils sans pièce</h2>
+  <h2>{tr("Appareils sans pièce")}</h2>
   <ul class="rows">
     {#each unsorted as d (d.key)}
       <li>
         <span class="dname">{d.name}</span>
-        <select class="input floor" value="" onchange={(e) => place(d, e.currentTarget.value)} aria-label="Pièce de {d.name}">
-          <option value="" disabled>Ranger dans…</option>
+        <select class="input floor" value="" onchange={(e) => place(d, e.currentTarget.value)} aria-label={tr("Pièce de {name}", { name: d.name })}>
+          <option value="" disabled>{tr("Ranger dans…")}</option>
           {#each layout.rooms as r (r.name)}<option value={r.name}>{r.name}</option>{/each}
         </select>
       </li>

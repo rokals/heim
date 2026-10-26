@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Les tableaux de bord (admin) : créer, renommer, choisir l'icône, cacher de la navigation
   // (un tableau pour une tablette), ordonner, dupliquer, supprimer.
   import { untrack } from 'svelte';
@@ -25,15 +26,15 @@
 
   function add(kind) {
     const n = list.filter((b) => b.name.startsWith('Tableau')).length + 1;
-    const base = { id: '', name: `Tableau ${n}`, icon: 'star', hidden: false, auto: false, sections: [] };
-    if (kind === 'auto') Object.assign(base, { name: 'Par pièce', icon: 'house', auto: true });
-    if (kind === 'empty') base.sections = [{ title: 'Section', cards: [] }];
+    const base = { id: '', name: tr("Tableau {n}", { n }), icon: 'star', hidden: false, auto: false, sections: [] };
+    if (kind === 'auto') Object.assign(base, { name: tr("Par pièce"), icon: 'house', auto: true });
+    if (kind === 'empty') base.sections = [{ title: tr("Section"), cards: [] }];
     list.push(base);
   }
 
   function duplicate(k) {
     const b = $state.snapshot(list[k]);
-    list.splice(k + 1, 0, { ...b, id: '', name: `${b.name} (copie)`, hidden: false });
+    list.splice(k + 1, 0, { ...b, id: '', name: tr("{name} (copie)", { name: b.name }), hidden: false });
   }
 
   function move(k, d) {
@@ -45,7 +46,7 @@
   function remove(k) {
     const b = list[k];
     if (list.length === 1) return;
-    if (!confirm(`Supprimer le tableau « ${b.name} » ? Ses cartes seront perdues. Les écrans qui l'affichaient reviendront au premier tableau.`)) return;
+    if (!confirm(tr("Supprimer le tableau « {name} » ? Ses tuiles seront perdues. Les écrans qui l'affichaient reviendront au premier tableau.", { name: b.name }))) return;
     list.splice(k, 1);
   }
 
@@ -62,18 +63,16 @@
 
 {#snippet body()}
   <p class="muted small">
-    Glissez à gauche ou à droite sur l'accueil pour passer d'un tableau à l'autre (ou des onglets, au choix dans Réglages,
-    Apparence). Un tableau <strong>caché</strong> n'apparaît pas dans la navigation : pratique pour une tablette, à qui on l'impose
-    dans Réglages, Écrans.
+    {tr("Glissez à gauche ou à droite sur l'accueil pour passer d'un tableau à l'autre (ou des onglets, au choix dans Réglages, Apparence). Un tableau")} <strong>{tr("caché")}</strong> {tr("n'apparaît pas dans la navigation : pratique pour une tablette, à qui on l'impose dans Réglages, Écrans.")}
   </p>
   <ul>
     {#each list as b, k (k)}
       <li>
         <div class="row">
-          <button class="ic" onclick={() => (picking = picking === k ? null : k)} aria-label="Icône du tableau"><Icon name={b.icon || 'house'} size={20} /></button>
-          <input class="input" bind:value={b.name} aria-label="Nom du tableau" maxlength="40" />
-          <button class="mini" onclick={() => move(k, -1)} disabled={k === 0} aria-label="Monter">↑</button>
-          <button class="mini" onclick={() => move(k, 1)} disabled={k === list.length - 1} aria-label="Descendre">↓</button>
+          <button class="ic" onclick={() => (picking = picking === k ? null : k)} aria-label={tr("Icône du tableau")}><Icon name={b.icon || 'house'} size={20} /></button>
+          <input class="input" bind:value={b.name} aria-label={tr("Nom du tableau")} maxlength="40" />
+          <button class="mini" onclick={() => move(k, -1)} disabled={k === 0} aria-label={tr("Monter")}>↑</button>
+          <button class="mini" onclick={() => move(k, 1)} disabled={k === list.length - 1} aria-label={tr("Descendre")}>↓</button>
         </div>
         {#if picking === k}
           <div class="icons">
@@ -83,29 +82,29 @@
           </div>
         {/if}
         <div class="row tools">
-          <label class="check"><input type="checkbox" bind:checked={b.hidden} /> Caché de la navigation</label>
-          <span class="tag">{b.auto ? 'Rangé par pièce' : `${b.sections.reduce((n, s) => n + (s.cards?.length ?? 0), 0)} cartes`}</span>
-          {#if b.id && !inline}<button class="link" onclick={() => (showBoard(b.id), onclose?.())}>Afficher</button>{/if}
-          <button class="link" onclick={() => duplicate(k)}>Dupliquer</button>
-          <button class="link danger" onclick={() => remove(k)} disabled={list.length === 1}>Supprimer</button>
+          <label class="check"><input type="checkbox" bind:checked={b.hidden} /> {tr("Caché de la navigation")}</label>
+          <span class="tag">{b.auto ? tr("Rangé par pièce") : `${b.sections.reduce((n, s) => n + (s.cards?.length ?? 0), 0)} tuiles`}</span>
+          {#if b.id && !inline}<button class="link" onclick={() => (showBoard(b.id), onclose?.())}>{tr("Afficher")}</button>{/if}
+          <button class="link" onclick={() => duplicate(k)}>{tr("Dupliquer")}</button>
+          <button class="link danger" onclick={() => remove(k)} disabled={list.length === 1}>{tr("Supprimer")}</button>
         </div>
       </li>
     {/each}
   </ul>
   <div class="adds">
-    <button class="btn quiet" onclick={() => add('empty')}><Icon name="plus" size={16} /> Tableau vide</button>
-    <button class="btn quiet" onclick={() => add('auto')}><Icon name="house" size={16} /> Rangé par pièce</button>
+    <button class="btn quiet" onclick={() => add('empty')}><Icon name="plus" size={16} /> {tr("Tableau vide")}</button>
+    <button class="btn quiet" onclick={() => add('auto')}><Icon name="house" size={16} /> {tr("Rangé par pièce")}</button>
   </div>
   <div class="actions">
-    <button class="btn" onclick={save} disabled={saving || !dirty}>{saving ? 'Enregistrement…' : 'Enregistrer'}</button>
-    {#if dirty}<button class="btn quiet" onclick={() => (list = $state.snapshot(home.boards?.boards ?? []))}>Annuler</button>{/if}
+    <button class="btn" onclick={save} disabled={saving || !dirty}>{saving ? tr("Enregistrement…") : tr("Enregistrer")}</button>
+    {#if dirty}<button class="btn quiet" onclick={() => (list = $state.snapshot(home.boards?.boards ?? []))}>{tr("Annuler")}</button>{/if}
   </div>
 {/snippet}
 
 {#if inline}
   {@render body()}
 {:else}
-  <Sheet title="Tableaux de bord" onclose={() => onclose?.()}>
+  <Sheet title={tr("Tableaux")} onclose={() => onclose?.()}>
     {@render body()}
   </Sheet>
 {/if}

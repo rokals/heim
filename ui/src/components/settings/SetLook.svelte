@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // Apparence : thème, couleur, texte, arrondi, espacement, fond, façon de changer de tableau.
   // Chacun règle la sienne ; l'admin règle aussi celle de la maison (pour tous par défaut).
   import LookEditor from './LookEditor.svelte';
@@ -22,15 +23,15 @@
 
 {#if hasAccount && isAdmin()}
   <div class="tabs" role="tablist">
-    <button role="tab" aria-selected={scope === 'mine'} class:on={scope === 'mine'} onclick={() => (scope = 'mine')}>Pour moi</button>
-    <button role="tab" aria-selected={scope === 'house'} class:on={scope === 'house'} onclick={() => (scope = 'house')}>Pour toute la maison</button>
+    <button role="tab" aria-selected={scope === 'mine'} class:on={scope === 'mine'} onclick={() => (scope = 'mine')}>{tr("Pour moi")}</button>
+    <button role="tab" aria-selected={scope === 'house'} class:on={scope === 'house'} onclick={() => (scope = 'house')}>{tr("Pour toute la maison")}</button>
   </div>
 {/if}
 
 {#if which === 'mine'}
   <p class="muted">
-    Votre apparence vous suit sur tous vos appareils.
-    {#if home.look?.mine}<button class="link" onclick={() => saveMyLook(null)}>Reprendre celle de la maison</button>{:else}Pour l’instant, c’est celle de la maison.{/if}
+    {tr("Votre apparence vous suit sur tous vos appareils.")}
+    {#if home.look?.mine}<button class="link" onclick={() => saveMyLook(null)}>{tr("Reprendre celle de la maison")}</button>{:else}{tr("Pour l’instant, c’est celle de la maison.")}{/if}
   </p>
   <LookEditor
     look={home.look?.mine ?? {}}
@@ -38,12 +39,12 @@
     onchange={(l) => saveMyLook(cleanLook(l))}
   />
 {:else}
-  <p class="muted">Celle de tout le monde, tant que chacun n’a pas choisi la sienne.</p>
+  <p class="muted">{tr("Celle de tout le monde, tant que chacun n’a pas choisi la sienne.")}</p>
   <LookEditor look={home.look?.house ?? {}} onchange={saveHouse} />
 {/if}
 
 {#if home.screen?.appearance}
-  <p class="note">Cet écran a sa propre apparence, réglée dans Réglages, Écrans : elle passe avant.</p>
+  <p class="note">{tr("Cet écran a sa propre apparence, réglée dans Réglages, Écrans : elle passe avant.")}</p>
 {/if}
 
 <style>

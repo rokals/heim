@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Le panneau d'une lampe : luminosité, blanc chaud ou froid, couleur, effet, fondu.
   import { command, api, toast } from '../lib/store.svelte.js';
   import { FADES, SWATCHES, hsToHex, kelvin, valueLabel, xyToHex } from '../lib/controls.js';
@@ -78,18 +79,18 @@
 </script>
 
 <section class="panel" class:on style:--glow={currentColor && colorMode !== 'color_temp' ? currentColor : 'var(--ember)'}>
-  <button class="power" class:on onclick={toggle} aria-pressed={on} aria-label={on ? 'Éteindre' : 'Allumer'}>
+  <button class="power" class:on onclick={toggle} aria-pressed={on} aria-label={on ? tr("Éteindre") : tr("Allumer")}>
     <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M12 3v8M6.3 6.6a8 8 0 1 0 11.4 0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
   </button>
   <div class="state">
-    <strong>{on ? 'Allumée' : 'Éteinte'}</strong>
+    <strong>{on ? tr("Allumée") : tr("Éteinte")}</strong>
     {#if on && dimmable}<span class="num">{pct} %</span>{/if}
   </div>
 </section>
 
 {#if dimmable}
   <label class="slider">
-    <span>Luminosité</span>
+    <span>{tr("Luminosité")}</span>
     <input
       type="range"
       class="bright"
@@ -104,7 +105,7 @@
 
 {#if ctRange}
   <label class="slider">
-    <span>Blanc <em class="num">{kelvin(shownTemp)} K</em></span>
+    <span>{tr("Blanc")} <em class="num">{kelvin(shownTemp)} K</em></span>
     <input
       type="range"
       class="temp"
@@ -114,18 +115,18 @@
       oninput={(e) => (temp = Number(e.currentTarget.value))}
       onchange={(e) => setTemp(Number(e.currentTarget.value))}
     />
-    <span class="ends"><em>Froid</em><em>Chaud</em></span>
+    <span class="ends"><em>{tr("Froid")}</em><em>{tr("Chaud")}</em></span>
   </label>
 {/if}
 
 {#if hasColor}
   <div class="block">
-    <span class="lbl">Couleur</span>
+    <span class="lbl">{tr("Couleur")}</span>
     <div class="swatches">
       {#each SWATCHES as c (c)}
-        <button class="sw" style:background={c} aria-label="Couleur {c}" onclick={() => setColor(c)}></button>
+        <button class="sw" style:background={c} aria-label={tr("Couleur {c}", { c })} onclick={() => setColor(c)}></button>
       {/each}
-      <label class="sw custom" aria-label="Autre couleur">
+      <label class="sw custom" aria-label={tr("Autre couleur")}>
         <input type="color" value={currentColor ?? '#ffb35c'} onchange={(e) => setColor(e.currentTarget.value)} />
       </label>
     </div>
@@ -134,7 +135,7 @@
 
 {#if effects.length}
   <div class="block">
-    <span class="lbl">Effet</span>
+    <span class="lbl">{tr("Effet")}</span>
     <div class="chips">
       {#each effects as fx (fx)}<button class="chip" onclick={() => send({ effect: fx })}>{valueLabel(fx)}</button>{/each}
     </div>
@@ -143,8 +144,8 @@
 
 {#if advanced}
   <div class="block">
-    <span class="lbl">Fondu des changements</span>
-    <div class="seg" role="radiogroup" aria-label="Fondu">
+    <span class="lbl">{tr("Fondu des changements")}</span>
+    <div class="seg" role="radiogroup" aria-label={tr("Fondu")}>
       {#each FADES as f (f.value)}
         <button role="radio" aria-checked={fade === f.value} class:sel={fade === f.value} onclick={() => setFade(f.value)}>{f.label}</button>
       {/each}

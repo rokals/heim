@@ -1,37 +1,39 @@
-# Sécurité de Heim
+# Heim security
 
-## Signaler une faille
+[Français](SECURITY.fr.md)
 
-Merci de ne pas ouvrir d'issue publique pour une faille. Utilisez l'onglet
-**Security › Report a vulnerability** du dépôt GitHub (signalement privé). Une réponse est
-donnée dès que possible, et la correction sort dans une version publiée par les releases.
+## Reporting a vulnerability
 
-## Ce que Heim protège, et comment
+Please don't open a public issue for a vulnerability. Use the repository's
+**Security › Report a vulnerability** tab (private report). You'll get an answer as soon as
+possible, and the fix ships in a version published through the releases.
 
-| Sujet | Protection |
+## What Heim protects, and how
+
+| Topic | Protection |
 | --- | --- |
-| Comptes | Mots de passe hachés (PBKDF2-SHA256, 100 000 tours, sel par compte), 8 caractères au moins, comparaison en temps constant. Au-delà de 10 échecs en 5 minutes, les connexions sont refusées un moment. |
-| Sessions | Jeton aléatoire de 256 bits dans un cookie `HttpOnly; SameSite=Lax` (`Secure` en HTTPS). La base ne garde que son empreinte SHA-256 : une base volée n'ouvre aucune session. Un an au plus. |
-| Rôles | Chaque route de l'API exige un rôle (invité, membre, admin) ; ce qui n'est pas listé est réservé à l'admin. Un invité ne commande ni les sirènes, ni l'alarme, ni l'état des automatismes. |
-| Autres sites | Une requête qui modifie quelque chose, ou qui ouvre le WebSocket, venue d'une autre page que Heim (même sur la même machine, comme Home Assistant) est refusée. |
-| Navigateur | Politique de contenu stricte (le seul script autorisé est celui de l'interface, par son empreinte), pas d'affichage dans un cadre, `nosniff`, aucune adresse transmise aux autres sites, réponses de l'API jamais mises en cache. |
-| Secrets | Le mot de passe MQTT, les clés locales Tuya, le code de l'alarme et la clé privée des notifications ne sortent jamais par l'API. Les réglages internes ne s'écrivent que par leurs propres routes. |
-| Notifications | Heim n'envoie qu'aux vrais services push (Apple, Google, Mozilla, Microsoft) ; un compte ne touche qu'aux notifications de ses propres appareils. |
-| Base de données | SQLite, fichier local jamais exposé sur le réseau, dossier en `700` et fichiers en `600`. Toutes les requêtes SQL passent des paramètres liés (pas d'injection). SQLite n'a pas de « RLS » à la Supabase : le contrôle d'accès est fait par l'API, route par route. |
-| Commandes système | `nmcli`, `ping`, `systemctl`, `tailscale` sont lancés avec des arguments séparés, jamais par un shell. |
-| Service | Utilisateur système `heim` sans shell, `NoNewPrivileges`, système de fichiers en lecture seule sauf ses deux dossiers, noyau et cgroups protégés, `UMask=0077`, mémoire limitée. Polkit ne lui permet que le Wi-Fi et l'arrêt/redémarrage. |
-| Mises à jour | Téléchargées depuis les releases GitHub en HTTPS, vérifiées par SHA-256, avec retour automatique à l'ancienne version si la nouvelle ne démarre pas. |
-| Bibliothèques | `cargo audit` et `npm audit` à chaque push et chaque lundi ; Dependabot propose les mises à jour chaque semaine. |
+| Accounts | Hashed passwords (PBKDF2-SHA256, 100,000 rounds, per-account salt), 8 characters minimum, constant-time comparison. After 10 failures in 5 minutes, sign-ins are refused for a while. |
+| Sessions | Random 256-bit token in an `HttpOnly; SameSite=Lax` cookie (`Secure` over HTTPS). The database only keeps its SHA-256 hash: a stolen database opens no session. One year at most. |
+| Roles | Every API route requires a role (guest, member, admin); anything not listed is admin-only. A guest controls neither the sirens, nor the alarm, nor automation states. Per-account limits (forced board, editing, read-only devices) are checked by the server. |
+| Other sites | A request that changes something, or opens the WebSocket, coming from another page than Heim (even on the same machine, such as Home Assistant) is refused. |
+| Browser | Strict content security policy (the only allowed script is the interface's, by its hash), no framing, `nosniff`, no address leaked to other sites, API responses never cached. |
+| Secrets | The MQTT password, Tuya local keys, alarm code and notification private key never leave through the API. Internal settings can only be written through their own routes. |
+| Notifications | Heim only sends to real push services (Apple, Google, Mozilla, Microsoft); an account only touches the notifications of its own devices. |
+| Database | SQLite, a local file never exposed on the network, folder in `700` and files in `600`. Every SQL query uses bound parameters (no injection). SQLite has no Supabase-style “RLS”: access control is done by the API, route by route. |
+| System commands | `nmcli`, `ping`, `systemctl`, `hostnamectl`, `timedatectl`, `tailscale` are run with separate arguments, never through a shell. |
+| Service | `heim` system user without a shell, `NoNewPrivileges`, read-only file system except its two folders, protected kernel and cgroups, `UMask=0077`, memory limit. Polkit only allows it the network, the machine name, the time zone and shutdown/restart. |
+| Updates | Downloaded from GitHub releases over HTTPS, checked by SHA-256, with an automatic rollback if the new version doesn't start. |
+| Dependencies | `cargo audit` and `npm audit` on every push and every Monday; Dependabot proposes updates every week. |
 
-## À savoir
+## Good to know
 
-- **Sans compte, Heim est ouvert** à tout le réseau local (comme avant la 0.5). L'assistant du
-  premier démarrage crée un compte : gardez-en au moins un.
-- **Accès depuis dehors** : seulement par Tailscale (HTTPS, aucun port ouvert sur la box).
-  N'ouvrez pas le port de Heim sur Internet.
-- **MQTT** : Heim parle au broker sans chiffrement, comme Home Assistant par défaut. Il doit
-  rester sur le réseau de la maison.
-- **Sauvegardes** : un fichier de sauvegarde contient tout, y compris les clés Tuya et le mot de
-  passe MQTT. Gardez-le pour vous (jamais dans un dépôt public).
-- **Compte console du Pi** (`heim-admin`) : SSH est coupé. Définissez le secret `PI_PASSWORD`
-  dans le dépôt pour remplacer le mot de passe par défaut des images.
+- **An account is required** since 0.13: the first-start setup doesn't let you through without
+  an administrator account, and a Heim without accounts reopens the setup.
+- **Access from outside**: only through Tailscale (HTTPS, no port opened on the router). Never
+  open Heim's port to the internet.
+- **MQTT**: Heim talks to the broker without encryption, like Home Assistant by default. It must
+  stay on the home network.
+- **Backups**: a backup file contains everything, including Tuya keys and the MQTT password.
+  Keep it to yourself (never in a public repository).
+- **Pi console account** (`heim-admin`): SSH is off. Set the `PI_PASSWORD` secret in the
+  repository to replace the images' default password.

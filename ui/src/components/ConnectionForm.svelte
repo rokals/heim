@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // Connexion à Zigbee2MQTT, sans variables d'environnement. Appliquée tout de suite.
   import { onMount } from 'svelte';
   import { api, home, toast } from '../lib/store.svelte.js';
@@ -31,11 +32,11 @@
 
   const status = $derived(home.integrations.zigbee2mqtt);
   const STATUS = {
-    connected: 'Connecté',
-    starting: 'Connexion…',
-    disconnected: 'Injoignable, nouvel essai automatique',
-    failed: 'En échec, nouvel essai automatique',
-    stopped: 'Désactivé',
+    connected: tr("Connecté"),
+    starting: tr("Connexion…"),
+    disconnected: tr("Injoignable, nouvel essai automatique"),
+    failed: tr("En échec, nouvel essai automatique"),
+    stopped: tr("Désactivé"),
   };
 
   async function save(e) {
@@ -47,7 +48,7 @@
       const r = await api('/settings/zigbee2mqtt', { method: 'PUT', body });
       hasPassword = !!r.has_password;
       password = '';
-      toast(enabled ? 'Connexion enregistrée, Heim se connecte…' : 'Zigbee désactivé');
+      toast(enabled ? tr("Connexion enregistrée, Heim se connecte…") : tr("Zigbee désactivé"));
     } catch (err) {
       toast(err.message, 'alert');
     } finally {
@@ -66,37 +67,37 @@
   {/if}
 
   <label class="field">
-    <span>Adresse du broker MQTT</span>
+    <span>{tr("Adresse du broker MQTT")}</span>
     <input class="input" bind:value={host} placeholder="192.168.1.50" autocomplete="off" inputmode="url" />
   </label>
   <div class="two">
     <label class="field">
-      <span>Utilisateur</span>
-      <input class="input" bind:value={username} autocomplete="username" placeholder="heim" />
+      <span>{tr("Utilisateur")}</span>
+      <input class="input" bind:value={username} autocomplete="username" placeholder={tr("heim")} />
     </label>
     <label class="field">
-      <span>Mot de passe</span>
-      <input class="input" type="password" bind:value={password} autocomplete="current-password" placeholder={hasPassword ? 'inchangé' : ''} />
+      <span>{tr("Mot de passe")}</span>
+      <input class="input" type="password" bind:value={password} autocomplete="current-password" placeholder={hasPassword ? tr("inchangé") : ''} />
     </label>
   </div>
 
   {#if advanced}
     <div class="two">
       <label class="field">
-        <span>Port</span>
+        <span>{tr("Port")}</span>
         <input class="input num" type="number" bind:value={port} min="1" max="65535" />
       </label>
       <label class="field">
-        <span>Topic de Zigbee2MQTT</span>
+        <span>{tr("Topic de Zigbee2MQTT")}</span>
         <input class="input" bind:value={baseTopic} />
       </label>
     </div>
-    <label class="check"><input type="checkbox" bind:checked={enabled} /> Connexion active</label>
+    <label class="check"><input type="checkbox" bind:checked={enabled} /> {tr("Connexion active")}</label>
   {:else}
-    <button type="button" class="more" onclick={() => (advanced = true)}>Réglages avancés</button>
+    <button type="button" class="more" onclick={() => (advanced = true)}>{tr("Réglages avancés")}</button>
   {/if}
 
-  <button class="btn" type="submit" disabled={saving || (enabled && !host.trim())}>Enregistrer et se connecter</button>
+  <button class="btn" type="submit" disabled={saving || (enabled && !host.trim())}>{tr("Enregistrer et se connecter")}</button>
 </form>
 
 <style>

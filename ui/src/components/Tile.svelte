@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // La carte unique de l'accueil, façon Mushroom : une pastille d'icône, un nom, un état.
   // De 1×1 (l'icône seule, le quart d'une tuile d'avant) à 4×4. Selon la place, elle ajoute
   // un curseur de luminosité, une petite courbe des dernières 24 h, d'autres mesures…
@@ -50,20 +51,20 @@
   const stateText = $derived.by(() => {
     if (look.rule?.text) return look.text;
     if (controllable) {
-      if (!available) return 'Injoignable';
-      if (pending) return on ? 'Extinction…' : 'Allumage…';
-      if (!on) return card.for_min ? `${card.for_min} min d'un clic` : 'Éteint';
+      if (!available) return tr("Injoignable");
+      if (pending) return on ? tr("Extinction…") : tr("Allumage…");
+      if (!on) return card.for_min ? tr("{for_min} min d'un clic", { for_min: card.for_min }) : tr("Éteint");
       if (remaining != null) return clock(remaining);
       const extra = power && d === 'switch' ? ` · ${formatValue(power)}` : '';
       if (d === 'light' && entity.capabilities?.brightness) return `${drag != null ? Math.round((drag / 255) * 100) : pct} %${extra}`;
-      return `Allumé${extra}`;
+      return tr("Allumé{extra}", { extra });
     }
     if (d === 'group') {
       const n = entity?.state?.attributes?.on_count ?? 0;
       const total = entity?.state?.attributes?.members?.length ?? 0;
-      return look.active && total ? `${n} sur ${total}` : look.text;
+      return look.active && total ? tr('{n} sur {total}', { n, total }) : look.text;
     }
-    if (d === 'automation' && card.facet !== 'enabled' && entity?.state?.attributes?.enabled === false) return `${look.text} · désactivé`;
+    if (d === 'automation' && card.facet !== 'enabled' && entity?.state?.attributes?.enabled === false) return tr("{text} · désactivé", { text: look.text });
     return look.text;
   });
 
@@ -137,7 +138,7 @@
         {#if big}
           {#if cfg.showName}<span class="name">{name}</span>{/if}
           {#if cfg.showState}<span class="value num" class:huge={cfg.h >= 3}>{look.rule?.text ? look.text : formatValue(entity)}</span>{/if}
-          {#if cfg.info === 'last_changed' || cfg.info === 'both'}<span class="state">il y a {since}</span>{/if}
+          {#if cfg.info === 'last_changed' || cfg.info === 'both'}<span class="state">{tr("il y a {since}", { since })}</span>{/if}
         {:else}
           {#if cfg.showName}<span class="name">{name}</span>{/if}
           {#if cfg.showState && sub}<span class="state num">{sub}</span>{/if}
@@ -159,20 +160,20 @@
         disabled={!available || preview}
         oninput={slide}
         onchange={commit}
-        aria-label="Luminosité de {name}"
+        aria-label={tr("Luminosité de {name}", { name })}
         data-nopress
       />
     </div>
   {/if}
 
   {#if onfor && controllable && available && !preview && cfg.w >= 2 && cfg.h >= 2}
-    <button class="tool" onclick={onfor} aria-label="Allumer {name} pour un temps" title="Allumer pour…" data-nopress>
+    <button class="tool" onclick={onfor} aria-label={tr("Allumer {name} pour un temps", { name })} title={tr("Allumer pour…")} data-nopress>
       <Icon name="timer" size={16} />
     </button>
   {/if}
 
   {#if lowBattery}
-    <span class="battery num" class:dot={cfg.w === 1 || cfg.h === 1} title="Pile faible : {device.battery} %">
+    <span class="battery num" class:dot={cfg.w === 1 || cfg.h === 1} title={tr("Pile faible : {battery} %", { battery: device.battery })}>
       {#if cfg.w > 1 && cfg.h > 1}<Icon name="battery" size={13} />{device.battery} %{/if}
     </span>
   {/if}

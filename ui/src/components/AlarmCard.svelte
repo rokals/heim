@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../lib/i18n.js';
   // La carte d'alarme, en haut de l'accueil : un coup d'œil pour savoir si la maison est
   // protégée, un geste pour l'activer ou l'arrêter.
   import Icon from './Icon.svelte';
@@ -73,7 +74,7 @@
   }
 
   const stopLabel = $derived(
-    status?.phase === 'arming' ? 'Annuler' : view.tone === 'alarm' ? (view.h24 ? 'Arrêter' : "Arrêter l'alarme") : 'Désactiver',
+    status?.phase === 'arming' ? tr("Annuler") : view.tone === 'alarm' ? (view.h24 ? tr("Arrêter") : tr("Arrêter l'alarme")) : tr("Désactiver"),
   );
 </script>
 
@@ -85,7 +86,7 @@
         <strong>{view.title}</strong>
         {#if view.line}<span class:num={view.left != null}>{view.line}</span>{/if}
       </div>
-      {#if isAdmin()}<a class="cog" href="#reglages/securite" aria-label="Réglages de l'alarme"><Icon name="sliders" size={18} /></a>{/if}
+      {#if isAdmin()}<a class="cog" href="#reglages/securite" aria-label={tr("Réglages de l'alarme")}><Icon name="sliders" size={18} /></a>{/if}
     </div>
 
     {#if view.left != null}
@@ -119,7 +120,7 @@
 
 {#if ask}
   <CodeSheet
-    title={ask.kind === 'arm' ? `Activer : ${MODES[ask.mode].label}` : view.tone === 'alarm' ? "Arrêter l'alarme" : "Désactiver l'alarme"}
+    title={ask.kind === 'arm' ? tr("Activer : {label}", { label: MODES[ask.mode].label }) : view.tone === 'alarm' ? tr("Arrêter l'alarme") : tr("Désactiver l'alarme")}
     error={codeError}
     onsubmit={(code) => (ask.kind === 'arm' ? arm(ask.mode, ask.force, code) : disarm(code))}
     onclose={() => ((ask = null), (codeError = ''))}
@@ -127,19 +128,19 @@
 {/if}
 
 {#if notReady}
-  <Sheet title="Tout n'est pas fermé" onclose={() => (notReady = null)}>
+  <Sheet title={tr("Tout n'est pas fermé")} onclose={() => (notReady = null)}>
     {#if notReady.open.length}
-      <p>Encore ouvert :</p>
+      <p>{tr("Encore ouvert :")}</p>
       <ul>{#each notReady.open as s (s.entity_id)}<li><Icon name="door" size={18} /> {s.name}</li>{/each}</ul>
     {/if}
     {#if notReady.unavailable.length}
-      <p>Ne répond pas :</p>
+      <p>{tr("Ne répond pas :")}</p>
       <ul>{#each notReady.unavailable as s (s.entity_id)}<li><Icon name="sensor" size={18} /> {s.name}</li>{/each}</ul>
     {/if}
-    <p class="muted">En activant quand même, ces capteurs seront ignorés jusqu'à la prochaine désactivation.</p>
+    <p class="muted">{tr("En activant quand même, ces capteurs seront ignorés jusqu'à la prochaine désactivation.")}</p>
     <div class="row">
-      <button class="btn" disabled={busy} onclick={() => arm(notReady.mode, true, notReady.code)}>Activer quand même</button>
-      <button class="btn quiet" onclick={() => (notReady = null)}>Annuler</button>
+      <button class="btn" disabled={busy} onclick={() => arm(notReady.mode, true, notReady.code)}>{tr("Activer quand même")}</button>
+      <button class="btn quiet" onclick={() => (notReady = null)}>{tr("Annuler")}</button>
     </div>
   </Sheet>
 {/if}

@@ -1,6 +1,7 @@
 // Cartes du tableau de bord, façon Mushroom : une grille en petites cases (4 de large sur
 // téléphone), chaque carte de 1×1 (le quart d'une tuile d'avant) à 4×4. Fonctions pures.
 
+import { tr } from './i18n.js';
 /** Ancien format (size: 1 | 2) ou rien : la taille en cases (largeur w, hauteur h). */
 export function cardSize(card, entity) {
   const clamp = (n) => Math.min(4, Math.max(1, Math.round(Number(n) || 0)));
@@ -14,26 +15,26 @@ export function cardSize(card, entity) {
 }
 
 export const SIZE_PRESETS = [
-  { w: 1, h: 1, label: 'Mini' },
-  { w: 2, h: 1, label: 'Petit' },
-  { w: 2, h: 2, label: 'Normal' },
-  { w: 4, h: 1, label: 'Bandeau' },
-  { w: 4, h: 2, label: 'Large' },
-  { w: 4, h: 4, label: 'Très grand' },
+  { w: 1, h: 1, label: tr("Mini") },
+  { w: 2, h: 1, label: tr("Petit") },
+  { w: 2, h: 2, label: tr("Normal") },
+  { w: 4, h: 1, label: tr("Bandeau") },
+  { w: 4, h: 2, label: tr("Large") },
+  { w: 4, h: 4, label: tr("Très grand") },
 ];
 
 export const LAYOUTS = [
-  { id: 'auto', label: 'Automatique' },
-  { id: 'vertical', label: 'Icône en haut' },
-  { id: 'horizontal', label: 'Icône à gauche' },
-  { id: 'icon', label: 'Icône seule' },
+  { id: 'auto', label: tr("Automatique") },
+  { id: 'vertical', label: tr("Icône en haut") },
+  { id: 'horizontal', label: tr("Icône à gauche") },
+  { id: 'icon', label: tr("Icône seule") },
 ];
 
 export const INFOS = [
-  { id: 'state', label: 'L’état' },
-  { id: 'last_changed', label: 'Depuis quand' },
-  { id: 'both', label: 'Les deux' },
-  { id: 'none', label: 'Rien' },
+  { id: 'state', label: tr("L’état") },
+  { id: 'last_changed', label: tr("Depuis quand") },
+  { id: 'both', label: tr("Les deux") },
+  { id: 'none', label: tr("Rien") },
 ];
 
 /** La disposition réelle : « auto » choisit selon la taille. */
@@ -90,7 +91,7 @@ export function secondary(info, valueText, sinceText) {
     case 'none':
       return '';
     case 'last_changed':
-      return sinceText ? `il y a ${sinceText}` : '';
+      return sinceText ? tr("il y a {sinceText}", { sinceText }) : '';
     case 'both':
       return sinceText ? `${valueText} · ${sinceText}` : valueText;
     default:

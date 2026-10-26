@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // Toutes les intégrations au même endroit, puis la page de chacune.
   import { onMount } from 'svelte';
   import IntegrationCard from './IntegrationCard.svelte';
@@ -40,7 +41,7 @@
     busy = item.id;
     try {
       await api(`/integrations/${item.id}/enabled`, { method: 'PUT', body: { enabled } });
-      toast(`${item.name} ${enabled ? 'activé' : 'désactivé'}`);
+      toast(`${item.name} ${enabled ? tr("activé") : tr("désactivé")}`);
       await load();
     } catch (e) {
       toast(e.message, 'alert');
@@ -54,7 +55,7 @@
     try {
       const r = await api('/power_on', { method: 'PUT', body: { ...$state.snapshot(power.settings), ...patch } });
       if (patch.behavior) {
-        toast(r.applied ? `Réglé sur ${r.applied} appareil(s)` : 'Aucun appareil ne propose ce réglage');
+        toast(r.applied ? tr("Réglé sur {applied} appareil(s)", { applied: r.applied }) : tr("Aucun appareil ne propose ce réglage"));
       }
       await loadPower();
     } catch (e) {
@@ -67,14 +68,14 @@
   const current = $derived(list.find((i) => i.id === detail));
   const supported = $derived(power?.devices.filter((d) => d.supported.length) ?? []);
   const BEHAVIORS = [
-    { id: 'previous', label: 'Comme avant', hint: 'L’appareil reprend l’état qu’il avait' },
-    { id: 'off', label: 'Éteint', hint: 'Tout reste éteint au retour du courant' },
-    { id: 'on', label: 'Allumé', hint: 'Tout se rallume (pratique pour une lampe sans interrupteur)' },
+    { id: 'previous', label: tr("Comme avant"), hint: tr("L’appareil reprend l’état qu’il avait") },
+    { id: 'off', label: tr("Éteint"), hint: tr("Tout reste éteint au retour du courant") },
+    { id: 'on', label: tr("Allumé"), hint: tr("Tout se rallume (pratique pour une lampe sans interrupteur)") },
   ];
 </script>
 
 {#if !detail}
-  <p class="muted">Les passerelles vers vos appareils. Touchez-en une pour la régler.</p>
+  <p class="muted">{tr("Les passerelles vers vos appareils. Touchez-en une pour la régler.")}</p>
   <div class="list">
     {#each list as item (item.id)}
       <IntegrationCard {item} busy={busy === item.id} onopen={() => onnavigate(`integrations/${item.id}`)} ontoggle={(on) => toggle(item, on)} />
@@ -83,9 +84,9 @@
 
   {#if power}
     <section class="power">
-      <h2><Icon name="power" size={20} /> Après une coupure de courant</h2>
-      <p class="muted">Pour tous les appareils qui le permettent ({supported.length} aujourd'hui), au lieu de les régler un par un.</p>
-      <div class="choices" role="radiogroup" aria-label="Après une coupure de courant">
+      <h2><Icon name="power" size={20} /> {tr("Après une coupure de courant")}</h2>
+      <p class="muted">{tr("Pour tous les appareils qui le permettent ({length} aujourd'hui), au lieu de les régler un par un.", { length: supported.length })}</p>
+      <div class="choices" role="radiogroup" aria-label={tr("Après une coupure de courant")}>
         {#each BEHAVIORS as b (b.id)}
           <button role="radio" aria-checked={power.settings.behavior === b.id} class:sel={power.settings.behavior === b.id} disabled={applying} onclick={() => savePower({ behavior: b.id })}>
             <strong>{b.label}</strong>
@@ -95,14 +96,14 @@
       </div>
       <label class="check">
         <input type="checkbox" checked={power.settings.apply_new} disabled={!power.settings.behavior} onchange={(e) => savePower({ apply_new: e.currentTarget.checked })} />
-        Régler aussi les nouveaux appareils Zigbee dès leur ajout
+        {tr("Régler aussi les nouveaux appareils Zigbee dès leur ajout")}
       </label>
       {#if supported.length}
         <details>
-          <summary>Voir les appareils concernés</summary>
+          <summary>{tr("Voir les appareils concernés")}</summary>
           <ul class="rows">
             {#each supported as d (d.device_id)}
-              <li><span>{d.name}</span><span class="muted">{d.integration === 'tuya' ? 'Tuya' : 'Zigbee'}{d.current != null ? ` · actuellement : ${d.current}` : ''}</span></li>
+              <li><span>{d.name}</span><span class="muted">{d.integration === 'tuya' ? tr("Tuya") : tr("Zigbee")}{d.current != null ? tr("· actuellement : {current}", { current: d.current }) : ''}</span></li>
             {/each}
           </ul>
         </details>
@@ -114,12 +115,12 @@
     <IntegrationCard item={current} busy={busy === current.id} ontoggle={(on) => toggle(current, on)} />
   </div>
   {#if current.id === 'zigbee2mqtt'}
-    <h2>Connexion au broker MQTT</h2>
-    <p class="muted">Heim lit vos appareils Zigbee par le broker MQTT de Zigbee2MQTT (souvent installé avec Home Assistant). Les deux peuvent tourner en même temps.</p>
+    <h2>{tr("Connexion au broker MQTT")}</h2>
+    <p class="muted">{tr("Heim lit vos appareils Zigbee par le broker MQTT de Zigbee2MQTT (souvent installé avec Home Assistant). Les deux peuvent tourner en même temps.")}</p>
     <ConnectionForm />
     {#if current.status === 'connected'}
-      <h2>Nouvel appareil</h2>
-      <button class="btn" onclick={() => (pairing = true)}><Icon name="plus" size={18} /> Ajouter un appareil Zigbee</button>
+      <h2>{tr("Nouvel appareil")}</h2>
+      <button class="btn" onclick={() => (pairing = true)}><Icon name="plus" size={18} /> {tr("Ajouter un appareil Zigbee")}</button>
     {/if}
   {:else if current.id === 'tuya'}
     <SetTuya embedded />

@@ -1,4 +1,5 @@
 <script>
+  import { tr } from '../../lib/i18n.js';
   // Accès à distance avec Tailscale : une adresse https://… valable à la maison comme dehors,
   // sans ouvrir de port sur la box. C'est aussi ce qui permet les notifications sur iPhone.
   import { onMount } from 'svelte';
@@ -21,9 +22,9 @@
   async function copy(text) {
     try {
       await navigator.clipboard.writeText(text);
-      toast('Copié');
+      toast(tr("Copié"));
     } catch {
-      toast('Copie impossible : sélectionnez le texte', 'alert');
+      toast(tr("Copie impossible : sélectionnez le texte"), 'alert');
     }
   }
 </script>
@@ -33,74 +34,74 @@
     <span class="ic"><Icon name={onTailscale ? 'shieldcheck' : 'link'} size={22} /></span>
     <div>
       {#if onTailscale}
-        <strong>Accès à distance en place</strong>
-        <span>Cette adresse marche partout, et les notifications peuvent être activées.</span>
+        <strong>{tr("Accès à distance en place")}</strong>
+        <span>{tr("Cette adresse marche partout, et les notifications peuvent être activées.")}</span>
       {:else if url}
-        <strong>Tailscale est prêt</strong>
-        <span>Ouvrez plutôt <a href={url}>{url}</a> : même adresse à la maison et dehors.</span>
+        <strong>{tr("Tailscale est prêt")}</strong>
+        <span>{tr("Ouvrez plutôt")} <a href={url}>{url}</a> {tr(": même adresse à la maison et dehors.")}</span>
       {:else}
-        <strong>Heim n'est joignable qu'à la maison</strong>
-        <span>Adresse actuelle : {here}</span>
+        <strong>{tr("Heim n'est joignable qu'à la maison")}</strong>
+        <span>{tr("Adresse actuelle : {here}", { here })}</span>
       {/if}
     </div>
   </section>
 
   {#if home.me?.open}
-    <p class="warn">Avant d'ouvrir Heim à distance, créez votre compte dans <a href="#reglages/comptes">Comptes</a> : sinon n'importe qui sur votre réseau Tailscale pourrait tout commander.</p>
+    <p class="warn">{tr("Avant d'ouvrir Heim à distance, créez votre compte dans")} <a href="#reglages/comptes">{tr("Comptes")}</a> {tr(": sinon n'importe qui sur votre réseau Tailscale pourrait tout commander.")}</p>
   {/if}
 
   {#if !onTailscale}
-    <h2>Mettre en place Tailscale</h2>
-    <p class="muted">Gratuit pour une maison, aucun port à ouvrir sur la box. Chaque téléphone qui doit accéder à Heim a l'application Tailscale, connectée au même compte.</p>
+    <h2>{tr("Mettre en place Tailscale")}</h2>
+    <p class="muted">{tr("Gratuit pour une maison, aucun port à ouvrir sur la box. Chaque téléphone qui doit accéder à Heim a l'application Tailscale, connectée au même compte.")}</p>
     <ol class="steps">
       <li class:done={ts?.installed}>
-        <strong>Installer Tailscale sur la machine de Heim</strong>
+        <strong>{tr("Installer Tailscale sur la machine de Heim")}</strong>
         {#if ts?.installed}
-          <span class="tick">Installé{ts.running ? ' et connecté' : ', pas encore connecté'}</span>
+          <span class="tick">{tr("Installé{v}", { v: ts.running ? tr(" et connecté") : tr(", pas encore connecté") })}</span>
         {/if}
-        <p>Sur le Raspberry Pi :</p>
+        <p>{tr("Sur le Raspberry Pi :")}</p>
         <button class="cmd" onclick={() => copy('curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up')}>
           <code>curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up</code><Icon name="copy" size={16} />
         </button>
-        <p class="muted">Sur Windows : installez Tailscale depuis tailscale.com, puis connectez-vous.</p>
+        <p class="muted">{tr("Sur Windows : installez Tailscale depuis tailscale.com, puis connectez-vous.")}</p>
       </li>
       <li>
-        <strong>Activer les adresses https</strong>
-        <p>Dans la console Tailscale, page <em>DNS</em> : activez <em>MagicDNS</em> puis <em>HTTPS Certificates</em>.</p>
+        <strong>{tr("Activer les adresses https")}</strong>
+        <p>{tr("Dans la console Tailscale, page")} <em>{tr("DNS")}</em> {tr(": activez")} <em>{tr("MagicDNS")}</em> {tr("puis")} <em>{tr("HTTPS Certificates")}</em>.</p>
       </li>
       <li class:done={Boolean(url)}>
-        <strong>Publier Heim sur votre réseau Tailscale</strong>
+        <strong>{tr("Publier Heim sur votre réseau Tailscale")}</strong>
         <button class="cmd" onclick={() => copy(`sudo tailscale serve --bg ${port}`)}>
           <code>sudo tailscale serve --bg {port}</code><Icon name="copy" size={16} />
         </button>
-        <p class="muted">Sur Windows, la même commande sans <code>sudo</code>, dans un terminal administrateur.</p>
-        {#if url}<p>Adresse de votre Heim : <a href={url}>{url}</a></p>{/if}
+        <p class="muted">{tr("Sur Windows, la même commande sans")} <code>sudo</code>{tr(", dans un terminal administrateur.")}</p>
+        {#if url}<p>{tr("Adresse de votre Heim :")} <a href={url}>{url}</a></p>{/if}
       </li>
       <li>
-        <strong>Sur l'iPhone</strong>
-        <p>Installez l'application Tailscale (App Store) et connectez-vous avec le même compte. Ouvrez ensuite {#if url}<a href={url}>{url}</a>{:else}l'adresse en <code>https://…ts.net</code>{/if} dans Safari.</p>
+        <strong>{tr("Sur l'iPhone")}</strong>
+        <p>{tr("Installez l'application Tailscale (App Store) et connectez-vous avec le même compte. Ouvrez ensuite")} {#if url}<a href={url}>{url}</a>{:else}{tr("l'adresse en")} <code>https://…ts.net</code>{/if} {tr("dans Safari.")}</p>
       </li>
       <li>
-        <strong>Ajouter Heim à l'écran d'accueil</strong>
-        <p>Safari, <em>Partager</em>, <em>Sur l'écran d'accueil</em>. Ouvrez Heim depuis l'icône, puis Réglages, Notifications, « Activer les notifications ».</p>
+        <strong>{tr("Ajouter Heim à l'écran d'accueil")}</strong>
+        <p>{tr("Safari,")} <em>{tr("Partager")}</em>, <em>{tr("Sur l'écran d'accueil")}</em>{tr(". Ouvrez Heim depuis l'icône, puis Réglages, Notifications, « Activer les notifications ».")}</p>
       </li>
     </ol>
   {/if}
 {/if}
 
 <details class="token">
-  <summary>Code d'accès technique (HEIM_TOKEN)</summary>
-  <p class="muted">Seulement si Heim a été lancé avec HEIM_TOKEN, pour des scripts. Les personnes utilisent leur compte.</p>
+  <summary>{tr("Code d'accès technique (HEIM_TOKEN)")}</summary>
+  <p class="muted">{tr("Seulement si Heim a été lancé avec HEIM_TOKEN, pour des scripts. Les personnes utilisent leur compte.")}</p>
   <form
     onsubmit={(e) => {
       e.preventDefault();
       setToken(token);
-      toast('Code enregistré');
+      toast(tr("Code enregistré"));
       token = '';
     }}
   >
-    <input class="input" type="password" bind:value={token} autocomplete="off" aria-label="Code d'accès" />
-    <button class="btn quiet" type="submit" disabled={!token}>Enregistrer</button>
+    <input class="input" type="password" bind:value={token} autocomplete="off" aria-label={tr("Code d'accès")} />
+    <button class="btn quiet" type="submit" disabled={!token}>{tr("Enregistrer")}</button>
   </form>
 </details>
 

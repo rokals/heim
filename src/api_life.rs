@@ -96,12 +96,21 @@ pub async fn automation_op(
 
 pub async fn logbook(
     State(app): State<AppState>,
+    headers: axum::http::HeaderMap,
     Query(q): Query<LogQuery>,
 ) -> ApiResult<impl IntoResponse> {
     let history = app.core().history.clone();
-    let rows = tokio::task::spawn_blocking(move || history.query(&q))
+    let mut rows = tokio::task::spawn_blocking(move || history.query(&q))
         .await
         .map_err(|e| ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let lang = crate::api::lang_of(&headers);
+    if lang != "fr" {
+        for r in &mut rows {
+            for s in [&mut r.message, &mut r.actor].into_iter().flatten() {
+                *s = crate::i18n::tr(lang, s).into_owned();
+            }
+        }
+    }
     Ok(Json(rows))
 }
 
