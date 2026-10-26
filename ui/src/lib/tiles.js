@@ -191,8 +191,10 @@ export function appearance(card, entity, now = Date.now()) {
     now,
   );
   const vars = { value: text, since, name: card?.name || entity?.name };
+  // Une scène active prend sa couleur à elle, quand elle en a une.
+  const own = !rule && domainOf(entity?.entity_id) === 'scene' && value === true ? entity?.capabilities?.color : null;
   return {
-    color: rule?.color ? (COLORS[rule.color] ?? rule.color) : null,
+    color: rule?.color ? (COLORS[rule.color] ?? rule.color) : (own ?? null),
     icon: rule?.icon || card?.icon || defaultIcon(entity),
     text: rule?.text ? fillText(rule.text, vars) : text,
     rule,
@@ -207,7 +209,7 @@ export function defaultIcon(entity) {
   if (d === 'light') return 'bulb';
   if (d === 'switch') return 'plug';
   if (d === 'group') return 'bulb';
-  if (d === 'scene') return 'scene';
+  if (d === 'scene') return entity?.capabilities?.icon || 'scene';
   if (d === 'automation') return 'auto';
   if (d === 'person') return 'user';
   if (d === 'siren') return 'bell';

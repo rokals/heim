@@ -2,8 +2,8 @@
 
 use std::time::Duration;
 
-use heim::model::{Action, EntityView, Target};
-use heim::scenes::SceneInput;
+use heim::model::{Action, EntityView};
+use heim::scenes::{OffMode, SceneInput, SceneTarget};
 use heim::timers::{FinishAction, TimerInput, TimerOp};
 use heim::{Config, Core};
 use serde_json::json;
@@ -77,20 +77,22 @@ async fn scene_tracks_real_state_and_restores() {
         .upsert(
             "",
             SceneInput {
-                name: "Soirée film".into(),
                 room: Some("Salon".into()),
-                targets: [
-                    (
-                        "light.demo_salon".to_string(),
-                        Target {
-                            on: true,
-                            brightness: Some(60),
-                            color_temp: None,
-                        },
-                    ),
-                    ("light.demo_chambre".to_string(), Target::on()),
-                ]
-                .into(),
+                off_mode: OffMode::Restore,
+                ..SceneInput::simple(
+                    "Soirée film",
+                    [
+                        (
+                            "light.demo_salon".to_string(),
+                            SceneTarget {
+                                brightness: Some(60),
+                                ..SceneTarget::on()
+                            },
+                        ),
+                        ("light.demo_chambre".to_string(), SceneTarget::on()),
+                    ]
+                    .into(),
+                )
             },
         )
         .await
@@ -202,13 +204,12 @@ async fn capture_current_lighting() {
         .unwrap();
     assert_eq!(
         view.scene.targets["light.demo_salon"],
-        Target {
-            on: true,
+        SceneTarget {
             brightness: Some(200),
-            color_temp: None
+            ..SceneTarget::on()
         }
     );
-    assert_eq!(view.scene.targets["light.demo_chambre"], Target::off());
+    assert_eq!(view.scene.targets["light.demo_chambre"], SceneTarget::off());
     wait_for(&core, "scene.lecture", "active dès sa création", |e| {
         value(e) == "on"
     })
@@ -219,11 +220,10 @@ async fn capture_current_lighting() {
         .scenes
         .upsert(
             "x",
-            SceneInput {
-                name: "X".into(),
-                room: None,
-                targets: [("sensor.demo_temperature".to_string(), Target::on())].into(),
-            },
+            SceneInput::simple(
+                "X",
+                [("sensor.demo_temperature".to_string(), SceneTarget::on())].into(),
+            ),
         )
         .await
         .unwrap_err();
@@ -902,4 +902,134 @@ async fn battery_changed_ignores_the_stale_level() {
     })
     .await;
     assert!(!e.state.unwrap().attributes.contains_key(STALE_VALUE));
+}
+
+#[tokio::test]
+async fn scene_turn_off_mode_timed_and_preview() {
+    let dir = temp_dir("scene10");
+    let core = Core::start(&config(&dir, true)).unwrap();
+    ready(&core).await;
+    // La chambre est allumée avant : « tout éteindre » l'éteindra quand même.
+    core.registry
+        .command(
+            "light.demo_chambre",
+            Action::TurnOn {
+                brightness: Some(100),
+                color_temp: None,
+            },
+            "t",
+        )
+        .await
+        .unwrap();
+    wait_for(&core, "light.demo_chambre", "allumée", |e| {
+        value(e) == "on"
+    })
+    .await;
+
+    core.scenes
+        .upsert(
+            "",
+            SceneInput {
+                transition_s: Some(2.0),
+                icon: Some("moon".into()),
+                ..SceneInput::simple(
+                    "Ciné",
+                    [
+                        (
+                            "light.demo_salon".to_string(),
+                            SceneTarget {
+                                brightness: Some(40),
+                                ..SceneTarget::on()
+                            },
+                        ),
+                        ("light.demo_chambre".to_string(), SceneTarget::on()),
+                    ]
+                    .into(),
+                )
+            },
+        )
+        .await
+        .unwrap();
+    let e = core.registry.get("scene.cine").await.unwrap();
+    assert_eq!(e.meta.capabilities["icon"], json!("moon"));
+
+    // Désactiver (mode par défaut) : tout ce qui est dans la scène s'éteint.
+    core.registry
+        .command(
+            "scene.cine",
+            Action::TurnOn {
+                brightness: None,
+                color_temp: None,
+            },
+            "t",
+        )
+        .await
+        .unwrap();
+    wait_for(&core, "scene.cine", "active", |e| value(e) == "on").await;
+    core.registry
+        .command("scene.cine", Action::TurnOff, "t")
+        .await
+        .unwrap();
+    wait_for(&core, "light.demo_chambre", "éteinte par la scène", |e| {
+        value(e) == "off"
+    })
+    .await;
+    wait_for(&core, "light.demo_salon", "éteinte", |e| value(e) == "off").await;
+
+    // Activer pour un temps : la scène retient l'heure de fin.
+    core.scenes.activate_for("cine", Some(30)).await.unwrap();
+    wait_for(&core, "scene.cine", "active pour 30 min", |e| {
+        value(e) == "on"
+            && e.state
+                .as_ref()
+                .is_some_and(|s| !s.attributes["until"].is_null())
+    })
+    .await;
+    assert!(core.scenes.activate_for("cine", Some(0)).await.is_err());
+
+    // Aperçu : la lampe obéit tout de suite, puis revient comme avant.
+    core.registry
+        .command("light.demo_lampadaire", Action::TurnOff, "t")
+        .await
+        .unwrap();
+    wait_for(&core, "light.demo_lampadaire", "éteint", |e| {
+        value(e) == "off"
+    })
+    .await;
+    core.scenes
+        .preview(
+            [(
+                "light.demo_lampadaire".to_string(),
+                SceneTarget {
+                    brightness: Some(200),
+                    ..SceneTarget::on()
+                },
+            )]
+            .into(),
+            None,
+        )
+        .await
+        .unwrap();
+    wait_for(&core, "light.demo_lampadaire", "allumé en aperçu", |e| {
+        value(e) == "on"
+    })
+    .await;
+    assert_eq!(core.scenes.preview_end().await, 1);
+    wait_for(&core, "light.demo_lampadaire", "revenu comme avant", |e| {
+        value(e) == "off"
+    })
+    .await;
+
+    // « Reprendre l'état actuel » et dupliquer.
+    let snap = core
+        .scenes
+        .snapshot(vec![
+            "light.demo_salon".into(),
+            "light.demo_lampadaire".into(),
+        ])
+        .await;
+    assert!(snap["light.demo_salon"].on && !snap["light.demo_lampadaire"].on);
+    let copy = core.scenes.duplicate("cine").await.unwrap();
+    assert_eq!(copy.scene.name, "Ciné (2)");
+    assert_eq!(copy.scene.transition_s, Some(2.0));
 }

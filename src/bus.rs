@@ -41,6 +41,11 @@ pub enum Event {
         target: Target,
         source: String,
     },
+    /// Une commande partie sans passer par le registre (scène en couleur) : pour le journal.
+    CommandNoted {
+        entity_id: EntityId,
+        source: String,
+    },
     /// Un appareil n'a pas confirmé la commande à temps.
     CommandTimeout {
         entity_id: EntityId,

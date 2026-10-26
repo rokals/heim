@@ -1,110 +1,170 @@
 <script>
-  // Une scène se crée en photographiant l'éclairage tel qu'il est : on règle les lampes
-  // comme on les aime, puis « Enregistrer cette ambiance ».
+  // Les scènes : une liste claire (active ou pas, jusqu'à quand), et pour chacune
+  // activer, activer pour un temps, modifier, dupliquer. Un modèle pour démarrer vite.
   import Icon from './Icon.svelte';
   import Sheet from './Sheet.svelte';
-  import { api, command, home, isAdmin, toast } from '../lib/store.svelte.js';
-  import { isAvailable, isOn, slug } from '../lib/house.js';
+  import SceneEditor from './SceneEditor.svelte';
+  import { api, command, home, homeRooms, isAdmin, toast } from '../lib/store.svelte.js';
+  import { sceneStatus, TEMPLATES } from '../lib/scenes.js';
 
-  const all = $derived(Object.values(home.entities));
-  const scenes = $derived(all.filter((e) => e.domain === 'scene').sort((a, b) => a.name.localeCompare(b.name, 'fr')));
-  const controls = $derived(
-    all
-      .filter((e) => (e.domain === 'light' || e.domain === 'switch') && !e.hidden && isAvailable(e))
-      .sort((a, b) => (a.room || '~').localeCompare(b.room || '~', 'fr') || a.name.localeCompare(b.name, 'fr')),
+  let details = $state([]);
+  let editing = $state(null);
+  let forScene = $state(null);
+  let templates = $state(false);
+  let tplRoom = $state('');
+
+  async function load() {
+    details = (await api('/scenes').catch(() => [])) ?? [];
+  }
+
+  // La liste suit les scènes déclarées (création, suppression, changement d'état).
+  const sceneEntities = $derived(
+    Object.values(home.entities)
+      .filter((e) => e.domain === 'scene')
+      .sort((a, b) => a.name.localeCompare(b.name, 'fr')),
   );
+  // Une clé simple : on ne recharge que si une scène apparaît, disparaît ou change de nom.
+  const sceneKey = $derived(sceneEntities.map((e) => e.entity_id + e.name).join('|'));
+  $effect(() => {
+    void sceneKey;
+    load();
+  });
 
-  let creating = $state(false);
-  let name = $state('');
-  let picked = $state({});
-  let busy = $state(false);
+  const byId = $derived(Object.fromEntries(details.map((d) => [d.id, d])));
 
-  function startCreate() {
-    name = '';
-    // Par défaut : les lumières allumées en ce moment.
-    picked = Object.fromEntries(controls.map((e) => [e.entity_id, e.domain === 'light' && isOn(e)]));
-    creating = true;
-  }
-
-  async function create(e) {
-    e.preventDefault();
-    const entities = Object.keys(picked).filter((id) => picked[id]);
-    if (!name.trim() || !entities.length) return;
-    busy = true;
-    try {
-      await api(`/scenes/${slug(name)}/capture`, { method: 'POST', body: { name: name.trim(), entities } });
-      toast(`Scène « ${name.trim()} » enregistrée`);
-      creating = false;
-    } catch (err) {
-      toast(err.message, 'alert');
-    } finally {
-      busy = false;
-    }
-  }
-
-  async function remove(scene) {
-    if (!confirm(`Supprimer la scène « ${scene.name} » ?`)) return;
-    try {
-      await api(`/scenes/${scene.entity_id.slice(6)}`, { method: 'DELETE' });
-    } catch (err) {
-      toast(err.message, 'alert');
-    }
-  }
-
-  function describe(scene) {
-    const members = scene.capabilities?.members || [];
-    const names = members.map((id) => home.entities[id]?.name).filter(Boolean);
+  function membersText(d) {
+    const ids = Object.keys(d?.targets ?? {});
+    const names = ids.map((id) => home.entities[id]?.name).filter(Boolean);
     if (names.length <= 3) return names.join(', ');
     return `${names.slice(0, 3).join(', ')} et ${names.length - 3} autres`;
   }
+
+  async function activateFor(id, minutes) {
+    forScene = null;
+    try {
+      await api(`/scenes/${id}/activate`, { method: 'POST', body: { minutes } });
+      toast(minutes >= 60 ? `Activée pour ${minutes / 60} h` : `Activée pour ${minutes} min`);
+    } catch (e) {
+      toast(e.message, 'alert');
+    }
+  }
+
+  async function duplicate(id) {
+    try {
+      const copy = await api(`/scenes/${id}/duplicate`, { method: 'POST' });
+      toast(`« ${copy.name} » créée`);
+      await load();
+      editing = { scene: copy };
+    } catch (e) {
+      toast(e.message, 'alert');
+    }
+  }
+
+  async function remove(d) {
+    if (!confirm(`Supprimer la scène « ${d.name} » ?`)) return;
+    try {
+      await api(`/scenes/${d.id}`, { method: 'DELETE' });
+      editing = null;
+      await load();
+    } catch (e) {
+      toast(e.message, 'alert');
+    }
+  }
+
+  const DURATIONS = [15, 30, 60, 120, 240];
 </script>
 
 <header class="top">
   <h1>Scènes</h1>
-  {#if isAdmin()}<button class="btn" onclick={startCreate}><Icon name="plus" size={18} /> Enregistrer cette ambiance</button>{/if}
+  {#if isAdmin()}
+    <div class="tools">
+      <button class="btn quiet" onclick={() => (templates = true)}><Icon name="star" size={17} /> Modèles</button>
+      <button class="btn" onclick={() => (editing = { scene: null })}><Icon name="plus" size={18} /> Nouvelle scène</button>
+    </div>
+  {/if}
 </header>
-<p class="intro">Réglez vos lumières comme vous les aimez, puis enregistrez l'ambiance. Si quelqu'un change une lampe ensuite, la scène se désactive d'elle-même.</p>
+<p class="intro">Une ambiance en un geste : chaque appareil réglé comme vous voulez (luminosité, blanc, couleur, effet). Si quelqu'un change une lampe ensuite, la scène se désactive d'elle-même.</p>
 
-{#if !scenes.length}
-  <p class="empty">Aucune scène pour l'instant.</p>
+{#if !sceneEntities.length}
+  <div class="empty">
+    <p>Aucune scène pour l'instant.</p>
+    {#if isAdmin()}<button class="btn" onclick={() => (templates = true)}>Partir d'un modèle</button>{/if}
+  </div>
 {/if}
 
 <ul class="list">
-  {#each scenes as s (s.entity_id)}
-    {@const active = isOn(s)}
-    <li class:active>
+  {#each sceneEntities as s (s.entity_id)}
+    {@const id = s.entity_id.slice(6)}
+    {@const d = byId[id]}
+    {@const active = s.state?.value === 'on'}
+    {@const tint = s.capabilities?.color}
+    <li class:active style:--tint={tint || 'var(--ember)'}>
       <button class="toggle" aria-pressed={active} onclick={() => command(s.entity_id, active ? 'turn_off' : 'turn_on')}>
-        <span class="dot" aria-hidden="true"></span>
+        <span class="ic"><Icon name={s.capabilities?.icon || 'scene'} size={22} /></span>
         <span class="text">
           <strong>{s.name}</strong>
-          <span>{describe(s)}</span>
-          <span class="status">{active ? (s.state?.attributes?.partial ? 'Active, un appareil injoignable' : 'Active') : 'Inactive'}</span>
+          <span>{membersText(d)}</span>
+          <span class="status">{sceneStatus(s, home.now)}{d?.off_mode === 'restore' ? ' · revient comme avant' : ''}</span>
         </span>
       </button>
-      {#if isAdmin()}<button class="del" onclick={() => remove(s)} aria-label="Supprimer {s.name}"><Icon name="close" size={18} /></button>{/if}
+      <div class="acts">
+        <button class="mini" onclick={() => (forScene = d ?? { id, name: s.name })} title="Activer pour un temps" aria-label="Activer {s.name} pour un temps"><Icon name="timer" size={17} /></button>
+        {#if isAdmin() && d}
+          <button class="mini" onclick={() => (editing = { scene: d })} aria-label="Modifier {s.name}"><Icon name="pencil" size={16} /></button>
+        {/if}
+      </div>
     </li>
   {/each}
 </ul>
 
-{#if creating}
-  <Sheet title="Nouvelle scène" onclose={() => (creating = false)}>
-    <form onsubmit={create}>
-      <label class="field">
-        <span>Nom</span>
-        <input class="input" bind:value={name} placeholder="Soirée film, Dîner, Réveil…" autocomplete="off" />
-      </label>
-      <fieldset>
-        <legend>Appareils à inclure, dans leur état actuel</legend>
-        {#each controls as e (e.entity_id)}
-          <label class="pick">
-            <input type="checkbox" bind:checked={picked[e.entity_id]} />
-            <span>{e.name}</span>
-            <span class="state">{e.room ?? ''} {isOn(e) ? 'allumé' : 'éteint'}</span>
-          </label>
-        {/each}
-      </fieldset>
-      <button class="btn" type="submit" disabled={busy || !name.trim()}>Enregistrer la scène</button>
-    </form>
+{#if editing}
+  <SceneEditor
+    scene={editing.scene}
+    template={editing.template ?? null}
+    room={editing.room ?? ''}
+    onclose={() => ((editing = null), load())}
+    onduplicate={(id) => ((editing = null), duplicate(id))}
+    ondelete={(d) => remove(d)}
+  />
+{/if}
+
+{#if forScene}
+  <Sheet title="« {forScene.name} » pendant…" onclose={() => (forScene = null)}>
+    <p class="muted">Puis chaque appareil revient comme il était avant.</p>
+    <div class="durations">
+      {#each DURATIONS as m (m)}
+        <button class="btn quiet" onclick={() => activateFor(forScene.id, m)}>{m < 60 ? `${m} min` : `${m / 60} h`}</button>
+      {/each}
+    </div>
+  </Sheet>
+{/if}
+
+{#if templates}
+  <Sheet title="Partir d'un modèle" onclose={() => (templates = false)}>
+    <label class="field">
+      <span>Pour la pièce</span>
+      <select class="input" bind:value={tplRoom}>
+        <option value="">Toute la maison</option>
+        {#each homeRooms() as r (r)}<option value={r}>{r}</option>{/each}
+      </select>
+    </label>
+    <div class="tpls">
+      {#each TEMPLATES as t (t.id)}
+        <button
+          class="tpl"
+          style:--tint={t.color}
+          onclick={() => {
+            templates = false;
+            editing = { scene: null, template: { ...t, name: tplRoom ? `${t.name} ${tplRoom.toLowerCase()}` : t.name }, room: tplRoom };
+          }}
+        >
+          <span class="ic"><Icon name={t.icon} size={22} /></span>
+          <strong>{t.name}</strong>
+          <span>{t.hint} · {t.pct} %</span>
+        </button>
+      {/each}
+    </div>
+    <p class="muted small">Le modèle prend les lumières de la pièce et propose des réglages ; vous ajustez ensuite chaque lampe.</p>
   </Sheet>
 {/if}
 
@@ -124,29 +184,43 @@
     letter-spacing: -0.02em;
   }
 
+  .tools {
+    display: flex;
+    gap: 8px;
+  }
+
   .intro {
     color: var(--muted);
     max-width: 60ch;
   }
 
   .empty {
+    padding: 20px 0;
     color: var(--muted);
   }
 
   .list {
     list-style: none;
+    margin: 18px 0 0;
     padding: 0;
-    margin: 20px 0 0;
     display: grid;
-    gap: 8px;
+    gap: 10px;
   }
 
-  li {
+  .list li {
     display: flex;
     align-items: center;
+    gap: 6px;
+    padding-right: 8px;
     border-radius: var(--radius-tile);
     background: var(--surface);
     box-shadow: var(--shadow);
+    transition: background-color 0.3s ease;
+  }
+
+  .list li.active {
+    background: color-mix(in srgb, var(--tint) 30%, var(--surface));
+    box-shadow: var(--shadow), inset 0 0 0 1.5px color-mix(in srgb, var(--tint) 60%, transparent);
   }
 
   .toggle {
@@ -154,23 +228,25 @@
     display: flex;
     align-items: center;
     gap: 14px;
-    padding: 16px;
-    text-align: left;
     min-width: 0;
+    padding: 14px 8px 14px 14px;
+    text-align: left;
   }
 
-  .dot {
+  .ic {
     flex: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    border: 2px solid var(--muted);
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    background: var(--surface-2);
+    color: var(--muted);
   }
 
-  .active .dot {
-    background: var(--ember);
-    border-color: var(--ember);
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--ember) 25%, transparent);
+  .active .ic {
+    background: var(--tint);
+    color: #fff;
   }
 
   .text {
@@ -178,56 +254,73 @@
     min-width: 0;
   }
 
+  .text strong {
+    font-size: 18px;
+  }
+
   .text span {
     font-size: 14px;
     color: var(--muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
 
-  .active .status {
-    color: color-mix(in srgb, var(--ember) 70%, var(--ink));
+  .status {
     font-weight: 600;
   }
 
-  .del {
-    width: 48px;
-    height: 48px;
+  .active .status {
+    color: color-mix(in srgb, var(--tint) 65%, var(--ink));
+  }
+
+  .acts {
+    display: flex;
+    gap: 4px;
+  }
+
+  .mini {
+    width: 40px;
+    height: 40px;
     display: grid;
     place-items: center;
+    border-radius: 50%;
+    background: var(--surface-2);
     color: var(--muted);
   }
 
-  fieldset {
-    border: 0;
-    padding: 0;
-    margin: 0 0 20px;
-  }
-
-  legend {
-    font-size: 14px;
-    color: var(--muted);
-    margin-bottom: 6px;
-  }
-
-  .pick {
+  .durations {
     display: flex;
-    align-items: center;
-    gap: 12px;
-    min-height: 48px;
-    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
-  .pick input {
-    width: 20px;
-    height: 20px;
-    accent-color: var(--ink);
+  .tpls {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
   }
 
-  .pick .state {
-    margin-left: auto;
-    font-size: 14px;
+  .tpl {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    padding: 14px;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--tint) 18%, var(--surface));
+    box-shadow: var(--shadow);
+    text-align: left;
+  }
+
+  .tpl .ic {
+    background: var(--tint);
+    color: #fff;
+  }
+
+  .tpl span {
+    font-size: 13px;
     color: var(--muted);
+  }
+
+  .small {
+    font-size: 13px;
   }
 </style>

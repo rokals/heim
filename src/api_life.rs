@@ -257,3 +257,61 @@ pub async fn poweroff(
 ) -> ApiResult<impl IntoResponse> {
     power(app, caller, Power::PowerOff).await
 }
+
+// ---- Scènes : éditeur ----------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct SnapshotInput {
+    pub entities: Vec<String>,
+}
+
+/// L'état actuel de ces appareils, comme réglages de scène (« Reprendre l'état actuel »).
+pub async fn scene_snapshot(
+    State(app): State<AppState>,
+    Json(input): Json<SnapshotInput>,
+) -> ApiResult<impl IntoResponse> {
+    if input.entities.len() > 60 {
+        return Err(bad_request("trop d'appareils"));
+    }
+    Ok(Json(app.core().scenes.snapshot(input.entities).await))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PreviewInput {
+    pub targets: std::collections::BTreeMap<String, crate::scenes::SceneTarget>,
+    #[serde(default)]
+    pub transition_s: Option<f64>,
+}
+
+/// Aperçu en direct : applique ces réglages sur les vraies lampes, sans rien enregistrer.
+pub async fn scene_preview(
+    State(app): State<AppState>,
+    Json(input): Json<PreviewInput>,
+) -> ApiResult<impl IntoResponse> {
+    if input.targets.len() > 60 {
+        return Err(bad_request("trop d'appareils"));
+    }
+    app.core()
+        .scenes
+        .preview(input.targets, input.transition_s)
+        .await
+        .map_err(bad_request)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Fin de l'aperçu : tout revient comme avant.
+pub async fn scene_preview_end(State(app): State<AppState>) -> impl IntoResponse {
+    Json(json!({ "restored": app.core().scenes.preview_end().await }))
+}
+
+pub async fn duplicate_scene(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<impl IntoResponse> {
+    app.core()
+        .scenes
+        .duplicate(&id)
+        .await
+        .map(Json)
+        .map_err(bad_request)
+}

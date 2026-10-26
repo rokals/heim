@@ -343,7 +343,8 @@
   <nav class="scenes" aria-label="Scènes">
     {#each scenes as s (s.entity_id)}
       {@const active = isOn(s)}
-      <button class="scene" class:active aria-pressed={active} onclick={() => command(s.entity_id, active ? 'turn_off' : 'turn_on')}>
+      <button class="scene" class:active style:--tint={s.capabilities?.color || null} aria-pressed={active} onclick={() => command(s.entity_id, active ? 'turn_off' : 'turn_on')}>
+        <Icon name={s.capabilities?.icon || 'scene'} size={17} />
         {s.name}
         {#if s.state?.attributes?.partial}<span class="partial">en partie</span>{/if}
       </button>
@@ -612,9 +613,13 @@
   }
 
   .scene.active {
-    background: var(--ember);
-    border-color: var(--ember);
+    background: var(--tint, var(--ember));
+    border-color: var(--tint, var(--ember));
     color: var(--ember-ink);
+  }
+
+  .scene.active[style*='--tint'] {
+    color: #fff;
   }
 
   .partial {

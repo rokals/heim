@@ -10,7 +10,7 @@ capteurs) qui doit marcher sans YAML et sans planter, sur un Raspberry Pi Zero 2
 | Fonction | Comment |
 | --- | --- |
 | Entités | Lumières, prises, capteurs, détecteurs, scènes, timers. État réel + état demandé. |
-| Scènes avec état | Une scène sait si elle est active. Changer une lampe à la main la désactive toute seule. Désactiver = revenir à l'état d'avant. |
+| Scènes | Chaque appareil réglé dans la scène : allumé ou éteint, luminosité, blanc, couleur, effet (seuls les réglages cochés comptent). Aperçu en direct pendant le réglage (tout revient comme avant à la sortie), fondu, modèles (Soirée, Lecture, Ciné, Nuit, Réveil), dupliquer, icône et couleur. La scène sait si elle est active (avec une marge, couleur comprise) ; la désactiver éteint tout ou revient comme avant, au choix ; « activer pour 2 h » revient tout seul. |
 | Timers avec décompte | Heure de fin absolue : décompte fluide côté interface, survit aux redémarrages, action à l'échéance (couper une prise...). |
 | Notifications | Chaque téléphone qui ouvre l'app devient une cible. « Tous sauf un » : `{"message": "...", "except": ["tel_alex"]}`. |
 | Zigbee | Via Zigbee2MQTT (clé Sonoff ZBDongle-E ou autre). Découverte automatique des appareils. |
@@ -102,7 +102,7 @@ curl -fsSL https://raw.githubusercontent.com/PROPRIETAIRE/heim/main/packaging/in
 Le dépôt doit être public (les Heim installés lisent ses releases sans compte).
 
 ```sh
-# Cargo.toml : version = "0.9.1"
+# Cargo.toml : version = "0.10.1"
 git commit -am "0.6.1"
 git tag v0.6.1
 git push && git push --tags
@@ -157,9 +157,14 @@ PATCH  /api/entities/{id}                {"name": "...", "room": "Salon", "plan"
 POST   /api/entities/{id}/command        {"action": "turn_on", "brightness": 180} | {"action": "toggle"}
 
 GET    /api/scenes
-PUT    /api/scenes/{id}                  {"name": "Soirée", "targets": {"light.salon": {"on": true, "brightness": 90}}}
+PUT    /api/scenes/{id}                  {"name": "Soirée", "targets": {"light.salon": {"on": true, "brightness": 90, "color_temp": 370}},
+                                          "transition_s": 3, "off_mode": "turn_off" | "restore", "icon": "sofa", "color": "#f76b15"}
 POST   /api/scenes/{id}/capture          {"name": "Lecture", "entities": ["light.salon", "light.lampadaire"]}
-POST   /api/scenes/{id}/activate | /deactivate
+POST   /api/scenes/{id}/activate     {"minutes": 120} (facultatif : activer pour un temps)
+POST   /api/scenes/{id}/deactivate | /duplicate
+POST   /api/scenes/snapshot          {"entities": ["light.salon"]}   état actuel, comme réglages de scène
+POST   /api/scenes/preview           {"targets": {"light.salon": {"on": true, "color": "#ff8800"}}}   aperçu en direct
+POST   /api/scenes/preview/end       tout revient comme avant
 DELETE /api/scenes/{id}
 
 GET    /api/timers

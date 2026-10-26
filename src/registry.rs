@@ -94,6 +94,11 @@ enum Msg {
         reply: Reply<Result<EntityView, CommandError>>,
     },
     Remove(EntityId),
+    Note {
+        entity_id: EntityId,
+        target: Target,
+        source: String,
+    },
     RenameRoom {
         from: String,
         to: Option<String>,
@@ -177,6 +182,19 @@ impl RegistryHandle {
             .await
             .map_err(|_| CommandError::Stopped)?;
         rx.await.map_err(|_| CommandError::Stopped)?
+    }
+
+    /// Une commande partie directement vers l'appareil (scène en couleur vers Zigbee2MQTT) :
+    /// le registre note l'état attendu et qui l'a demandé, sans renvoyer la commande.
+    pub async fn note_command(&self, entity_id: &str, target: Target, source: &str) {
+        let _ = self
+            .tx
+            .send(Msg::Note {
+                entity_id: entity_id.to_string(),
+                target,
+                source: source.to_string(),
+            })
+            .await;
     }
 
     /// Applique une cible sans attendre de réponse (scènes, timers).
@@ -361,6 +379,21 @@ impl Registry {
                 reply,
             } => {
                 let _ = reply.send(self.update_meta(&entity_id, patch));
+            }
+            Msg::Note {
+                entity_id,
+                target,
+                source,
+            } => {
+                if let Some(entity) = self.entities.get_mut(&entity_id) {
+                    if entity.meta.domain.physical() {
+                        entity.desired = Some(Desired {
+                            target,
+                            since: Utc::now(),
+                        });
+                    }
+                    self.bus.publish(Event::CommandNoted { entity_id, source });
+                }
             }
             Msg::Remove(id) => {
                 if self.entities.remove(&id).is_some() {

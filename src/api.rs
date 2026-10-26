@@ -140,6 +140,10 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
         .route("/scenes/{id}", put(put_scene).delete(delete_scene))
         .route("/scenes/{id}/capture", post(capture_scene))
         .route("/scenes/{id}/activate", post(activate_scene))
+        .route("/scenes/{id}/duplicate", post(life::duplicate_scene))
+        .route("/scenes/snapshot", post(life::scene_snapshot))
+        .route("/scenes/preview", post(life::scene_preview))
+        .route("/scenes/preview/end", post(life::scene_preview_end))
         .route("/scenes/{id}/deactivate", post(deactivate_scene))
         .route("/timers", get(list_timers))
         .route("/timers/{id}", put(put_timer).delete(delete_timer))
@@ -544,11 +548,28 @@ async fn delete_scene(
     }
 }
 
+#[derive(Deserialize, Default)]
+struct ActivateInput {
+    /// Activer pour tant de minutes, puis revenir comme avant.
+    #[serde(default)]
+    minutes: Option<u64>,
+}
+
 async fn activate_scene(
     axum::Extension(caller): axum::Extension<Caller>,
     State(app): State<AppState>,
     Path(id): Path<String>,
+    body: Option<Json<ActivateInput>>,
 ) -> ApiResult<StatusCode> {
+    let minutes = body.and_then(|Json(b)| b.minutes);
+    if minutes.is_some() {
+        app.core
+            .scenes
+            .activate_for(&id, minutes)
+            .await
+            .map_err(bad_request)?;
+        return Ok(StatusCode::ACCEPTED);
+    }
     let action = Action::TurnOn {
         brightness: None,
         color_temp: None,
@@ -732,7 +753,7 @@ async fn ws_session(socket: WebSocket, app: AppState, caller: Caller) {
         tokio::select! {
             ev = events.recv() => {
                 let out = match ev {
-                    Ok(Event::CommandRequested { .. }) => continue,
+                    Ok(Event::CommandRequested { .. } | Event::CommandNoted { .. }) => continue,
                     Ok(Event::Notification { target_id: to, notification }) => {
                         if target_id.as_deref() != Some(to.as_str()) {
                             continue;

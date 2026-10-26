@@ -186,11 +186,13 @@ impl Core {
         // Journal et courbes : branchés tout de suite pour ne rien manquer du démarrage.
         let history = history::History::open(&config.data_dir.join("history.db"));
         history::spawn(history.clone(), &bus, registry.clone());
+        let controls: devices::Controls = Default::default();
         let scenes = scenes::spawn(
             loaded.take(Table::Scenes),
             registry.clone(),
             bus.clone(),
             store.clone(),
+            controls.clone(),
         );
         let timers = timers::spawn(
             loaded.take(Table::Timers),
@@ -299,7 +301,7 @@ impl Core {
             security,
             presence,
             updater,
-            controls: Default::default(),
+            controls,
             history,
             netsetup,
             pairing,

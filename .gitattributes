@@ -8,3 +8,10 @@ packaging/rootfs/heim-guard text eol=lf
 packaging/pi-gen/** text eol=lf
 *.png binary
 *.db binary
+
+# Statistiques de langages de GitHub : l'interface compilée (un seul gros fichier minifié)
+# et les fichiers de verrouillage ne comptent pas comme du code écrit à la main.
+static/index.html linguist-generated
+ui/package-lock.json linguist-generated
+Cargo.lock linguist-generated
+*.svelte linguist-language=Svelte

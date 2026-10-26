@@ -417,7 +417,12 @@ impl Recorder {
             return Some(format!("minuteur {id}"));
         }
         if let Some(id) = source.strip_prefix("scene:") {
-            return Some(format!("scène {id}"));
+            let name = self
+                .meta
+                .get(&format!("scene.{id}"))
+                .map(|m| m.name.clone())
+                .unwrap_or_else(|| id.to_string());
+            return Some(format!("scène {name}"));
         }
         if let Some(name) = source.strip_prefix("user:") {
             return Some(name.to_string());
@@ -449,7 +454,8 @@ impl Recorder {
             }
             Event::CommandRequested {
                 entity_id, source, ..
-            } => {
+            }
+            | Event::CommandNoted { entity_id, source } => {
                 self.actors.insert(entity_id, (source, Utc::now()));
             }
             Event::StateChanged {
