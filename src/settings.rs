@@ -138,6 +138,13 @@ impl Settings {
         Ok(())
     }
 
+    /// Prévient les écrans ouverts sans rien enregistrer (un compte a changé…).
+    pub fn touch(&self, key: &str) {
+        self.bus.publish(Event::SettingsChanged {
+            key: key.to_string(),
+        });
+    }
+
     pub fn set<T: Serialize>(&self, key: &str, value: &T) -> Result<(), String> {
         self.set_raw(key, serde_json::to_value(value).map_err(|e| e.to_string())?)
     }

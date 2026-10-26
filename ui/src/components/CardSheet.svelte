@@ -8,6 +8,10 @@
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
   import Tile from './Tile.svelte';
+  import HouseSpecial from './HouseSpecial.svelte';
+  import { houseActionLabel, houseActions, houseDefaults, kindInfo } from '../lib/housecards.js';
+  import { home, homeRooms } from '../lib/store.svelte.js';
+  import { isConfigured } from '../lib/security.js';
   import {
     COLORS,
     COLOR_NAMES,
@@ -32,18 +36,29 @@
   const kind = original.type ?? 'entity';
   const d = domainOf(original.entity_id);
   const controllable = ['light', 'switch'].includes(d);
+  // Cartes « Maison » : sans appareil, elles se règlent comme les autres (sauf Scènes,
+  // Minuteurs et Horloge, qui ont leur propre affichage : taille et section seulement).
+  const house = kind === 'house';
+  const special = house && ['scenes', 'timers', 'clock'].includes(original.kind);
+  const tiled = kind === 'entity' || (house && !special);
 
   let card = $state({ ...structuredClone(original), ...cardSize(original, entity) });
   delete card.size;
   let target = $state(s);
-  let tab = $state(kind === 'entity' ? 'function' : 'look');
+  let tab = $state(tiled ? 'function' : 'look');
   let iconPicker = $state(null);
   let showIcons = $state(false);
   if (d === 'automation' && !card.facet) card.facet = 'state';
 
-  const actions = $derived(actionsFor(card.entity_id, card.facet));
-  const tapDefault = $derived(['light', 'switch', 'group', 'scene'].includes(d) ? 'toggle' : 'details');
-  const holdDefault = $derived(d === 'automation' && card.facet !== 'enabled' ? 'rearm' : 'details');
+  const actions = $derived(house ? houseActions(card.kind) : actionsFor(card.entity_id, card.facet));
+  const label = (a) => (house ? houseActionLabel(a, card.kind) : actionLabel(a, card.entity_id, card.facet));
+  const tapDefault = $derived(
+    house ? houseDefaults(card.kind).tap : ['light', 'switch', 'group', 'scene'].includes(d) ? 'toggle' : 'details',
+  );
+  const holdDefault = $derived(
+    house ? houseDefaults(card.kind).hold : d === 'automation' && card.facet !== 'enabled' ? 'rearm' : 'details',
+  );
+  const alarmReady = $derived(isConfigured(home.security?.config));
   const suggested = $derived(entity ? defaultRules(card, entity) : []);
   const valueNow = $derived(entity ? valueText(card, entity) : '–');
   const canSlider = $derived(d === 'light' && Boolean(entity?.capabilities?.brightness));
@@ -90,10 +105,11 @@
   function clean(c) {
     let out = { ...c };
     for (const k of ['name', 'icon', 'color', 'text', 'subtitle', 'align']) if (!String(out[k] ?? '').trim()) delete out[k];
-    if (kind !== 'entity') {
+    if (!tiled) {
       for (const k of ['tap', 'hold', 'double', 'rules', 'for_min', 'facet']) delete out[k];
       return out;
     }
+    if (!out.arm) delete out.arm;
     if (!controllable || !(out.for_min > 0)) delete out.for_min;
     if (out.tap === tapDefault) delete out.tap;
     if (out.hold === holdDefault) delete out.hold;
@@ -140,7 +156,7 @@
 
   const triState = (v) => (v === true ? 'on' : v === false ? 'off' : 'auto');
   const fromTri = (t) => (t === 'on' ? true : t === 'off' ? false : undefined);
-  const title = kind === 'title' ? 'Titre' : kind === 'spacer' ? 'Espace vide' : null;
+  const title = kind === 'title' ? 'Titre' : kind === 'spacer' ? 'Espace vide' : house ? kindInfo(original.kind).name : null;
 </script>
 
 <Sheet title={title ?? (card.name || entity?.name || 'Carte')} {onclose}>
@@ -153,14 +169,16 @@
         </div>
       {:else if kind === 'spacer'}
         <div class="spacer-prev">Espace</div>
+      {:else if special}
+        <HouseSpecial card={clean($state.snapshot(card))} preview />
       {:else if entity}
         <Tile card={clean($state.snapshot(card))} {entity} {device} preview />
       {/if}
     </div>
-    {#if entity}<p class="muted">Valeur actuelle : <strong>{valueNow}</strong></p>{/if}
+    {#if entity && !house}<p class="muted">Valeur actuelle : <strong>{valueNow}</strong></p>{/if}
   </div>
 
-  {#if kind === 'entity'}
+  {#if tiled}
     <div class="tabs" role="tablist">
       <button role="tab" aria-selected={tab === 'function'} class:on={tab === 'function'} onclick={() => (tab = 'function')}>
         <Icon name="power" size={16} /> Fonction
@@ -185,13 +203,13 @@
       <label class="field">
         <span>Appui court</span>
         <select class="input" value={card.tap ?? tapDefault} onchange={(e) => (card.tap = e.currentTarget.value)}>
-          {#each actions as a (a)}<option value={a}>{actionLabel(a, card.entity_id, card.facet)}</option>{/each}
+          {#each actions as a (a)}<option value={a}>{label(a)}</option>{/each}
         </select>
       </label>
       <label class="field">
         <span>Appui long</span>
         <select class="input" value={card.hold ?? holdDefault} onchange={(e) => (card.hold = e.currentTarget.value)}>
-          {#each actions as a (a)}<option value={a}>{actionLabel(a, card.entity_id, card.facet)}</option>{/each}
+          {#each actions as a (a)}<option value={a}>{label(a)}</option>{/each}
         </select>
       </label>
       <label class="field">
@@ -200,6 +218,20 @@
           {#each actions as a (a)}<option value={a}>{a === 'none' ? 'Rien (l’appui court part tout de suite)' : actionLabel(a, card.entity_id, card.facet)}</option>{/each}
         </select>
       </label>
+      {#if house && card.kind === 'room'}
+        <label class="field">
+          <span>La pièce</span>
+          <select class="input" bind:value={card.room}>
+            {#each homeRooms() as r (r)}<option value={r}>{r}</option>{/each}
+          </select>
+        </label>
+      {/if}
+      {#if house && card.kind === 'leave' && alarmReady}
+        <label class="check-row">
+          <input type="checkbox" checked={!!card.arm} onchange={(e) => (card.arm = e.currentTarget.checked)} />
+          Activer aussi l'alarme en mode Absent
+        </label>
+      {/if}
       {#if controllable}
         <div class="field">
           <span>Un appui allume pour…</span>
@@ -258,7 +290,7 @@
         </div>
       </div>
 
-      {#if kind === 'entity'}
+      {#if tiled}
         <div class="field">
           <span>Disposition</span>
           <div class="seg wrap">
@@ -401,7 +433,7 @@
     <label class="field">
       <span>Section</span>
       <select class="input" bind:value={target}>
-        {#each sections as sec, k (k)}<option value={k}>{sec.title}</option>{/each}
+        {#each sections as sec, k (k)}<option value={k}>{sec.title || 'En haut (sans titre)'}</option>{/each}
       </select>
     </label>
   {/if}
@@ -562,6 +594,20 @@
     border-radius: 3px;
     background: currentColor;
     opacity: 0.6;
+  }
+
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0;
+    font-weight: 600;
+  }
+
+  .check-row input {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--ink);
   }
 
   .toggles {

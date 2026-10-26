@@ -14,6 +14,8 @@
   import SetBackup from './settings/SetBackup.svelte';
   import SetSecurity from './settings/SetSecurity.svelte';
   import SetJournal from './settings/SetJournal.svelte';
+  import SetLook from './settings/SetLook.svelte';
+  import SetScreens from './settings/SetScreens.svelte';
   import PairingSheet from './PairingSheet.svelte';
   import { describe as alarmView, isConfigured } from '../lib/security.js';
   import { home, isAdmin, isMember } from '../lib/store.svelte.js';
@@ -39,6 +41,8 @@
       hint: home.me?.open ? 'Heim n’est pas protégé : créez votre compte' : me ? `${me.name}, se déconnecter, mot de passe` : 'Comptes de la maison',
       all: true,
     },
+    { id: 'apparence', label: 'Apparence', icon: 'sun', hint: 'Thème clair ou sombre, couleur, taille du texte', all: true },
+    { id: 'ecrans', label: 'Écrans', icon: 'grid', hint: 'Tablettes et téléphones : tableau, limites, mode tablette murale' },
     { id: 'securite', label: 'Sécurité', icon: 'shield', hint: alarmHint },
     { id: 'presence', label: 'Présence', icon: 'motion', hint: 'Qui est à la maison (Wi-Fi)' },
     { id: 'maison', label: 'Maison', icon: 'house', hint: home.layout?.rooms?.length ? `${home.layout.name || 'La maison'} · ${home.layout.rooms.length} pièce(s)` : 'Étages et pièces' },
@@ -106,6 +110,10 @@
       <SetAccounts />
     {:else if root === 'presence'}
       <SetPresence />
+    {:else if root === 'apparence'}
+      <SetLook />
+    {:else if root === 'ecrans'}
+      <SetScreens />
     {:else if root === 'journal'}
       <SetJournal />
     {:else if root === 'sauvegarde'}

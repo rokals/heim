@@ -1,6 +1,7 @@
 <script>
   // Comptes : le sien (mot de passe, déconnexion) et, pour un admin, ceux de la maison.
   import Icon from '../Icon.svelte';
+  import AccessSheet from './AccessSheet.svelte';
   import { api, home, isAdmin, loadMe, logout, toast } from '../../lib/store.svelte.js';
 
   const ROLES = [
@@ -16,6 +17,22 @@
   let add = $state({ name: '', role: 'member', password: '' });
   let reset = $state(null);
   let resetPw = $state('');
+  let rights = $state(null);
+
+  /** En deux mots, ce que le compte peut faire (tableau imposé, modification…). */
+  function accessLine(u) {
+    if (u.role === 'admin') return 'Tous les droits';
+    const a = u.access ?? {};
+    const bits = [];
+    const b = home.boards?.boards?.find((x) => x.id === a.board);
+    bits.push(a.board ? `Tableau « ${b?.name ?? a.board} » imposé` : 'Tableaux libres');
+    if (a.can_edit && a.can_add) bits.push('modifie et ajoute');
+    else if (a.can_edit) bits.push('modifie');
+    else if (a.can_add) bits.push('ajoute');
+    if (a.hidden_tabs?.length) bits.push(`${a.hidden_tabs.length} onglet(s) caché(s)`);
+    if (a.readonly?.length) bits.push(`${a.readonly.length} en lecture seule`);
+    return bits.join(' · ');
+  }
 
   const open = $derived(home.me?.open);
   const me = $derived(home.me?.user);
@@ -56,10 +73,14 @@
   async function addUser(e) {
     e.preventDefault();
     try {
-      await api('/users', { method: 'POST', body: $state.snapshot(add) });
+      const created = await api('/users', { method: 'POST', body: $state.snapshot(add) });
       toast(`Compte « ${add.name} » créé`);
+      const name = add.name.trim();
       add = { name: '', role: 'member', password: '' };
-      loadUsers();
+      await loadUsers();
+      // Tout de suite ses droits : son tableau, la modification…
+      const u = users.find((x) => x.id === created?.user?.id) ?? users.find((x) => x.name === name);
+      if (u && u.role !== 'admin') rights = u;
     } catch (err) {
       toast(err.message, 'alert');
     }
@@ -137,11 +158,12 @@
     {#each users as u (u.id)}
       <li>
         <span class="avatar small" aria-hidden="true">{u.name.slice(0, 1).toUpperCase()}</span>
-        <div class="txt"><strong>{u.name}{u.id === me?.id ? ' (vous)' : ''}</strong><span>depuis le {fmt(u.created)}</span></div>
+        <div class="txt"><strong>{u.name}{u.id === me?.id ? ' (vous)' : ''}</strong><span>{accessLine(u)}</span></div>
         <select class="input sel" value={u.role} onchange={(e) => setRole(u, e.currentTarget.value)} aria-label="Rôle de {u.name}" disabled={u.id === me?.id}>
           {#each ROLES as r (r.id)}<option value={r.id}>{r.label}</option>{/each}
         </select>
         {#if u.id !== me?.id}
+          {#if u.role !== 'admin'}<button class="mini" aria-label="Droits de {u.name}" title="Droits : tableau, modification, onglets…" onclick={() => (rights = u)}><Icon name="shield" size={16} /></button>{/if}
           <button class="mini" aria-label="Nouveau mot de passe pour {u.name}" onclick={() => ((reset = u), (resetPw = ''))}><Icon name="pencil" size={16} /></button>
           <button class="mini" aria-label="Supprimer {u.name}" onclick={() => remove(u)}><Icon name="close" size={16} /></button>
         {/if}
@@ -170,6 +192,10 @@
     <input class="input" type="password" placeholder="Mot de passe (8 caractères ou plus)" bind:value={add.password} autocomplete="new-password" />
     <button class="btn" type="submit" disabled={!add.name.trim() || add.password.length < 8}>Créer le compte</button>
   </form>
+{/if}
+
+{#if rights}
+  <AccessSheet user={rights} onclose={() => (rights = null)} onsaved={loadUsers} />
 {/if}
 
 <style>

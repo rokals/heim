@@ -6,6 +6,7 @@ import { roomNames } from './house.js';
 const KEY_TOKEN = 'heim_token';
 const KEY_DEVICE = 'heim_device';
 const KEY_DEVICE_NAME = 'heim_device_name';
+const KEY_BOARD = 'heim_board';
 const PENDING_MS = 15_000;
 
 function storage(key, value) {
@@ -39,8 +40,23 @@ export const home = $state({
   integrations: {},
   targetId: null,
   now: Date.now(),
-  /** Tableau de bord personnalisé (null = rangement automatique par pièce) */
-  dashboard: null,
+  /**
+   * Les tableaux de bord que ce compte voit, et ses droits :
+   * { boards: [{ id, name, icon, hidden, auto, sections }], home, locked, can_edit, can_add, can_manage }
+   */
+  boards: null,
+  /** Le tableau affiché (identifiant). */
+  board: storage(KEY_BOARD),
+  /** Réglages de cet écran donnés par l'admin (Réglages > Écrans), ou null. */
+  screen: null,
+  /** Apparence : celle de la maison et celle du compte. */
+  look: { house: {}, mine: null },
+  /** « Identifier » demandé depuis un autre téléphone : le nom de l'écran s'affiche en grand. */
+  identify: false,
+  /** Change à chaque nouvelle d'un écran (la page Écrans se relit). */
+  screensTick: 0,
+  /** Lever et coucher du soleil (carte Soleil). */
+  sun: null,
   automations: [],
   lastRun: {},
   /** Alarme : { status, config, log, snapshots } (null tant que pas chargé) */
@@ -66,6 +82,17 @@ export function deviceLabel() {
   const ua = navigator.userAgent;
   if (/iPhone/.test(ua)) return 'iPhone';
   if (/iPad/.test(ua)) return 'iPad';
+  if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'Téléphone Android' : 'Tablette Android';
+  if (/Windows/.test(ua)) return 'Ordinateur Windows';
+  if (/Mac/.test(ua)) return 'Mac';
+  return 'Navigateur';
+}
+
+/** Ce que le navigateur dit être, pour la page Écrans (le nom, lui, peut être changé). */
+export function deviceKind() {
+  const ua = navigator.userAgent;
+  if (/iPhone/.test(ua)) return 'iPhone';
+  if (/iPad|Macintosh.*Mobile/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iPad';
   if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'Téléphone Android' : 'Tablette Android';
   if (/Windows/.test(ua)) return 'Ordinateur Windows';
   if (/Mac/.test(ua)) return 'Mac';
@@ -201,9 +228,12 @@ export async function connect() {
     retry = 1000;
     lastMessage = Date.now();
     home.connected = true;
-    ws.send(JSON.stringify({ type: 'hello', target_id: deviceId(), name: deviceLabel() }));
+    ws.send(JSON.stringify({ type: 'hello', target_id: deviceId(), name: deviceLabel(), kind: deviceKind() }));
     refreshIntegrations();
-    loadDashboard();
+    loadBoards();
+    loadScreen();
+    loadLook();
+    loadSun();
     if (isMember()) loadAutomations();
     loadSecurity();
     loadLayout();
@@ -292,8 +322,24 @@ function handle(ev) {
       break;
     case 'push_expired':
       break;
+    case 'screen_changed':
+      home.screensTick++;
+      if (ev.id === deviceId()) {
+        if (ev.identify) {
+          home.identify = true;
+          setTimeout(() => (home.identify = false), 6000);
+        } else loadScreen();
+      }
+      break;
     case 'settings_changed':
-      if (ev.key === 'ui.dashboard') loadDashboard();
+      if (ev.key === 'dashboards') loadBoards();
+      if (ev.key === 'appearance') loadLook();
+      if (ev.key === 'location') loadSun();
+      if (ev.key === 'accounts') {
+        loadMe();
+        loadBoards();
+        loadLook();
+      }
       if (ev.key === 'security' || ev.key === 'security.log') loadSecuritySoon();
       if (ev.key === 'home') loadLayout();
       break;
@@ -377,21 +423,111 @@ export async function turnOnFor(entityId, minutes) {
   }
 }
 
-export async function loadDashboard() {
+export async function loadBoards() {
   try {
-    home.dashboard = await api('/settings/ui.dashboard');
+    home.boards = await api('/dashboards');
   } catch {
-    /* pas de tableau personnalisé */
+    /* ancien Heim : rien */
   }
 }
 
-export async function saveDashboard(value) {
-  home.dashboard = value;
+/** Le tableau qui s'affiche : imposé (compte, puis écran), sinon le dernier regardé. */
+export function currentBoard() {
+  const list = home.boards?.boards ?? [];
+  if (!list.length) return null;
+  const forced = home.boards.locked ? home.boards.home : home.screen?.lock_board ? home.screen.board : null;
+  const pick = (id) => list.find((b) => b.id === id);
+  return pick(forced) ?? pick(home.board) ?? pick(home.screen?.board) ?? pick(home.boards.home) ?? list[0];
+}
+
+/** Les tableaux entre lesquels on peut glisser (ni cachés, ni bloqués). */
+export function navBoards() {
+  const list = home.boards?.boards ?? [];
+  if (home.boards?.locked || home.screen?.lock_board) return [];
+  const cur = currentBoard();
+  return list.filter((b) => !b.hidden || b.id === cur?.id);
+}
+
+export function showBoard(id) {
+  home.board = id;
+  storage(KEY_BOARD, id);
+}
+
+/** Ce compte, sur cet écran, peut-il modifier ou ajouter des cartes ? */
+export function boardRights() {
+  const b = home.boards;
+  const s = home.screen;
+  return {
+    edit: Boolean(b?.can_edit) && (s?.can_edit ?? true),
+    add: Boolean(b?.can_add) && (s?.can_add ?? true),
+    manage: Boolean(b?.can_manage) && !s?.kiosk,
+  };
+}
+
+/** Enregistre les sections d'un tableau (affichées tout de suite, puis confirmées). */
+export async function saveBoard(id, sections) {
+  const b = home.boards?.boards?.find((x) => x.id === id);
+  const before = b ? $state.snapshot(b) : null;
+  if (b) {
+    b.sections = sections;
+    b.auto = false;
+  }
   try {
-    await api('/settings/ui.dashboard', { method: 'PUT', body: value });
+    await api(`/dashboards/${encodeURIComponent(id)}`, { method: 'PUT', body: { sections } });
+  } catch (e) {
+    if (b && before) Object.assign(b, before);
+    toast(e.message, 'alert');
+  }
+}
+
+/** L'admin enregistre toute la liste (nouveau tableau, renommé, caché, supprimé…). */
+export async function saveBoards(boards) {
+  try {
+    const saved = await api('/dashboards', { method: 'PUT', body: { boards } });
+    await loadBoards();
+    return saved;
+  } catch (e) {
+    toast(e.message, 'alert');
+    return null;
+  }
+}
+
+export async function loadScreen() {
+  try {
+    home.screen = await api(`/screens/${encodeURIComponent(deviceId())}/config`);
+  } catch {
+    home.screen = null;
+  }
+}
+
+export async function loadLook() {
+  try {
+    home.look = await api('/appearance');
+  } catch {
+    /* ancien Heim */
+  }
+}
+
+export async function saveMyLook(look) {
+  home.look.mine = look;
+  try {
+    await api('/appearance/me', { method: 'PUT', body: look });
   } catch (e) {
     toast(e.message, 'alert');
   }
+}
+
+export async function loadSun() {
+  try {
+    home.sun = await api('/sun');
+  } catch {
+    /* rien */
+  }
+}
+
+/** Onglets cachés à ce compte ou sur cet écran. */
+export function hiddenTabs() {
+  return [...(home.me?.user?.access?.hidden_tabs ?? []), ...(home.screen?.hidden_tabs ?? [])];
 }
 
 export async function loadLayout() {

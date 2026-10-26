@@ -1,3 +1,5 @@
+import { houseRules } from './housecards.js';
+
 // Les boutons du tableau de bord : ce qu'ils montrent, ce que font l'appui court et l'appui
 // long, et leurs règles d'apparence (« si température > 25 : orange, "Chaud" »).
 // Fonctions pures, testées avec `npm test`.
@@ -30,6 +32,9 @@ export const COLOR_NAMES = {
   pink: 'Rose',
   gray: 'Gris',
 };
+
+/** L'alarme en couleur sur sa carte. */
+const TONE_COLORS = { armed: COLORS.green, arming: COLORS.orange, pending: COLORS.orange, alarm: COLORS.red };
 
 /** Icônes qu'on peut choisir pour un bouton. */
 export const TILE_ICONS = [
@@ -67,8 +72,15 @@ export function tileValue(card, entity) {
   return entity.state.value;
 }
 
+/** Les cartes Maison (et d'autres plus tard) portent leur texte tout prêt. */
+function ownText(entity) {
+  return domainOf(entity?.entity_id) === 'house' ? (entity.state?.attributes?.text ?? '') : null;
+}
+
 /** Les mots d'une valeur : « vrai », « allumé », « ouvert », « 21,5 °C »… */
 export function valueText(card, entity) {
+  const own = ownText(entity);
+  if (own != null) return own;
   const v = tileValue(card, entity);
   if (v == null) return entity?.state?.available === false ? 'Injoignable' : '–';
   const d = domainOf(entity.entity_id);
@@ -139,6 +151,7 @@ export function ruleMatches(rule, value) {
 /** Règles d'office quand le bouton n'en a pas : fuite en rouge, chaud en orange… */
 export function defaultRules(card, entity) {
   const d = domainOf(entity?.entity_id);
+  if (d === 'house') return houseRules(card);
   const kind = entity?.capabilities?.kind;
   if (d === 'automation' && card?.facet !== 'enabled') return [{ op: 'eq', value: 'vrai', color: 'red' }];
   if (d === 'binary_sensor') {
@@ -192,19 +205,28 @@ export function appearance(card, entity, now = Date.now()) {
   );
   const vars = { value: text, since, name: card?.name || entity?.name };
   // Une scène active prend sa couleur à elle, quand elle en a une.
-  const own = !rule && domainOf(entity?.entity_id) === 'scene' && value === true ? entity?.capabilities?.color : null;
+  const house = domainOf(entity?.entity_id) === 'house';
+  const tone = house ? entity.state?.attributes?.tone : null;
+  const own = rule
+    ? null
+    : domainOf(entity?.entity_id) === 'scene' && value === true
+      ? entity?.capabilities?.color
+      : tone
+        ? TONE_COLORS[tone] ?? null
+        : null;
   return {
     color: rule?.color ? (COLORS[rule.color] ?? rule.color) : (own ?? null),
     icon: rule?.icon || card?.icon || defaultIcon(entity),
     text: rule?.text ? fillText(rule.text, vars) : text,
     rule,
     value,
-    active: value === true || value === 'on' || value === 'home',
+    active: house ? Boolean(entity.state?.attributes?.active) : value === true || value === 'on' || value === 'home',
   };
 }
 
 export function defaultIcon(entity) {
   const d = domainOf(entity?.entity_id);
+  if (d === 'house') return entity?.capabilities?.icon || 'house';
   const kind = entity?.capabilities?.kind;
   if (d === 'light') return 'bulb';
   if (d === 'switch') return 'plug';

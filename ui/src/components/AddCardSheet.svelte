@@ -7,7 +7,9 @@
   import { groupDevices } from '../lib/house.js';
   import { choicesFor, defaultCard, defaultIcon } from '../lib/tiles.js';
   import { iconFor } from '../lib/format.js';
-  import { home } from '../lib/store.svelte.js';
+  import { home, homeRooms } from '../lib/store.svelte.js';
+  import { HOUSE_KINDS } from '../lib/housecards.js';
+  import { isConfigured } from '../lib/security.js';
 
   let { dashboard, section = 0, onadd, onclose } = $props();
 
@@ -64,6 +66,13 @@
       .filter((m) => match(m.name))
       .sort(byName),
   );
+  const HOUSE = $derived(
+    [
+      ...HOUSE_KINDS.map((k) => ({ id: k.kind, name: k.name, hint: k.hint, icon: k.icon, card: { type: 'house', kind: k.kind, w: k.w, h: k.h } })),
+      ...OTHERS,
+    ].filter((m) => match(m.name, m.hint)),
+  );
+  const alarmReady = $derived(isConfigured(home.security?.config));
   const OTHERS = [
     { id: 'title', name: 'Titre', hint: 'Un intertitre pour regrouper des cartes', icon: 'pencil', card: { type: 'title', text: 'Titre', w: 4, h: 1 } },
     { id: 'spacer', name: 'Espace vide', hint: 'Une case vide pour aérer ou aligner', icon: 'plus', card: { type: 'spacer', w: 1, h: 1 } },
@@ -72,7 +81,7 @@
     { id: 'devices', label: 'Appareils', items: devices },
     { id: 'scenes', label: 'Scènes', items: scenes },
     { id: 'automations', label: 'Automatismes', items: automations },
-    { id: 'other', label: 'Autres', items: OTHERS },
+    { id: 'house', label: 'Maison', items: HOUSE },
   ]);
   const items = $derived(TABS.find((t) => t.id === tab).items);
 
@@ -99,20 +108,36 @@
     <label class="field">
       <span>Dans la section</span>
       <select class="input" bind:value={target}>
-        {#each dashboard.sections as sec, k (k)}<option value={k}>{sec.title}</option>{/each}
+        {#each dashboard.sections as sec, k (k)}<option value={k}>{sec.title || 'En haut (sans titre)'}</option>{/each}
       </select>
     </label>
   {/if}
 
-  {#if tab === 'other'}
+  {#if tab === 'house'}
+    <p class="muted small">Ces cartes ne sont liées à aucun appareil : elles se recalculent toutes seules, une lampe ajoutée demain compte aussitôt.</p>
     <ul>
-      {#each OTHERS as o (o.id)}
-        <li>
-          <button class="row" onclick={() => onadd(target, structuredClone(o.card))}>
+      {#each HOUSE as o (o.id)}
+        {@const multi = o.id === 'room' || (o.id === 'leave' && alarmReady)}
+        <li class:open={open === o.id}>
+          <button class="row" onclick={() => (multi ? (open = open === o.id ? null : o.id) : onadd(target, structuredClone(o.card)))}>
             <span class="ic"><Icon name={o.icon} size={20} /></span>
             <span class="txt"><strong>{o.name}</strong><span>{o.hint}</span></span>
-            <span class="chev" aria-hidden="true">+</span>
+            <span class="chev" aria-hidden="true">{multi ? (open === o.id ? '–' : '›') : '+'}</span>
           </button>
+          {#if open === o.id && o.id === 'room'}
+            <div class="choices">
+              {#each homeRooms() as r (r)}
+                <button class="choice" onclick={() => onadd(target, { ...structuredClone(o.card), room: r })}><strong>{r}</strong><span>Lumières de la pièce</span></button>
+              {:else}
+                <p class="muted">Aucune pièce : créez-en dans Réglages, Maison.</p>
+              {/each}
+            </div>
+          {:else if open === o.id && o.id === 'leave'}
+            <div class="choices">
+              <button class="choice" onclick={() => onadd(target, structuredClone(o.card))}><strong>Tout couper</strong><span>Lumières et prises</span></button>
+              <button class="choice" onclick={() => onadd(target, { ...structuredClone(o.card), arm: true })}><strong>Et activer l’alarme</strong><span>Mode Absent</span></button>
+            </div>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -122,8 +147,8 @@
     </p>
   {/if}
 
-  <ul class:hidden={tab === 'other'}>
-    {#each tab === 'other' ? [] : items as m (m.entity.entity_id)}
+  <ul class:hidden={tab === 'house'}>
+    {#each tab === 'house' ? [] : items as m (m.entity.entity_id)}
       {@const choices = choicesFor(m.entity)}
       <li class:open={open === m.entity.entity_id}>
         <button class="row" onclick={() => (choices.length === 1 ? add(m, choices[0]) : (open = open === m.entity.entity_id ? null : m.entity.entity_id))}>
@@ -278,6 +303,11 @@
 
   .hidden {
     display: none;
+  }
+
+  .small {
+    font-size: 13px;
+    margin: 10px 0 0;
   }
 
   .tabs button {

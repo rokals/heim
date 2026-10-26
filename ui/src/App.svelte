@@ -7,7 +7,8 @@
   import Settings from './components/Settings.svelte';
   import LoginScreen from './components/LoginScreen.svelte';
   import SetupWizard from './components/SetupWizard.svelte';
-  import { connect, home, isMember, setToken } from './lib/store.svelte.js';
+  import { connect, currentBoard, hiddenTabs, home, isMember, setToken, showBoard } from './lib/store.svelte.js';
+  import { applyLook, effectiveLook } from './lib/theme.js';
 
   const TABS = [
     { id: 'maison', label: 'Accueil', icon: 'house' },
@@ -24,6 +25,72 @@
     return { tab: TABS.some((x) => x.id === t) ? t : 'maison', sub };
   };
   let route = $state(fromHash());
+
+  // ---- Apparence : maison, puis compte, puis écran ----
+  const look = $derived(effectiveLook(home.look?.house, home.look?.mine, home.screen?.appearance));
+  $effect(() => applyLook(look));
+
+  // ---- Écran réglé par l'admin (Réglages > Écrans) ----
+  const kiosk = $derived(Boolean(home.screen?.kiosk));
+  const shown = $derived(TABS.filter((t) => (t.id !== 'automatismes' || isMember()) && !hiddenTabs().includes(t.id)));
+  // Un onglet caché à ce compte ou à cet écran : retour à l'accueil.
+  $effect(() => {
+    if (home.loaded && tab !== 'maison' && !shown.some((t) => t.id === tab)) go('maison');
+  });
+
+  // Garder l'écran allumé (tablette murale). Le navigateur le relâche quand la page est cachée.
+  $effect(() => {
+    if (!home.screen?.keep_awake || !navigator.wakeLock) return;
+    let lock = null;
+    let gone = false;
+    const take = () =>
+      document.visibilityState === 'visible' &&
+      navigator.wakeLock
+        .request('screen')
+        .then((l) => (gone ? l.release() : (lock = l)))
+        .catch(() => {});
+    take();
+    document.addEventListener('visibilitychange', take);
+    return () => {
+      gone = true;
+      document.removeEventListener('visibilitychange', take);
+      lock?.release().catch(() => {});
+    };
+  });
+
+  // Tablette murale : plein écran au premier toucher (le navigateur l'exige).
+  $effect(() => {
+    if (!kiosk || !document.documentElement.requestFullscreen) return;
+    const full = () => {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+    };
+    addEventListener('pointerup', full);
+    return () => removeEventListener('pointerup', full);
+  });
+
+  // Retour tout seul à son tableau après quelques minutes sans toucher l'écran.
+  $effect(() => {
+    const min = home.screen?.return_min ?? 0;
+    if (!min) return;
+    let timer;
+    const back = () => {
+      if (document.querySelector('dialog[open]')) return arm();
+      if (home.screen?.board) showBoard(home.screen.board);
+      if (tab !== 'maison') go('maison');
+      else scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(back, min * 60_000);
+    };
+    arm();
+    const events = ['pointerdown', 'keydown', 'wheel'];
+    for (const e of events) addEventListener(e, arm, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      for (const e of events) removeEventListener(e, arm);
+    };
+  });
   const tab = $derived(route.tab);
   let code = $state('');
 
@@ -55,8 +122,8 @@
   }
 </script>
 
-<div class="shell">
-  <header class="bar">
+<div class="shell" class:kiosk>
+  <header class="bar" hidden={kiosk}>
     <a class="mark" href="#maison" onclick={(e) => { e.preventDefault(); go('maison'); }} aria-label="Heim, accueil">
       <svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
         <path d="M6 15 16 7l10 8v11H6z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" />
@@ -66,7 +133,7 @@
     </a>
     {#if !home.needLogin && !home.needToken && !home.setup?.needed}
     <nav class="tabs" aria-label="Sections">
-      {#each TABS.filter((t) => t.id !== 'automatismes' || isMember()) as t (t.id)}
+      {#each shown as t (t.id)}
         <button class="tab" class:current={tab === t.id} aria-current={tab === t.id ? 'page' : undefined} onclick={() => go(t.id)}>
           <Icon name={t.icon} size={22} />
           <span>{t.label}</span>
@@ -120,6 +187,14 @@
   </div>
 {/if}
 
+{#if home.identify}
+  <div class="identify" role="status">
+    <span>Cet écran</span>
+    <strong>{home.screen?.name || 'Écran'}</strong>
+    {#if currentBoard()}<em>Tableau « {currentBoard().name} »</em>{/if}
+  </div>
+{/if}
+
 <div class="toasts" aria-live="polite">
   {#each home.toasts as t (t.id)}
     <div class="toast" class:alert={t.kind === 'alert'}>{t.text}</div>
@@ -127,6 +202,35 @@
 </div>
 
 <style>
+  .identify {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-content: center;
+    gap: 8px;
+    text-align: center;
+    background: var(--ember);
+    color: var(--ember-ink);
+    animation: fade 0.3s ease;
+  }
+
+  .identify span {
+    font-size: 20px;
+    opacity: 0.8;
+  }
+
+  .identify strong {
+    font-size: clamp(40px, 10vw, 96px);
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .identify em {
+    font-style: normal;
+    font-size: 18px;
+  }
+
   .veil {
     position: fixed;
     inset: 0;
@@ -182,6 +286,17 @@
     max-width: 1080px;
     margin: 0 auto;
     padding: 0 16px calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .bar[hidden] {
+    display: none !important;
+  }
+
+  /* Tablette murale : ni barre ni onglets, toute la largeur. */
+  .shell.kiosk {
+    max-width: none;
+    padding-top: 16px;
+    padding-bottom: calc(40px + env(safe-area-inset-bottom));
   }
 
   .bar {

@@ -21,10 +21,12 @@ pub struct ForInput {
 }
 
 pub async fn turn_on_for(
+    axum::Extension(caller): axum::Extension<crate::api::Caller>,
     State(app): State<AppState>,
     Path(id): Path<String>,
     Json(input): Json<ForInput>,
 ) -> ApiResult<impl IntoResponse> {
+    crate::api::check_readonly(&caller, &id)?;
     if !input.minutes.is_finite() || input.minutes <= 0.0 {
         return Err(bad_request("durée invalide"));
     }
@@ -91,6 +93,9 @@ pub fn reserved_key(key: &str) -> bool {
                 | "presence"
                 | crate::groups::SETTINGS_KEY
                 | crate::api_controls::POWER_ON_KEY
+                | crate::dashboards::KEY
+                | crate::screens::KEY
+                | crate::api_boards::APPEARANCE_KEY
         )
 }
 

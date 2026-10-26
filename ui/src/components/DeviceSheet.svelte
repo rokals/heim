@@ -9,7 +9,7 @@
   import { formatValue, label } from '../lib/format.js';
   import { ago, lastSeen, signal } from '../lib/house.js';
   import { groupControls, isPowerOn, valueAt } from '../lib/controls.js';
-  import { api, command, home, homeRooms, isAdmin, isMember, saveDashboard, toast, updateDevice } from '../lib/store.svelte.js';
+  import { api, command, home, homeRooms, isAdmin, isMember, toast, updateDevice, currentBoard, saveBoard, boardRights } from '../lib/store.svelte.js';
   import SignalBars from './SignalBars.svelte';
   import ForSheet from './ForSheet.svelte';
   import HistoryChart from './HistoryChart.svelte';
@@ -31,7 +31,7 @@
   const control = $derived(device.controls.find((c) => c.entity_id === nameTarget.entity_id) ?? device.controls[0]);
   const lightEntity = $derived(device.controls.find((c) => c.domain === 'light'));
   const onDashboard = $derived(
-    (home.dashboard?.sections || []).some((sec) => sec.cards.some((c) => device.entities.some((e) => e.entity_id === c.entity_id))),
+    (currentBoard()?.sections || []).some((sec) => sec.cards.some((c) => device.entities.some((e) => e.entity_id === c.entity_id))),
   );
   let forOpen = $state(false);
   // Un appareil qui ne répond plus du tout (retiré du réseau, reste d'essai) peut être supprimé.
@@ -118,11 +118,12 @@
   }
 
   function addToHome() {
-    const d = $state.snapshot(home.dashboard);
-    if (!d.sections.length) d.sections.push({ title: 'Accueil', cards: [] });
+    const board = currentBoard();
+    const sections = $state.snapshot(board.sections);
+    if (!sections.length) sections.push({ title: 'Accueil', cards: [] });
     const wide = !device.controls.length;
-    d.sections[0].cards.push({ entity_id: (control ?? device.primary).entity_id, size: wide ? 2 : 1 });
-    saveDashboard(d);
+    sections[sections.length - 1].cards.push({ entity_id: (control ?? device.primary).entity_id, ...(wide ? { w: 4, h: 1 } : { w: 2, h: 2 }) });
+    saveBoard(board.id, sections);
     toast(`${name} ajouté à l'accueil`);
   }
 
@@ -241,7 +242,7 @@
           {:else}
             <button class="btn quiet" type="button" disabled={saving} onclick={() => save({ hidden: true })}>Masquer</button>
           {/if}
-          {#if home.dashboard?.sections && !onDashboard && !device.hidden && !device.sirens?.length}
+          {#if currentBoard() && !currentBoard().auto && boardRights().add && !onDashboard && !device.hidden && !device.sirens?.length}
             <button class="btn quiet" type="button" onclick={addToHome}>Ajouter à l'accueil</button>
           {/if}
         </div>

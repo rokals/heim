@@ -12,6 +12,7 @@ pub mod accounts;
 pub mod alerts;
 pub mod api;
 pub mod api_accounts;
+pub mod api_boards;
 pub mod api_controls;
 pub mod api_devices;
 pub mod api_life;
@@ -20,6 +21,7 @@ pub mod api_presence;
 pub mod api_security;
 pub mod automations;
 pub mod bus;
+pub mod dashboards;
 pub mod devices;
 pub mod groups;
 pub mod history;
@@ -31,6 +33,7 @@ pub mod presence;
 pub mod push;
 pub mod registry;
 pub mod scenes;
+pub mod screens;
 pub mod security;
 pub mod settings;
 pub mod store;
@@ -153,6 +156,8 @@ pub struct Core {
     pub automations: AutomationHandle,
     pub settings: Arc<Settings>,
     pub accounts: Arc<accounts::Accounts>,
+    /// Téléphones et tablettes vus, et ce que l'admin leur a réglé.
+    pub screens: Arc<screens::Screens>,
     pub security: security::SecurityHandle,
     pub presence: presence::PresenceHandle,
     pub updater: Arc<update::Updater>,
@@ -222,6 +227,7 @@ impl Core {
             loaded.take(Table::Sessions),
             store.clone(),
         );
+        let screens = screens::Screens::new(settings.clone(), bus.clone());
         let automations = automations::spawn(
             loaded.take(Table::Automations),
             automations::Deps {
@@ -298,6 +304,7 @@ impl Core {
             automations,
             settings,
             accounts,
+            screens,
             security,
             presence,
             updater,

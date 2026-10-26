@@ -39,6 +39,18 @@ capteurs) qui doit marcher sans YAML et sans planter, sur un Raspberry Pi Zero 2
 
 Mémoire mesurée : environ 10 Mo au repos (binaire x86_64, Zigbee2MQTT connecté, 7 entités).
 
+## Écrans, droits et apparence (0.12)
+
+- **Réglages > Écrans** : chaque téléphone ou tablette qui ouvre Heim y apparaît. Depuis un autre
+  appareil : nom, tableau qui s'ouvre (imposé ou non), modification et ajout autorisés ou non,
+  mode tablette murale (plein écran, sans barres), écran toujours allumé, retour automatique à son
+  tableau, onglets cachés, apparence propre, « Identifier ». L'écran suit en direct.
+- **Comptes** : pour chaque membre ou invité, tableau imposé ou libre, modifier / ajouter des
+  cartes, onglets visibles, appareils en lecture seule. Vérifié par le serveur.
+- **Réglages > Apparence** : thème clair, sombre ou celui de l'appareil, couleur de l'interface
+  (palette ou libre), taille du texte, arrondi, espacement, fond, façon de changer de tableau ;
+  par compte, avec une valeur par défaut pour la maison.
+
 ## Interface
 
 L'interface (dossier `ui/`, Svelte 5 + Vite) est compilée en **un seul fichier**
@@ -47,7 +59,11 @@ besoin ni de Node ni d'Internet pour fonctionner : Node ne sert qu'à modifier l
 
 Cinq onglets :
 
-- **Accueil** : rangé tout seul par pièce, ou personnalisé (« Personnaliser l'accueil ») :
+- **Accueil** : un ou plusieurs tableaux de bord (rangés par pièce ou personnalisés), qu'on
+  change en glissant (petits points en bas) ou par onglets. Cartes « Maison » qui se recalculent
+  seules : toutes les lumières, toutes les prises, une pièce, Je pars, qui est là, alarme,
+  déclenchés, piles faibles, injoignables, soleil, horloge, scènes, minuteurs.
+  Personnalisation :
   sections, cartes façon Mushroom déplacées au doigt et redimensionnées à la poignée, de 1×1
   (l'icône seule) à 4×4, sur une grille de 4 cases de large (6 ou 8 sur grand écran).
   Réglages en deux onglets : Fonction (appui court, long, double, « un clic allume pour 30 min »)
@@ -107,7 +123,7 @@ curl -fsSL https://raw.githubusercontent.com/PROPRIETAIRE/heim/main/packaging/in
 Le dépôt doit être public (les Heim installés lisent ses releases sans compte).
 
 ```sh
-# Cargo.toml : version = "0.11.0"
+# Cargo.toml : version = "0.12.0"
 git commit -am "0.6.1"
 git tag v0.6.1
 git push && git push --tags

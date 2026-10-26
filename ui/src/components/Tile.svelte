@@ -34,7 +34,8 @@
   const accent = $derived.by(() => {
     if (look.color) return look.color;
     if (card.color) return COLORS[card.color] ?? card.color;
-    if (d === 'person') return COLORS.green;
+    if (d === 'person' || (d === 'house' && card.kind === 'people')) return COLORS.green;
+    if (d === 'house' && ['lights', 'plugs', 'room', 'leave'].includes(card.kind)) return 'var(--ember)';
     if (['light', 'switch', 'group', 'scene', 'siren'].includes(d)) return 'var(--ember)';
     return COLORS.blue;
   });

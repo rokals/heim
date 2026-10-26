@@ -206,17 +206,26 @@ export function deviceIndex(entities) {
 
 /** Le rangement automatique, converti en tableau de bord modifiable. */
 export function dashboardFromRooms(entities, order = []) {
+  // En tête : les cartes Maison (tout éteindre, scènes, minuteurs) qui remplacent le bandeau
+  // d'avant, seulement quand elles servent.
+  const has = (d) => entities.some((e) => e.domain === d && !e.hidden);
+  const house = [];
+  if (has('light')) house.push({ type: 'house', kind: 'lights', w: 2, h: 1 });
+  if (has('switch')) house.push({ type: 'house', kind: 'plugs', w: 2, h: 1 });
+  if (has('scene')) house.push({ type: 'house', kind: 'scenes', w: 4, h: 1 });
+  if (has('timer')) house.push({ type: 'house', kind: 'timers', w: 4, h: 1 });
+  const rooms = buildRooms(entities, order)
+    .filter((r) => r.controls.length || r.sensors.length)
+    .map((r) => ({
+      title: r.name === UNSORTED ? 'À ranger' : r.name,
+      cards: [
+        ...r.controls.map((c) => ({ entity_id: c.entity.entity_id, w: 2, h: 2 })),
+        ...r.sensors.map((d) => ({ entity_id: d.primary.entity_id, w: 4, h: 1 })),
+      ],
+    }));
   return {
     version: 2,
-    sections: buildRooms(entities, order)
-      .filter((r) => r.controls.length || r.sensors.length)
-      .map((r) => ({
-        title: r.name === UNSORTED ? 'À ranger' : r.name,
-        cards: [
-          ...r.controls.map((c) => ({ entity_id: c.entity.entity_id, w: 2, h: 2 })),
-          ...r.sensors.map((d) => ({ entity_id: d.primary.entity_id, w: 4, h: 1 })),
-        ],
-      })),
+    sections: house.length ? [{ title: '', cards: house }, ...rooms] : rooms,
   };
 }
 

@@ -71,7 +71,8 @@ test('signal, vu il y a, tableau de bord', async () => {
   assert.equal(ago(new Date(Date.now() - 5 * 60_000).toISOString()), 'il y a 5 min');
   assert.equal(autoTimerId('switch.demo_prise_cafe'), 'timer.auto_switch_demo_prise_cafe');
   const dash = dashboardFromRooms(entities);
-  assert.equal(dash.sections.length, 4);
+  assert.equal(dash.sections.length, 5);
+  assert.equal(dash.sections[0].title, '', 'les cartes Maison en tête, sans titre');
   assert.deepEqual(missingCards(dash, entities).map((m) => m.entity.entity_id), ['scene.soiree']);
 });
 

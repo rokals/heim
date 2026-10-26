@@ -1,97 +1,91 @@
 <script>
-  // L'accueil. Par défaut, rangé tout seul par pièce. « Personnaliser » le transforme en
-  // tableau de bord à soi : sections, cartes, taille, minuterie d'un clic, ordre au doigt.
+  // L'accueil : un ou plusieurs tableaux de bord. On passe de l'un à l'autre en glissant
+  // (petits points en bas, comme sur iPhone) ou par des onglets, au choix dans Apparence.
+  // « Personnaliser » : sections, cartes de 1×1 à 4×4, déplacées au doigt, redimensionnées
+  // à la poignée. Ce qu'un compte peut y faire dépend de ses droits (et de ceux de l'écran).
   import Tile from './Tile.svelte';
-  import TimerTile from './TimerTile.svelte';
+  import HouseSpecial from './HouseSpecial.svelte';
+  import HouseListSheet from './HouseListSheet.svelte';
+  import BoardsSheet from './BoardsSheet.svelte';
   import DeviceSheet from './DeviceSheet.svelte';
   import ForSheet from './ForSheet.svelte';
   import CardSheet from './CardSheet.svelte';
   import AddCardSheet from './AddCardSheet.svelte';
   import ConnectionForm from './ConnectionForm.svelte';
   import Icon from './Icon.svelte';
+  import Sheet from './Sheet.svelte';
   import AlarmCard from './AlarmCard.svelte';
   import InfoSheet from './InfoSheet.svelte';
   import { press } from '../lib/press.js';
-  import { domainOf, resolveAction, sinceText } from '../lib/tiles.js';
+  import { domainOf, resolveAction } from '../lib/tiles.js';
+  import { houseDefaults, houseEntity, resolveHouseAction } from '../lib/housecards.js';
   import { cardSize, sizeFromPixels } from '../lib/layout.js';
-  import { describe as alarmView, isConfigured } from '../lib/security.js';
+  import { effectiveLook } from '../lib/theme.js';
+  import { describe as alarmView } from '../lib/security.js';
   import { roomIcon } from '../lib/rooms.js';
-  import { buildRooms, dashboardFromRooms, deviceIndex, houseSummary, isOn, UNSORTED } from '../lib/house.js';
-  import { api, command, home, isAdmin, isMember, saveDashboard, toast, turnOnFor } from '../lib/store.svelte.js';
+  import { dashboardFromRooms, deviceIndex, isOn } from '../lib/house.js';
+  import {
+    api,
+    boardRights,
+    command,
+    currentBoard,
+    home,
+    isMember,
+    loadSecurity,
+    navBoards,
+    saveBoard,
+    saveBoards,
+    showBoard,
+    toast,
+    turnOnFor,
+  } from '../lib/store.svelte.js';
 
   let { onnavigate = null } = $props();
 
   const all = $derived(Object.values(home.entities));
   const index = $derived(deviceIndex(all));
-  const summary = $derived(houseSummary(all));
-  const scenes = $derived(
-    all.filter((e) => e.domain === 'scene' && !e.hidden).sort((a, b) => a.name.localeCompare(b.name, 'fr')),
-  );
-  const running = $derived(
-    all.filter((e) => e.domain === 'timer' && !e.hidden && ['running', 'paused', 'finished'].includes(e.state?.value)),
-  );
-  const custom = $derived(home.dashboard?.sections ? home.dashboard : null);
-  // Automatismes « levés » (courrier arrivé, lessive finie…) : en haut, jusqu'au réarmement.
-  const fired = $derived(
-    all
-      .filter((e) => e.domain === 'automation' && e.state?.attributes?.fired && e.state?.attributes?.enabled !== false)
-      .sort((a, b) => a.name.localeCompare(b.name, 'fr')),
-  );
+  const board = $derived(currentBoard());
+  const pages = $derived(navBoards());
+  const rights = $derived(boardRights());
+  const look = $derived(effectiveLook(home.look?.house, home.look?.mine, home.screen?.appearance));
+  const order = $derived((home.layout?.rooms ?? []).map((r) => r.name));
   const zigbeeConfigured = $derived('zigbee2mqtt' in home.integrations);
   const empty = $derived(home.loaded && !all.some((e) => e.domain === 'light' || e.domain === 'switch' || e.domain === 'sensor'));
+  const alarmUp = $derived(home.security && alarmView(home.security.status, home.now).tone !== 'off');
+  const houseCtx = $derived({ entities: all, security: home.security, sun: home.sun, now: home.now });
 
   let editing = $state(false);
   let sheet = $state(null);
 
-  /** Une carte prête à afficher : l'entité, son appareil, et ses réglages. */
+  // Un autre tableau, ou le droit de modifier retiré : on sort du mode modification.
+  $effect(() => {
+    board?.id;
+    if (!rights.edit && !rights.add) editing = false;
+  });
+
+  /** Les sections du tableau : les siennes, ou rangées par pièce. */
+  const raw = $derived(board ? (board.auto ? dashboardFromRooms(all, order).sections : board.sections) : []);
+
+  /** Une carte prête à afficher : l'entité (vraie, ou calculée pour une carte Maison). */
   function resolve(card, s, i) {
-    const entity = home.entities[card.entity_id];
-    return { card, entity, device: index.get(card.entity_id) ?? null, section: s, index: i };
+    if (card.type === 'house') return { card, entity: houseEntity(card, houseCtx), device: null, section: s, index: i, house: true };
+    const entity = card.entity_id ? home.entities[card.entity_id] : null;
+    return { card, entity, device: card.entity_id ? (index.get(card.entity_id) ?? null) : null, section: s, index: i };
   }
 
-  const sections = $derived.by(() => {
-    if (custom) {
-      return custom.sections.map((sec, s) => ({
-        title: sec.title,
-        cards: sec.cards
-          .map((c, i) => resolve(c, s, i))
-          .filter((c) => editing || c.card.type || (c.entity && !c.entity.hidden && !c.device?.hidden)),
-        timers: [],
-      }));
-    }
-    return buildRooms(all, (home.layout?.rooms ?? []).map((r) => r.name)).map((r) => ({
-      title: r.name === UNSORTED ? 'À ranger' : r.name,
-      unsorted: r.name === UNSORTED,
-      cards: [
-        ...r.controls.map((c) => ({ card: { entity_id: c.entity.entity_id, w: 2, h: 2 }, entity: c.entity, device: c.device })),
-        ...r.sensors.map((d) => ({ card: { entity_id: d.primary.entity_id, w: 4, h: 1 }, entity: d.primary, device: d })),
-      ],
-      timers: r.timers.filter((t) => !running.includes(t)),
-    }));
-  });
-
-  const headline = $derived.by(() => {
-    const n = summary.lightsOn.length;
-    if (!summary.lights.length && !summary.plugs.length) return 'Bienvenue';
-    if (n === 0) return 'Tout est éteint';
-    return n === 1 ? 'Une lumière allumée' : `${n} lumières allumées`;
-  });
-
-  const people = $derived(all.filter((e) => e.domain === 'person').sort((a, b) => a.name.localeCompare(b.name, 'fr')));
-  const atHome = $derived(people.filter((p) => p.state?.value === 'home'));
-
-  const litRooms = $derived(
-    [...new Set(summary.lightsOn.map((e) => e.room).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr')),
+  const sections = $derived(
+    raw.map((sec, s) => ({
+      title: sec.title,
+      unsorted: board?.auto && sec.title === 'À ranger',
+      cards: (sec.cards ?? [])
+        .map((c, i) => resolve(c, s, i))
+        .filter((c) => editing || c.card.type || (c.entity && !c.entity.hidden && !c.device?.hidden)),
+    })),
   );
-
-  function listNames(names) {
-    if (names.length <= 1) return names.join('');
-    return names.slice(0, -1).join(', ') + ' et ' + names.at(-1);
-  }
 
   // ---- Pièce = groupe ----
   function sectionLights(sec) {
-    return sec.cards.filter((c) => c.entity?.domain === 'light' && c.entity.state?.available !== false);
+    return sec.cards.filter((c) => !c.house && c.entity?.domain === 'light' && c.entity.state?.available !== false);
   }
 
   function toggleSection(sec) {
@@ -102,24 +96,24 @@
 
   // ---- Personnalisation ----
   function draft() {
-    return $state.snapshot(custom ?? dashboardFromRooms(all, (home.layout?.rooms ?? []).map((r) => r.name)));
+    return $state.snapshot(raw);
   }
 
   function startEditing() {
-    if (!custom) saveDashboard(dashboardFromRooms(all, (home.layout?.rooms ?? []).map((r) => r.name)));
+    if (board.auto) saveBoard(board.id, dashboardFromRooms(all, order).sections);
     editing = true;
   }
 
   function mutate(fn) {
-    const d = draft();
+    const d = { sections: draft() };
     fn(d);
-    saveDashboard(d);
+    saveBoard(board.id, d.sections);
   }
 
-  function resetToAuto() {
-    if (!confirm("Revenir au rangement automatique par pièce ? Votre accueil personnalisé sera effacé.")) return;
-    saveDashboard({});
-    editing = false;
+  async function resetToAuto() {
+    if (!confirm(`Ranger « ${board.name} » tout seul par pièce ? Ses cartes seront effacées.`)) return;
+    const list = $state.snapshot(home.boards.boards).map((b) => (b.id === board.id ? { ...b, auto: true, sections: [] } : b));
+    if (await saveBoards(list)) editing = false;
   }
 
   function moveCard(from, to) {
@@ -139,20 +133,26 @@
     });
   }
 
-  // ---- Ce que font les boutons ----
+  // ---- Ce que font les cartes ----
 
   /** Le comportement par défaut, quand la carte n'en a pas choisi. */
   function tapOf(card) {
     if (card.tap) return card.tap;
+    if (card.type === 'house') return houseDefaults(card.kind).tap;
     return ['light', 'switch', 'group', 'scene'].includes(domainOf(card.entity_id)) ? 'toggle' : 'details';
   }
 
   function holdOf(card) {
     if (card.hold) return card.hold;
+    if (card.type === 'house') return houseDefaults(card.kind).hold;
     return domainOf(card.entity_id) === 'automation' && card.facet !== 'enabled' ? 'rearm' : 'details';
   }
 
   function openDetails(c) {
+    if (c.house) {
+      sheet = c.card.kind === 'alarm' ? { kind: 'alarm' } : { kind: 'house', card: c.card };
+      return;
+    }
     const d = domainOf(c.entity?.entity_id);
     if (c.device && ['light', 'switch', 'sensor', 'binary_sensor', 'siren'].includes(d)) {
       sheet = { kind: 'device', device: c.device, entity: c.entity };
@@ -161,7 +161,32 @@
     }
   }
 
+  async function runHouse(action, c) {
+    const r = resolveHouseAction(action, c.card, c.entity);
+    if (r.kind === 'details') return openDetails(c);
+    if (r.kind === 'rearm') {
+      if (!isMember()) return toast('Réservé aux membres', 'alert');
+      if (!r.automations.length) return toast('Rien à réarmer');
+      await Promise.allSettled(r.automations.map((id) => api(`/automations/${id}/op`, { method: 'POST', body: { state: 'rearm' } })));
+      return toast(r.automations.length > 1 ? `${r.automations.length} automatismes réarmés` : 'Réarmé');
+    }
+    if (r.kind !== 'commands') return;
+    for (const x of r.commands) command(x.entity_id, x.action);
+    if (r.arm && isMember()) {
+      try {
+        await api('/security/arm', { method: 'POST', body: { mode: r.arm } });
+        loadSecurity();
+      } catch (e) {
+        toast(`Alarme : ${e.message}`, 'alert');
+      }
+    }
+    const n = r.commands.length;
+    if (!n && !r.arm) return toast(action === 'on' ? 'Tout est déjà allumé' : 'Tout est déjà éteint');
+    if (c.card.kind === 'leave') toast(n ? `${n} appareil${n > 1 ? 's' : ''} coupé${n > 1 ? 's' : ''}. Bonne journée !` : 'Bonne journée !');
+  }
+
   async function runAction(action, c) {
+    if (c.house) return runHouse(action, c);
     const r = resolveAction(action, c.card, c.entity);
     if (r.kind === 'details') return openDetails(c);
     if (r.kind === 'command') {
@@ -184,12 +209,18 @@
   function addAndEdit(sectionIndex, card) {
     let pos = 0;
     mutate((d) => {
-      d.sections[sectionIndex].cards.push(card);
-      pos = d.sections[sectionIndex].cards.length - 1;
+      if (!d.sections.length) d.sections.push({ title: 'Accueil', cards: [] });
+      const s = Math.min(sectionIndex, d.sections.length - 1);
+      d.sections[s].cards.push(card);
+      pos = d.sections[s].cards.length - 1;
+      sectionIndex = s;
     });
+    if (!rights.edit) {
+      sheet = null;
+      return toast('Carte ajoutée');
+    }
     // Tout de suite ses réglages : nom, appui long, règles…
-    const entity = card.entity_id ? home.entities[card.entity_id] : null;
-    sheet = { kind: 'card', ref: { card, entity, device: card.entity_id ? (index.get(card.entity_id) ?? null) : null, section: sectionIndex, index: pos } };
+    sheet = { kind: 'card', ref: resolve(card, sectionIndex, pos) };
   }
 
   // ---- Modifier l'accueil : appui long pour attraper une carte, sinon on fait défiler ----
@@ -199,13 +230,13 @@
 
   $effect(() => {
     // Pendant qu'une carte suit le doigt, la page ne défile pas.
-    const stop = (e) => drag && e.cancelable && e.preventDefault();
+    const stop = (e) => (drag || resize) && e.cancelable && e.preventDefault();
     document.addEventListener('touchmove', stop, { passive: false });
     return () => document.removeEventListener('touchmove', stop);
   });
 
   function slotDown(e, c) {
-    if (!editing || e.button > 0) return;
+    if (!editing || !rights.edit || e.button > 0) return;
     const el = e.currentTarget;
     const h = { startX: e.clientX, startY: e.clientY, c, el, pointerId: e.pointerId, moved: false };
     h.timer = setTimeout(() => {
@@ -359,47 +390,96 @@
     if (resize && resize.s === s && resize.i === i) return { w: resize.w, h: resize.h };
     return cardSize(c.card, c.entity);
   }
+
+  // ---- Changer de tableau : glisser à gauche / à droite, ou onglets ----
+  const pageIndex = $derived(pages.findIndex((b) => b.id === board?.id));
+  let swipe = $state(null);
+  let offset = $state(0);
+  let animate = $state(false);
+
+  function go(delta) {
+    const next = pages[pageIndex + delta];
+    if (!next) return;
+    const w = window.innerWidth;
+    animate = true;
+    offset = -delta * w;
+    setTimeout(() => {
+      animate = false;
+      showBoard(next.id);
+      offset = delta * w * 0.35;
+      scrollTo({ top: 0 });
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          animate = true;
+          offset = 0;
+        }),
+      );
+    }, 170);
+  }
+
+  function swipeStart(e) {
+    if (editing || pages.length < 2 || look.nav !== 'swipe' || e.pointerType === 'mouse') return;
+    if (e.target.closest('input, select, textarea, [data-noswipe], dialog')) return;
+    swipe = { x: e.clientX, y: e.clientY, id: e.pointerId, on: false };
+  }
+
+  function swipeMove(e) {
+    if (!swipe || e.pointerId !== swipe.id) return;
+    const dx = e.clientX - swipe.x;
+    const dy = e.clientY - swipe.y;
+    if (!swipe.on) {
+      if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) return (swipe = null);
+      if (Math.abs(dx) < 14 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+      swipe.on = true;
+    }
+    // Au bout de la liste : ça résiste, comme sur un téléphone.
+    const edge = (dx > 0 && pageIndex === 0) || (dx < 0 && pageIndex === pages.length - 1);
+    animate = false;
+    offset = edge ? dx * 0.25 : dx;
+  }
+
+  let swallow = false;
+
+  function swipeEnd() {
+    if (!swipe) return;
+    const on = swipe.on;
+    swipe = null;
+    if (!on) return;
+    swallow = true;
+    setTimeout(() => (swallow = false), 80);
+    const limit = Math.min(110, window.innerWidth * 0.22);
+    if (offset < -limit && pageIndex < pages.length - 1) go(1);
+    else if (offset > limit && pageIndex > 0) go(-1);
+    else {
+      animate = true;
+      offset = 0;
+    }
+  }
+
+  $effect(() => {
+    // Après un glissement, le clic qui suit ne doit pas allumer une lampe.
+    const stop = (e) => {
+      if (swallow) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('click', stop, true);
+    return () => document.removeEventListener('click', stop, true);
+  });
+
+  function onKey(e) {
+    if (editing || sheet || e.target.closest?.('input, textarea, select')) return;
+    if (e.key === 'ArrowRight') go(1);
+    if (e.key === 'ArrowLeft') go(-1);
+  }
 </script>
 
-{#if home.security && !editing && (isConfigured(home.security.config) || alarmView(home.security.status, home.now).tone !== 'off')}
+<svelte:window onkeydown={onKey} />
+
+{#if alarmUp && !editing}
   <AlarmCard />
 {/if}
-
-{#if fired.length && !editing}
-  <section class="fired" aria-label="À voir">
-    {#each fired as f (f.entity_id)}
-      <button
-        class="flag"
-        use:press={{ onhold: () => runAction('rearm', { card: { entity_id: f.entity_id, facet: 'state' }, entity: f }) }}
-        onclick={() => (sheet = { kind: 'info', entityId: f.entity_id })}
-      >
-        <Icon name="alert" size={18} />
-        <span><strong>{f.name}</strong> · depuis {sinceText(f.state.attributes.fired_at || f.state.last_changed, home.now)}</span>
-        <em>appui long : réarmer</em>
-      </button>
-    {/each}
-  </section>
-{/if}
-
-<section class="hero">
-  {#if people.length}
-    <p class="people" aria-label="Qui est à la maison">
-      {#each people as p (p.entity_id)}
-        <span class="person" class:home={p.state?.value === 'home'} title={p.state?.value === 'home' ? 'À la maison' : 'Absent'}>{p.name}</span>
-      {/each}
-      {#if !atHome.length && people.every((p) => p.state?.value === 'away')}<span class="nobody">Personne à la maison</span>{/if}
-    </p>
-  {/if}
-  <h1>{headline}</h1>
-  {#if summary.lightsOn.length}
-    {#if litRooms.length}<p>{listNames(litRooms)}.</p>{/if}
-    <button class="btn" onclick={() => summary.lightsOn.forEach((e) => command(e.entity_id, 'turn_off'))}>
-      Éteindre les lumières
-    </button>
-  {:else if summary.plugsOn.length}
-    <p>{summary.plugsOn.length === 1 ? 'Une prise est en marche.' : `${summary.plugsOn.length} prises sont en marche.`}</p>
-  {/if}
-</section>
 
 {#if empty && !zigbeeConfigured}
   <section class="setup">
@@ -409,148 +489,187 @@
   </section>
 {/if}
 
-{#if scenes.length && !editing}
-  <nav class="scenes" aria-label="Scènes">
-    {#each scenes as s (s.entity_id)}
-      {@const active = isOn(s)}
-      <button class="scene" class:active style:--tint={s.capabilities?.color || null} aria-pressed={active} onclick={() => command(s.entity_id, active ? 'turn_off' : 'turn_on')}>
-        <Icon name={s.capabilities?.icon || 'scene'} size={17} />
-        {s.name}
-        {#if s.state?.attributes?.partial}<span class="partial">en partie</span>{/if}
+{#if look.nav === 'tabs' && pages.length > 1 && !editing}
+  <nav class="board-tabs" aria-label="Tableaux de bord">
+    {#each pages as b (b.id)}
+      <button class:on={b.id === board?.id} aria-current={b.id === board?.id ? 'page' : undefined} onclick={() => showBoard(b.id)}>
+        <Icon name={b.icon || 'house'} size={17} />
+        {b.name}
       </button>
     {/each}
   </nav>
 {/if}
 
-{#if running.length && !editing}
-  <section class="running" aria-label="Minuteurs en cours">
-    {#each running as t (t.entity_id)}<TimerTile entity={t} compact />{/each}
-  </section>
-{/if}
-
-{#if home.loaded && !empty}
+{#if home.loaded && board}
   <div class="bar">
     {#if editing}
       <button class="btn" onclick={() => (editing = false)}><Icon name="check" size={18} /> Terminé</button>
-      <button class="btn quiet" onclick={() => (sheet = { kind: 'add' })}><Icon name="plus" size={18} /> Ajouter une carte</button>
-      <button class="btn quiet" onclick={() => mutate((d) => d.sections.push({ title: 'Nouvelle section', cards: [] }))}>Nouvelle section</button>
-      <button class="btn danger" onclick={resetToAuto}>Rangement automatique</button>
+      {#if rights.add}<button class="btn quiet" onclick={() => (sheet = { kind: 'add' })}><Icon name="plus" size={18} /> Ajouter une carte</button>{/if}
+      {#if rights.edit && rights.add}<button class="btn quiet" onclick={() => mutate((d) => d.sections.push({ title: 'Nouvelle section', cards: [] }))}>Nouvelle section</button>{/if}
+      {#if rights.manage}
+        <button class="btn quiet" onclick={() => (sheet = { kind: 'boards' })}><Icon name="grid" size={17} /> Tableaux</button>
+        <button class="btn danger" onclick={resetToAuto}>Rangement automatique</button>
+      {/if}
     {:else}
-      {#if isAdmin()}<button class="link" onclick={startEditing}><Icon name="pencil" size={16} /> Personnaliser l'accueil</button>{/if}
+      {#if pages.length > 1 || board.hidden}<h1 class="board-name">{board.name}{#if board.hidden}<span class="hidden-tag">caché</span>{/if}</h1>{/if}
+      {#if (rights.edit || rights.add) && (!board.auto || (rights.edit && rights.add))}
+        <button class="link" onclick={startEditing}><Icon name="pencil" size={16} /> Personnaliser</button>
+      {/if}
+      {#if rights.manage}<button class="link" onclick={() => (sheet = { kind: 'boards' })}><Icon name="grid" size={16} /> Tableaux</button>{/if}
     {/if}
   </div>
 {/if}
 
 {#if editing}
-  <p class="hint">Appui long sur une carte pour la déplacer, poignée en bas à droite pour l’agrandir ou la réduire. Touchez-la pour ses réglages : fonction (appui court, long, double) et apparence (taille, disposition, couleurs…).</p>
+  <p class="hint">
+    {#if rights.edit}
+      Appui long sur une carte pour la déplacer, poignée en bas à droite pour l’agrandir ou la réduire. Touchez-la pour ses réglages :
+      fonction (appui court, long, double) et apparence (taille, disposition, couleurs…).
+    {:else}
+      Votre compte peut ajouter des cartes à ce tableau, sans modifier les autres.
+    {/if}
+  </p>
 {/if}
 
-<div class="rooms" class:editing>
-  {#each sections as sec, s (s + sec.title)}
-    {@const lights = sectionLights(sec)}
-    <section class="room" class:unsorted={sec.unsorted} data-section={s}>
-      <header>
-        {#if editing}
-          <input
-            class="title-input"
-            value={sec.title}
-            aria-label="Nom de la section"
-            onchange={(e) => mutate((d) => (d.sections[s].title = e.currentTarget.value.trim() || 'Section'))}
-          />
-          <div class="sec-tools">
-            <button class="mini" onclick={() => moveSection(s, -1)} disabled={s === 0} aria-label="Monter la section">↑</button>
-            <button class="mini" onclick={() => moveSection(s, 1)} disabled={s === sections.length - 1} aria-label="Descendre la section">↓</button>
-            <button
-              class="mini"
-              aria-label="Supprimer la section"
-              onclick={() => confirm(`Supprimer la section « ${sec.title} » ? Les appareils restent dans Appareils.`) && mutate((d) => d.sections.splice(s, 1))}
-            ><Icon name="close" size={16} /></button>
-          </div>
-        {:else}
-          <h2>
-            {#if !sec.unsorted && !custom}<span class="room-ic"><Icon name={roomIcon(home.layout?.rooms?.find((r) => r.name === sec.title) ?? { name: sec.title })} size={20} /></span>{/if}
-            {sec.title}
-          </h2>
-          {#if sec.unsorted}
-            <p>Touchez le crayon d'un appareil pour lui donner un nom et une pièce.</p>
-          {:else if lights.length > 1}
-            {@const lit = lights.some((c) => isOn(c.entity))}
-            <button class="group" class:lit onclick={() => toggleSection(sec)}>
-              {lit ? 'Éteindre la pièce' : 'Allumer la pièce'}
-            </button>
-          {/if}
-        {/if}
-      </header>
-
-      <div class="grid">
-        {#each sec.cards as c, i ((c.card.entity_id ?? c.card.type) + i)}
-          {@const dragging = drag && drag.moved && drag.from.section === s && drag.from.index === i}
-          {@const dropBefore = drag?.moved && drag.to?.section === s && drag.to?.index === i}
-          {@const size = sizeOf(c, s, i)}
-          <div
-            role="group"
-            aria-label={c.card.name || c.entity?.name || c.card.text || 'Carte'}
-            class="slot"
-            class:dragging
-            class:drop={dropBefore}
-            class:lifted={hold && !drag && editing}
-            class:resizing={resize?.s === s && resize?.i === i}
-            style:grid-column="span {size.w}"
-            style:grid-row="span {size.h}"
-            data-slot="{s}:{i}"
-            onpointerdown={(e) => slotDown(e, { ...c, section: s, index: i })}
-            onpointermove={slotMove}
-            onpointerup={() => slotUp({ ...c, section: s, index: i })}
-            onpointercancel={slotCancel}
-            use:press={{ disabled: editing || !c.entity, onhold: () => runAction(holdOf(c.card), c) }}
-            style:transform={dragging ? `translate(${drag.x - drag.startX}px, ${drag.y - drag.startY}px) scale(1.03)` : null}
-          >
-            {#if c.card.type === 'title'}
-              <div class="title-card" class:center={c.card.align === 'center'}>
-                <h3>{c.card.text || 'Titre'}</h3>
-                {#if c.card.subtitle}<p>{c.card.subtitle}</p>{/if}
-              </div>
-            {:else if c.card.type === 'spacer'}
-              <div class="spacer" aria-hidden="true">{#if editing}Espace{/if}</div>
-            {:else if !c.entity}
-              <div class="ghost">Introuvable (supprimé ?)</div>
-            {:else}
-              <Tile
-                card={c.card.w || c.card.h ? c.card : { ...c.card, ...size }}
-                entity={c.entity}
-                device={c.device}
-                ontap={() => onTap(c, `${s}:${i}`)}
-                onfor={editing ? null : () => (sheet = { kind: 'for', entity: c.entity })}
-              />
-            {/if}
-            {#if editing}
-              <span class="veil" aria-hidden="true"></span>
-              <span class="size-badge num" aria-hidden="true">{size.w}×{size.h}</span>
+<div
+  class="pager"
+  class:swipeable={look.nav === 'swipe' && pages.length > 1 && !editing}
+  class:animate
+  style:transform={offset ? `translateX(${offset}px)` : null}
+  onpointerdown={swipeStart}
+  onpointermove={swipeMove}
+  onpointerup={swipeEnd}
+  onpointercancel={swipeEnd}
+  role="presentation"
+>
+  <div class="rooms" class:editing>
+    {#each sections as sec, s (board?.id + ':' + s + sec.title)}
+      {@const lights = sectionLights(sec)}
+      <section class="room" class:unsorted={sec.unsorted} data-section={s}>
+        {#if editing && rights.edit}
+          <header>
+            <input
+              class="title-input"
+              value={sec.title}
+              aria-label="Nom de la section"
+              onchange={(e) => mutate((d) => (d.sections[s].title = e.currentTarget.value.trim()))}
+              placeholder="Sans titre"
+            />
+            <div class="sec-tools">
+              <button class="mini" onclick={() => moveSection(s, -1)} disabled={s === 0} aria-label="Monter la section">↑</button>
+              <button class="mini" onclick={() => moveSection(s, 1)} disabled={s === sections.length - 1} aria-label="Descendre la section">↓</button>
               <button
-                class="grip"
-                aria-label="Redimensionner"
-                onpointerdown={(e) => resizeDown(e, s, i, c.card)}
-                onpointermove={resizeMove}
-                onpointerup={resizeUp}
-                onpointercancel={() => (resize = null)}
-                onclick={(e) => e.stopPropagation()}
-              ></button>
+                class="mini"
+                aria-label="Supprimer la section"
+                onclick={() => confirm(`Supprimer la section « ${sec.title || 'sans titre'} » ? Les appareils restent dans Appareils.`) && mutate((d) => d.sections.splice(s, 1))}
+              ><Icon name="close" size={16} /></button>
+            </div>
+          </header>
+        {:else if sec.title}
+          <header>
+            <h2>
+              {#if !sec.unsorted && board?.auto && sec.title !== 'Maison'}<span class="room-ic"><Icon name={roomIcon(home.layout?.rooms?.find((r) => r.name === sec.title) ?? { name: sec.title })} size={20} /></span>{/if}
+              {sec.title}
+            </h2>
+            {#if sec.unsorted}
+              <p>Touchez le crayon d'un appareil pour lui donner un nom et une pièce.</p>
+            {:else if lights.length > 1}
+              {@const lit = lights.some((c) => isOn(c.entity))}
+              <button class="group" class:lit onclick={() => toggleSection(sec)}>
+                {lit ? 'Éteindre la pièce' : 'Allumer la pièce'}
+              </button>
             {/if}
-          </div>
-        {/each}
-        {#if editing && !sec.cards.length}
-          <button class="empty-slot" onclick={() => (sheet = { kind: 'add', section: s })}>Ajouter une carte ici</button>
+          </header>
         {/if}
-      </div>
 
-      {#if sec.timers?.length && !editing}
-        <div class="timers">
-          {#each sec.timers as t (t.entity_id)}<TimerTile entity={t} compact />{/each}
+        <div class="grid">
+          {#each sec.cards as c, i ((c.card.entity_id ?? `${c.card.type}:${c.card.kind ?? ''}`) + i)}
+            {@const dragging = drag && drag.moved && drag.from.section === s && drag.from.index === i}
+            {@const dropBefore = drag?.moved && drag.to?.section === s && drag.to?.index === i}
+            {@const size = sizeOf(c, s, i)}
+            {@const special = c.house && ['scenes', 'timers', 'clock'].includes(c.card.kind)}
+            <div
+              role="group"
+              aria-label={c.card.name || c.entity?.name || c.card.text || 'Carte'}
+              class="slot"
+              class:dragging
+              class:drop={dropBefore}
+              class:lifted={hold && !drag && editing}
+              class:resizing={resize?.s === s && resize?.i === i}
+              style:grid-column="span {size.w}"
+              style:grid-row="span {size.h}"
+              data-slot="{s}:{i}"
+              onpointerdown={(e) => slotDown(e, { ...c, section: s, index: i })}
+              onpointermove={slotMove}
+              onpointerup={() => slotUp({ ...c, section: s, index: i })}
+              onpointercancel={slotCancel}
+              use:press={{ disabled: editing || !c.entity || special, onhold: () => runAction(holdOf(c.card), c) }}
+              style:transform={dragging ? `translate(${drag.x - drag.startX}px, ${drag.y - drag.startY}px) scale(1.03)` : null}
+            >
+              {#if c.card.type === 'title'}
+                <div class="title-card" class:center={c.card.align === 'center'}>
+                  <h3>{c.card.text || 'Titre'}</h3>
+                  {#if c.card.subtitle}<p>{c.card.subtitle}</p>{/if}
+                </div>
+              {:else if c.card.type === 'spacer'}
+                <div class="spacer" aria-hidden="true">{#if editing}Espace{/if}</div>
+              {:else if special}
+                <HouseSpecial card={c.card} preview={editing} />
+              {:else if !c.entity}
+                <div class="ghost">Introuvable (supprimé ?)</div>
+              {:else}
+                <Tile
+                  card={c.card.w || c.card.h ? c.card : { ...c.card, ...size }}
+                  entity={c.entity}
+                  device={c.device}
+                  ontap={() => onTap(c, `${s}:${i}`)}
+                  onfor={editing || c.house ? null : () => (sheet = { kind: 'for', entity: c.entity })}
+                />
+              {/if}
+              {#if editing && rights.edit}
+                <span class="veil" aria-hidden="true"></span>
+                <span class="size-badge num" aria-hidden="true">{size.w}×{size.h}</span>
+                <button
+                  class="grip"
+                  aria-label="Redimensionner"
+                  onpointerdown={(e) => resizeDown(e, s, i, c.card)}
+                  onpointermove={resizeMove}
+                  onpointerup={resizeUp}
+                  onpointercancel={() => (resize = null)}
+                  onclick={(e) => e.stopPropagation()}
+                ></button>
+              {:else if editing}
+                <span class="veil locked" aria-hidden="true"></span>
+              {/if}
+            </div>
+          {/each}
+          {#if editing && rights.add && !sec.cards.length}
+            <button class="empty-slot" onclick={() => (sheet = { kind: 'add', section: s })}>Ajouter une carte ici</button>
+          {/if}
         </div>
+      </section>
+    {:else}
+      {#if home.loaded && board}
+        <p class="nothing">Ce tableau est vide.{#if rights.add} Touchez « Personnaliser » pour y mettre des cartes.{/if}</p>
       {/if}
-    </section>
-  {/each}
+    {/each}
+  </div>
 </div>
+
+{#if pages.length > 1 && look.nav === 'swipe' && !editing}
+  <div class="dots" class:kiosk={home.screen?.kiosk} role="tablist" aria-label="Tableaux de bord">
+    {#each pages as b, k (b.id)}
+      <button
+        role="tab"
+        class:on={b.id === board?.id}
+        aria-selected={b.id === board?.id}
+        aria-label={b.name}
+        title={b.name}
+        onclick={() => (k === pageIndex ? null : go(k - pageIndex))}
+      ></button>
+    {/each}
+  </div>
+{/if}
 
 {#if sheet?.kind === 'device'}
   <DeviceSheet device={sheet.device} entity={sheet.entity} onclose={() => (sheet = null)} />
@@ -558,20 +677,16 @@
   <InfoSheet entityId={sheet.entityId} onclose={() => (sheet = null)} onopen={onnavigate ? (id) => ((sheet = null), onnavigate(`automatismes/${id}`)) : null} />
 {:else if sheet?.kind === 'for'}
   <ForSheet entity={sheet.entity} onclose={() => (sheet = null)} />
+{:else if sheet?.kind === 'house'}
+  <HouseListSheet card={sheet.card} onclose={() => (sheet = null)} />
+{:else if sheet?.kind === 'alarm'}
+  <Sheet title="Alarme" onclose={() => (sheet = null)}><AlarmCard /></Sheet>
+{:else if sheet?.kind === 'boards'}
+  <BoardsSheet onclose={() => (sheet = null)} />
 {:else if sheet?.kind === 'card'}
-  <CardSheet
-    ref={sheet.ref}
-    sections={custom?.sections ?? []}
-    onchange={(fn) => mutate(fn)}
-    onclose={() => (sheet = null)}
-  />
+  <CardSheet ref={sheet.ref} sections={raw} onchange={(fn) => mutate(fn)} onclose={() => (sheet = null)} />
 {:else if sheet?.kind === 'add'}
-  <AddCardSheet
-    dashboard={custom}
-    section={sheet.section ?? 0}
-    onadd={addAndEdit}
-    onclose={() => (sheet = null)}
-  />
+  <AddCardSheet dashboard={{ sections: raw }} section={sheet.section ?? 0} onadd={addAndEdit} onclose={() => (sheet = null)} />
 {/if}
 
 <style>
@@ -585,70 +700,6 @@
     background: var(--surface-2);
     color: var(--muted);
     vertical-align: middle;
-  }
-
-  .people {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 0 0 10px;
-  }
-
-  .person {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 10px 3px 8px;
-    border-radius: var(--radius-chip);
-    background: var(--surface-2);
-    color: var(--muted);
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  .person::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--line);
-  }
-
-  .person.home {
-    color: var(--ink);
-  }
-
-  .person.home::before {
-    background: var(--moss);
-  }
-
-  .nobody {
-    font-size: 14px;
-    color: var(--muted);
-    align-self: center;
-  }
-
-  .hero {
-    padding: 8px 0 24px;
-  }
-
-  h1 {
-    margin: 0;
-    font-size: clamp(34px, 9vw, 52px);
-    line-height: 1.02;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    max-width: 14ch;
-  }
-
-  .hero p {
-    margin: 10px 0 0;
-    font-size: 18px;
-    color: var(--muted);
-  }
-
-  .hero .btn {
-    margin-top: 18px;
   }
 
   .setup {
@@ -667,49 +718,6 @@
   .setup p {
     margin: 0 0 16px;
     color: var(--muted);
-  }
-
-  .scenes {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 2px 2px 14px;
-    margin: 0 -2px 8px;
-    scrollbar-width: none;
-  }
-
-  .scene {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 44px;
-    padding: 0 18px;
-    border-radius: var(--radius-chip);
-    border: 1.5px solid var(--line);
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .scene.active {
-    background: var(--tint, var(--ember));
-    border-color: var(--tint, var(--ember));
-    color: var(--ember-ink);
-  }
-
-  .scene.active[style*='--tint'] {
-    color: #fff;
-  }
-
-  .partial {
-    font-size: 12px;
-    font-weight: 400;
-  }
-
-  .running {
-    display: grid;
-    gap: 10px;
-    margin-bottom: 12px;
   }
 
   .bar {
@@ -801,9 +809,9 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-auto-rows: 70px;
+    grid-auto-rows: var(--row, 70px);
     grid-auto-flow: row dense;
-    gap: 10px;
+    gap: var(--gap, 10px);
   }
 
   @container (min-width: 640px) {
@@ -916,38 +924,6 @@
     transform: scale(0.97);
   }
 
-  .fired {
-    display: grid;
-    gap: 8px;
-    margin: 4px 0 16px;
-  }
-
-  .flag {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    border-radius: 18px;
-    background: color-mix(in srgb, #e5484d 16%, var(--surface));
-    box-shadow: var(--shadow), inset 0 0 0 1.5px color-mix(in srgb, #e5484d 50%, transparent);
-    color: color-mix(in srgb, #e5484d 75%, var(--ink));
-    text-align: left;
-    -webkit-touch-callout: none;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-
-  .flag span {
-    flex: 1;
-    color: var(--ink);
-  }
-
-  .flag em {
-    font-style: normal;
-    font-size: 12px;
-    color: var(--muted);
-  }
-
   @keyframes wiggle {
     40% {
       transform: rotate(-0.6deg);
@@ -1030,10 +1006,124 @@
     opacity: 0.4;
   }
 
-  .timers {
+  .board-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 2px 2px 12px;
+    margin: 0 -2px 4px;
+    scrollbar-width: none;
+  }
+
+  .board-tabs button {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 40px;
+    padding: 0 16px;
+    border-radius: var(--radius-chip);
+    background: var(--surface-2);
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .board-tabs button.on {
+    background: var(--ink);
+    color: var(--bg);
+  }
+
+  .board-name {
+    margin: 0 auto 0 0;
+    font-size: 26px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  .hidden-tag {
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    vertical-align: middle;
+    background: var(--surface-2);
+    color: var(--muted);
+  }
+
+  .bar {
+    align-items: center;
+  }
+
+  .pager {
+    min-height: 50vh;
+  }
+
+  .pager.swipeable {
+    touch-action: pan-y;
+  }
+
+  .pager.animate {
+    transition: transform 0.17s ease-out;
+  }
+
+  .nothing {
+    color: var(--muted);
+    padding: 40px 0;
+    text-align: center;
+  }
+
+  .veil.locked {
+    outline-style: solid;
+    opacity: 0.5;
+  }
+
+  /* Les petits points, comme sur iPhone : au-dessus de la barre d'onglets. */
+  .dots {
+    position: fixed;
+    left: 50%;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 9;
+    display: flex;
+    gap: 2px;
+    padding: 5px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--surface) 75%, transparent);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .dots.kiosk {
+    bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .dots button {
+    width: 18px;
+    height: 18px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
-    gap: 8px;
-    margin-top: 10px;
+    place-items: center;
+  }
+
+  .dots button::after {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--muted);
+    opacity: 0.45;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+
+  .dots button.on::after {
+    background: var(--ink);
+    opacity: 1;
+    transform: scale(1.15);
+  }
+
+  @media (min-width: 760px) {
+    .dots {
+      bottom: 22px;
+    }
   }
 </style>

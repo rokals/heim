@@ -94,11 +94,22 @@ fn check(d: &DeviceControls, values: &Map<String, Value>) -> Result<(), String> 
 }
 
 pub async fn set_controls(
+    axum::Extension(caller): axum::Extension<crate::api::Caller>,
     State(app): State<AppState>,
     Path(id): Path<String>,
     Json(input): Json<SetInput>,
 ) -> ApiResult<impl IntoResponse> {
     let core = app.core();
+    // Un appareil dont une entité est en lecture seule pour ce compte ne se règle pas non plus.
+    if let Some(u) = &caller.user
+        && !u.access.readonly.is_empty()
+    {
+        for e in core.registry.snapshot().await {
+            if e.meta.device_id.as_deref() == Some(id.as_str()) {
+                crate::api::check_readonly(&caller, &e.meta.entity_id)?;
+            }
+        }
+    }
     let d = devices::lock(&core.controls)
         .get(&id)
         .cloned()

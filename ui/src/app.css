@@ -20,8 +20,9 @@
   color-scheme: light;
 }
 
+/* Thème : celui de l'appareil par défaut, ou imposé (Réglages > Apparence). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #10181d;
     --surface: #18232a;
     --surface-2: #213039;
@@ -37,6 +38,58 @@
     --shadow: none;
     color-scheme: dark;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #10181d;
+  --surface: #18232a;
+  --surface-2: #213039;
+  --ink: #e4ebe8;
+  --muted: #8ea3ab;
+  --line: #26343c;
+  --ember: #f4b04a;
+  --ember-glow: #ffcf6e;
+  --ember-ink: #2a1904;
+  --moss: #86b38a;
+  --alert: #e0677a;
+  --focus: #7cc0e0;
+  --shadow: none;
+  color-scheme: dark;
+}
+
+/* Apparence : arrondi, espacement, taille du texte, fond. */
+:root {
+  --row: 70px;
+  --gap: 10px;
+}
+
+:root[data-radius='square'] {
+  --radius-tile: 8px;
+  --radius-chip: 10px;
+}
+
+:root[data-radius='round'] {
+  --radius-tile: 28px;
+}
+
+:root[data-density='compact'] {
+  --row: 62px;
+  --gap: 6px;
+}
+
+:root[data-density='airy'] {
+  --row: 76px;
+  --gap: 14px;
+}
+
+:root[data-text='large'] main {
+  zoom: 1.12;
+}
+
+:root[data-background='gradient'] body {
+  background:
+    radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--ember) 16%, transparent), transparent 70%) fixed,
+    var(--bg);
 }
 
 * {

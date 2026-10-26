@@ -22,6 +22,7 @@ use tokio::sync::broadcast::error::RecvError;
 use crate::Core;
 use crate::accounts::{Role, User};
 use crate::api_accounts as acc;
+use crate::api_boards as boards;
 use crate::api_controls as ctl;
 use crate::api_devices as dev;
 use crate::api_presence as pres;
@@ -218,6 +219,25 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
             "/integrations/{name}/enabled",
             put(more::set_integration_enabled),
         )
+        .route(
+            "/dashboards",
+            get(boards::get_dashboards).put(boards::put_dashboards),
+        )
+        .route("/dashboards/{id}", put(boards::put_board))
+        .route("/screens", get(boards::list_screens))
+        .route(
+            "/screens/{id}",
+            put(boards::put_screen).delete(boards::delete_screen),
+        )
+        .route("/screens/{id}/config", get(boards::screen_config))
+        .route("/screens/{id}/identify", post(boards::identify_screen))
+        .route(
+            "/appearance",
+            get(boards::get_appearance).put(boards::put_house_appearance),
+        )
+        .route("/appearance/me", put(boards::put_my_appearance))
+        .route("/users/{id}/access", put(boards::put_access))
+        .route("/sun", get(boards::sun))
         .route("/ws", get(ws_upgrade))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth))
         .fallback(|| async { ApiError(StatusCode::NOT_FOUND, "route inconnue".into()) });
@@ -346,6 +366,7 @@ pub fn required_role(method: &axum::http::Method, path: &str) -> Option<Role> {
     let get = method == axum::http::Method::GET;
     let post = method == axum::http::Method::POST;
     let del = method == axum::http::Method::DELETE;
+    let put = method == axum::http::Method::PUT;
     match seg.as_slice() {
         ["health"] | ["auth", "status"] | ["push", "key"] | ["setup"] => None,
         ["auth", "login"] if post => None,
@@ -388,6 +409,10 @@ pub fn required_role(method: &axum::http::Method, path: &str) -> Option<Role> {
         ["history", _] if get => Some(Role::Guest),
         ["logbook"] | ["groups"] if get => Some(Role::Member),
         ["entities", _, "battery_reset"] if post => Some(Role::Member),
+        ["dashboards"] | ["appearance"] | ["sun"] | ["screens", _, "config"] if get => {
+            Some(Role::Guest)
+        }
+        ["dashboards", _] | ["appearance", "me"] if put => Some(Role::Guest),
         _ => Some(Role::Admin),
     }
 }
@@ -477,6 +502,21 @@ async fn patch_entity(
 
 /// Un invité commande lumières, prises, groupes et scènes, mais ni les sirènes ni l'état des
 /// automatismes (réarmer le « courrier », c'est réservé aux membres, comme partout ailleurs).
+/// Un appareil en lecture seule pour ce compte : visible, pas commandable.
+pub fn check_readonly(caller: &Caller, entity_id: &str) -> ApiResult<()> {
+    if caller
+        .user
+        .as_ref()
+        .is_some_and(|u| !u.may_control(entity_id))
+    {
+        return Err(ApiError(
+            StatusCode::FORBIDDEN,
+            "cet appareil est en lecture seule pour votre compte".into(),
+        ));
+    }
+    Ok(())
+}
+
 pub fn may_command(role: Role, entity_id: &str) -> bool {
     role >= Role::Member
         || !(entity_id.starts_with("siren.") || entity_id.starts_with("automation."))
@@ -494,6 +534,7 @@ async fn command_entity(
             "réservé aux membres".into(),
         ));
     }
+    check_readonly(&caller, &id)?;
     let target = app
         .core
         .registry
@@ -722,6 +763,9 @@ enum ClientMsg {
         target_id: String,
         #[serde(default)]
         name: Option<String>,
+        /// Ce que le navigateur dit être (« iPad »…), pour la page Écrans.
+        #[serde(default)]
+        kind: Option<String>,
     },
     Command {
         entity_id: String,
@@ -744,6 +788,7 @@ async fn ws_session(socket: WebSocket, app: AppState, caller: Caller) {
     let (mut tx, mut rx) = socket.split();
     let mut events = app.core.bus.subscribe();
     let mut target_id: Option<String> = None;
+    let mut screen_id: Option<String> = None;
 
     if tx.send(snapshot_msg(&app).await).await.is_err() {
         return;
@@ -779,16 +824,24 @@ async fn ws_session(socket: WebSocket, app: AppState, caller: Caller) {
                     Some(Ok(_)) => continue,
                 };
                 let reply = match serde_json::from_str::<ClientMsg>(text.as_str()) {
-                    Ok(ClientMsg::Hello { target_id: id, name }) => {
+                    Ok(ClientMsg::Hello { target_id: id, name, kind }) => {
                         if let Some(old) = target_id.take() {
                             app.core.notify.app_disconnected(&old);
                         }
+                        if let Some(old) = screen_id.take() {
+                            app.core.screens.disconnected(&old);
+                        }
                         let person = caller.user.as_ref().map(|u| u.id.clone());
+                        app.core.screens.connected(&id, name.clone(), kind.map(|k| k.chars().take(40).collect()), caller.user.as_ref().map(|u| u.name.clone()));
+                        screen_id = Some(id.clone());
                         target_id = app.core.notify.app_connected(&id, name, person);
                         json!({ "type": "welcome", "target_id": target_id, "role": caller.role, "user": caller.user })
                     }
                     Ok(ClientMsg::Command { entity_id, .. }) if !may_command(caller.role, &entity_id) => {
                         json!({ "type": "error", "entity_id": entity_id, "error": "réservé aux membres" })
+                    }
+                    Ok(ClientMsg::Command { entity_id, .. }) if caller.user.as_ref().and_then(|u| app.core.accounts.get(&u.id)).is_some_and(|u| !u.may_control(&entity_id)) => {
+                        json!({ "type": "error", "entity_id": entity_id, "error": "cet appareil est en lecture seule pour votre compte" })
                     }
                     Ok(ClientMsg::Command { entity_id, action }) => match app.core.registry.command(&entity_id, action, &crate::api_life::actor(&caller)).await {
                         Ok(target) => json!({ "type": "ack", "entity_id": entity_id, "target": target }),
@@ -805,5 +858,8 @@ async fn ws_session(socket: WebSocket, app: AppState, caller: Caller) {
     }
     if let Some(id) = target_id {
         app.core.notify.app_disconnected(&id);
+    }
+    if let Some(id) = screen_id {
+        app.core.screens.disconnected(&id);
     }
 }

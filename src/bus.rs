@@ -118,6 +118,12 @@ pub enum Event {
     Security {
         status: serde_json::Value,
     },
+    /// Un écran (tablette, téléphone) s'est connecté, a changé de réglages, ou doit
+    /// s'identifier (afficher son nom en grand).
+    ScreenChanged {
+        id: String,
+        identify: bool,
+    },
     /// Notification destinée à une seule cible (un téléphone, un écran).
     Notification {
         target_id: String,

@@ -50,6 +50,42 @@ struct Password {
     rounds: u32,
 }
 
+/// Ce qu'un membre ou un invité a le droit de faire en plus (ou en moins) de son rôle.
+/// Sans effet sur un admin, qui peut tout.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Access {
+    /// Tableau de bord imposé : il ne voit que celui-là.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub board: Option<String>,
+    /// Peut déplacer, redimensionner, régler ou retirer les cartes.
+    #[serde(default)]
+    pub can_edit: bool,
+    /// Peut ajouter des cartes.
+    #[serde(default)]
+    pub can_add: bool,
+    /// Onglets cachés : « appareils », « scenes », « automatismes ».
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hidden_tabs: Vec<String>,
+    /// Appareils visibles mais pas commandables (chauffage, congélateur…).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub readonly: Vec<String>,
+}
+
+impl Access {
+    pub fn validate(mut self) -> Self {
+        const TABS: [&str; 3] = ["appareils", "scenes", "automatismes"];
+        self.hidden_tabs.retain(|t| TABS.contains(&t.as_str()));
+        self.hidden_tabs.dedup();
+        self.readonly.retain(|e| !e.is_empty() && e.len() <= 120);
+        self.readonly.truncate(500);
+        self.board = self.board.filter(|b| !b.trim().is_empty());
+        self
+    }
+}
+
+/// Apparence choisie par un compte : thème, couleur… (lue et vérifiée par l'interface).
+pub type Appearance = serde_json::Map<String, serde_json::Value>;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct StoredUser {
     id: String,
@@ -57,6 +93,10 @@ struct StoredUser {
     role: Role,
     password: Password,
     created: DateTime<Utc>,
+    #[serde(default)]
+    access: Access,
+    #[serde(default)]
+    appearance: Option<Appearance>,
 }
 
 /// Ce que l'API montre d'un compte (jamais le mot de passe).
@@ -66,6 +106,16 @@ pub struct User {
     pub name: String,
     pub role: Role,
     pub created: DateTime<Utc>,
+    pub access: Access,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub appearance: Option<Appearance>,
+}
+
+impl User {
+    /// Peut-il commander cette entité ? (Lecture seule réglée par l'admin.)
+    pub fn may_control(&self, entity_id: &str) -> bool {
+        self.role == Role::Admin || !self.access.readonly.iter().any(|e| e == entity_id)
+    }
 }
 
 impl From<&StoredUser> for User {
@@ -75,6 +125,8 @@ impl From<&StoredUser> for User {
             name: u.name.clone(),
             role: u.role,
             created: u.created,
+            access: u.access.clone(),
+            appearance: u.appearance.clone(),
         }
     }
 }
@@ -223,6 +275,8 @@ impl Accounts {
                 rounds: PBKDF2_ROUNDS,
             },
             created: Utc::now(),
+            access: Access::default(),
+            appearance: None,
         };
         self.store.put(Table::Users, &id, &user);
         let view = User::from(&user);
@@ -283,6 +337,26 @@ impl Accounts {
                 self.store.delete(Table::Sessions, &sid);
             }
         }
+        Ok(User::from(&user))
+    }
+
+    /// Règle les droits d'un compte (tableau imposé, modification, lecture seule…).
+    pub fn set_access(&self, id: &str, access: Access) -> Result<User, String> {
+        let mut inner = self.lock();
+        let user = inner.users.get_mut(id).ok_or("compte introuvable")?;
+        user.access = access.validate();
+        let user = user.clone();
+        self.store.put(Table::Users, id, &user);
+        Ok(User::from(&user))
+    }
+
+    /// L'apparence d'un compte (None : celle de la maison).
+    pub fn set_appearance(&self, id: &str, appearance: Option<Appearance>) -> Result<User, String> {
+        let mut inner = self.lock();
+        let user = inner.users.get_mut(id).ok_or("compte introuvable")?;
+        user.appearance = appearance;
+        let user = user.clone();
+        self.store.put(Table::Users, id, &user);
         Ok(User::from(&user))
     }
 
@@ -470,6 +544,28 @@ mod tests {
         assert!(a.session_user(&token).is_none());
         assert!(a.create("Zoé", Role::Guest, "123").is_err());
         assert!(a.create("camille", Role::Guest, "123456").is_err());
+    }
+
+    #[test]
+    fn access_and_appearance_are_kept() {
+        let a = accounts("access");
+        a.create("Alex", Role::Admin, "secret123").unwrap();
+        a.create("Léo", Role::Member, "secret123").unwrap();
+        let acc = Access {
+            board: Some("cuisine".into()),
+            can_edit: false,
+            can_add: true,
+            hidden_tabs: vec!["scenes".into(), "nimporte".into()],
+            readonly: vec!["switch.congelateur".into()],
+        };
+        let u = a.set_access("leo", acc).unwrap();
+        assert_eq!(u.access.hidden_tabs, vec!["scenes".to_string()]);
+        assert!(!u.may_control("switch.congelateur"));
+        assert!(u.may_control("light.salon"));
+        let mut look = Appearance::new();
+        look.insert("theme".into(), serde_json::json!("dark"));
+        a.set_appearance("leo", Some(look)).unwrap();
+        assert_eq!(a.get("leo").unwrap().appearance.unwrap()["theme"], "dark");
     }
 
     #[test]
