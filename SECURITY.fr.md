@@ -39,6 +39,11 @@ donnée dès que possible, et la correction sort dans une version publiée par l
   service root `heim-system` télécharge alors l'archive `heim-system.tar.gz` de cette release,
   depuis le dépôt inscrit dans `/etc/heim/repo` à l'installation, vérifie son SHA-256 et
   l'applique. Rien de ce que Heim écrit n'est exécuté en root.
+- **Plugins externes** : des programmes lancés à côté de Heim, avec ses propres droits
+  (utilisateur `heim`) : ils peuvent joindre vos appareils et lire les données de Heim. Le store
+  les marque « communauté » et affiche un avertissement avant l'installation. Leur
+  téléchargement est vérifié avec le SHA-256 de leur manifeste. Faire tourner chaque plugin
+  sous son propre utilisateur est prévu.
 - **Zigbee2MQTT sur la box** tourne sous l'utilisateur `heim`, avec son propre service systemd.
   Heim peut seulement démarrer, arrêter et relancer ce service (polkit). Son interface web est
   coupée par défaut ; allumée, elle demande un jeton.

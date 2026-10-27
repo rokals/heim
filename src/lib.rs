@@ -17,6 +17,7 @@ pub mod api_controls;
 pub mod api_devices;
 pub mod api_life;
 pub mod api_more;
+pub mod api_plugins;
 pub mod api_presence;
 pub mod api_security;
 pub mod api_zigbee;
@@ -32,6 +33,7 @@ pub mod integrations;
 pub mod model;
 pub mod netsetup;
 pub mod notify;
+pub mod plugins;
 pub mod presence;
 pub mod push;
 pub mod registry;
@@ -200,6 +202,9 @@ pub struct Core {
     pub zigbee_local: Arc<zigbee_local::ZigbeeLocal>,
     /// Mémoire, processeur, carte SD, température (page Performances, appareil « Box Heim »).
     pub perf: Arc<sysstats::Sampler>,
+    /// Les plugins (connexions à la carte) et la découverte MQTT dont ils se servent.
+    pub plugins: Arc<plugins::Plugins>,
+    discovery: Arc<std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 impl Core {
@@ -353,7 +358,10 @@ impl Core {
             broker: broker::Broker::new(Some(config.data_dir.join("mqtt-retained.json"))),
             zigbee_local: zigbee_local::ZigbeeLocal::detect(&config.data_dir),
             perf: sysstats::Sampler::new(config.data_dir.clone()),
+            plugins: plugins::Plugins::new(&config.data_dir),
+            discovery: Arc::new(std::sync::Mutex::new(None)),
         };
+        core.init_plugins();
         sysstats::spawn(core.perf.clone(), core.registry.clone());
         core.init_broker(config.broker);
         core.start_integrations(config);
@@ -363,6 +371,7 @@ impl Core {
         core.apply_zigbee_settings();
         core.apply_tuya_settings();
         core.apply_matter_settings();
+        core.apply_plugins();
         core.spawn_update_checker();
         core.spawn_power_on_for_new();
         api_zigbee::spawn_at_start(core.clone());
@@ -607,6 +616,132 @@ impl Core {
         } else if self.settings.get_raw(matter::SETTINGS_KEY).is_some() {
             self.bus
                 .integration_status(matter::INTEGRATION, bus::IntegrationState::Stopped, None);
+        }
+    }
+
+    /// Premier démarrage en 0.17 : les connexions déjà réglées restent installées, Zigbee aussi
+    /// (l'image SD fournit Zigbee2MQTT). Les autres attendent dans le store.
+    fn init_plugins(&self) {
+        if self.settings.get_raw(plugins::SETTINGS_KEY).is_some() {
+            return;
+        }
+        let mut s = plugins::PluginsSettings::default();
+        let mut add = |id: &str| {
+            s.installed.insert(
+                id.into(),
+                plugins::Installed {
+                    id: id.into(),
+                    builtin: true,
+                    official: true,
+                    enabled: true,
+                    installed_at: Some(chrono::Utc::now()),
+                    ..Default::default()
+                },
+            );
+        };
+        add("zigbee2mqtt");
+        let tuya: integrations::tuya::TuyaSettings = self
+            .settings
+            .get(integrations::tuya::SETTINGS_KEY)
+            .unwrap_or_default();
+        if !tuya.devices.is_empty() || tuya.enabled {
+            add("tuya");
+        }
+        let matter: integrations::matter::MatterSettings = self
+            .settings
+            .get(integrations::matter::SETTINGS_KEY)
+            .unwrap_or_default();
+        if !matter.url.trim().is_empty() {
+            add("matter");
+        }
+        let _ = self.settings.set(plugins::SETTINGS_KEY, &s);
+    }
+
+    pub fn plugin_settings(&self) -> plugins::PluginsSettings {
+        self.settings.get(plugins::SETTINGS_KEY).unwrap_or_default()
+    }
+
+    /// Le broker où parlent la découverte MQTT et les plugins : celui de Heim s'il tourne,
+    /// sinon celui de Zigbee2MQTT.
+    pub fn mqtt_env(&self) -> Option<plugins::MqttEnv> {
+        let b: broker::BrokerSettings = self.settings.get(broker::SETTINGS_KEY).unwrap_or_default();
+        if b.enabled {
+            return Some(plugins::MqttEnv {
+                host: "127.0.0.1".into(),
+                port: b.port,
+                username: None,
+                password: None,
+            });
+        }
+        let z: Zigbee2MqttSettings = self.settings.get(settings::ZIGBEE2MQTT)?;
+        if z.host.trim().is_empty() {
+            return None;
+        }
+        let (host, port_in_host) = clean_mqtt_host(&z.host);
+        Some(plugins::MqttEnv {
+            host,
+            port: port_in_host.unwrap_or(z.port),
+            username: z.username.filter(|u| !u.is_empty()),
+            password: z.password.filter(|p| !p.is_empty()),
+        })
+    }
+
+    /// (Re)lance la découverte MQTT et les plugins externes selon les réglages.
+    pub fn apply_plugins(&self) {
+        self.apply_discovery();
+        let s = self.plugin_settings();
+        for p in s.installed.values().filter(|p| !p.builtin) {
+            self.apply_external(p);
+        }
+    }
+
+    /// Démarre ou arrête un plugin externe.
+    pub fn apply_external(&self, p: &plugins::Installed) {
+        match (p.enabled, self.mqtt_env()) {
+            (true, Some(env)) => self.plugins.start(p, env, i18n::house_lang()),
+            _ => self.plugins.stop(&p.id),
+        }
+    }
+
+    /// La découverte MQTT tourne si elle est installée, ou si un plugin externe en a besoin.
+    pub fn apply_discovery(&self) {
+        let s = self.plugin_settings();
+        let externals: Vec<&plugins::Installed> =
+            s.installed.values().filter(|p| !p.builtin).collect();
+        let env = self.mqtt_env();
+        {
+            let mut slot = self.discovery.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some(previous) = slot.take() {
+                previous.abort();
+            }
+            let wanted = s.enabled("mqtt_discovery") || externals.iter().any(|p| p.enabled);
+            match (&env, wanted) {
+                (Some(env), true) => {
+                    let (registry, bus, env) =
+                        (self.registry.clone(), self.bus.clone(), env.clone());
+                    *slot = Some(integrations::supervise(
+                        integrations::mqtt_discovery::INTEGRATION,
+                        self.bus.clone(),
+                        move || {
+                            integrations::mqtt_discovery::run(
+                                env.clone(),
+                                registry.clone(),
+                                bus.clone(),
+                            )
+                        },
+                    ));
+                }
+                (None, true) => self.bus.integration_status(
+                    integrations::mqtt_discovery::INTEGRATION,
+                    bus::IntegrationState::Failed,
+                    Some("aucun broker MQTT : allumez celui de Heim".into()),
+                ),
+                _ => self.bus.integration_status(
+                    integrations::mqtt_discovery::INTEGRATION,
+                    bus::IntegrationState::Stopped,
+                    None,
+                ),
+            }
         }
     }
 

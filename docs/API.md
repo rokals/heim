@@ -76,6 +76,13 @@ PUT    /api/zigbee/local                 {"enabled": true, "port": "/dev/serial/
 POST   /api/zigbee/local/restart
 POST   /api/zigbee/local/import          {"configuration": "<configuration.yaml>", "database": "<database.db>", "coordinator_backup": "<json>"}
 
+GET    /api/plugins                      installed (with run state, memory, settings schema), store, categories
+POST   /api/plugins/preview              {"source": "alex/heim-wled"}   reads the manifest, installs nothing
+POST   /api/plugins/install              {"id": "tuya"} | {"source": "alex/heim-wled", "settings": {...}}
+PUT    /api/plugins/{id}                 {"enabled": true, "settings": {...}}
+DELETE /api/plugins/{id}
+POST   /api/plugins/{id}/restart | GET /api/plugins/{id}/log
+
 GET    /api/broker                       built-in MQTT broker: settings (no passwords), running, error, clients, retained, received, sent
 PUT    /api/broker                       {"enabled": true, "open": false, "port": 1883}
 POST   /api/broker/users                 {"username": "shelly"}   returns the generated password, once

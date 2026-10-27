@@ -4,7 +4,7 @@
 quelques watts et environ 10 Mo de mémoire. Ni cloud ni YAML : tout se règle depuis un téléphone.
 Une clé Zigbee branchée sur la box, et c'est tout : Zigbee2MQTT et un broker MQTT sont fournis.
 
-[English](README.md) · [API](docs/API.md) · [Sécurité](SECURITY.fr.md) · [Traduire](docs/TRANSLATING.md)
+[English](README.md) · [API](docs/API.md) · [Plugins](docs/PLUGINS.md) · [Sécurité](SECURITY.fr.md) · [Traduire](docs/TRANSLATING.md)
 
 <p align="center">
   <img src="docs/home.png" width="230" alt="Accueil avec ses tuiles">
@@ -56,6 +56,14 @@ Une clé Zigbee branchée sur la box, et c'est tout : Zigbee2MQTT et un broker M
 - **Matter** par un serveur Matter (celui de Home Assistant, ou python-matter-server).
 - Tous les réglages qu'un appareil propose (couleur, blanc, effets, fondus, état après coupure,
   verrouillage enfant…), mises à jour du logiciel interne, pile et signal d'un coup d'œil.
+
+### Plugins
+- **Connexions à la carte** : Réglages › Connexions › Store, par catégorie (connexions,
+  affichage, fonctionnalités, réseau). Zigbee, Tuya, Matter et la **découverte MQTT** (Tasmota,
+  ESPHome, Shelly…) sont intégrés ; le broker MQTT est toujours là.
+- **Plugins externes** depuis n'importe quel dépôt GitHub, avec leur mémoire affichée et un
+  avertissement clair (développeur non certifié, performances) à lire 5 secondes. Ils tournent à
+  côté de Heim, jamais dedans. En écrire un : [docs/PLUGINS.md](docs/PLUGINS.md) (en anglais).
 
 ### Scènes et automatismes
 - **Scènes** : chaque appareil réglé comme vous voulez, aperçu en direct sur les vraies lampes,

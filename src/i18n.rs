@@ -683,6 +683,102 @@ pub const EN: &[(&str, &str)] = &[
     ("Processeur", "Processor"),
     ("Carte SD", "SD card"),
     ("Température du processeur", "Processor temperature"),
+    // Plugins
+    (
+        "identifiant de plugin invalide (a-z, 0-9, - et _, 2 à 40 caractères)",
+        "invalid plugin id (a-z, 0-9, - and _, 2 to 40 characters)",
+    ),
+    (
+        "ce nom est réservé à une connexion intégrée",
+        "this name is reserved for a built-in connection",
+    ),
+    (
+        "nom de plugin manquant ou trop long",
+        "plugin name missing or too long",
+    ),
+    ("catégorie inconnue : {}", "unknown category: {}"),
+    ("trop de réglages", "too many settings"),
+    (
+        "cette machine n'est pas prise en charge",
+        "this machine isn’t supported",
+    ),
+    (
+        "ce plugin n'existe pas pour cette machine ({})",
+        "this plugin isn’t available for this machine ({})",
+    ),
+    (
+        "empreinte SHA-256 invalide dans le manifeste",
+        "invalid SHA-256 in the manifest",
+    ),
+    (
+        "adresse de téléchargement refusée (https seulement)",
+        "download address refused (https only)",
+    ),
+    (
+        "dépôt attendu sous la forme proprietaire/nom, ou l'adresse d'un heim-plugin.json",
+        "expected a repository as owner/name, or the address of a heim-plugin.json",
+    ),
+    ("réglage obligatoire : {}", "required setting: {}"),
+    ("{} : nombre attendu", "{}: a number is expected"),
+    ("{} : choix inconnu", "{}: unknown choice"),
+    ("{} : trop long", "{}: too long"),
+    ("{} : réponse {}", "{}: response {}"),
+    ("fichier trop gros", "file too large"),
+    (
+        "heim-plugin.json illisible : {}",
+        "heim-plugin.json can’t be read: {}",
+    ),
+    (
+        "téléchargement désactivé dans ce Heim ({})",
+        "downloads are disabled in this Heim ({})",
+    ),
+    (
+        "téléchargement désactivé dans ce Heim",
+        "downloads are disabled in this Heim",
+    ),
+    (
+        "le programme téléchargé ne correspond pas à son empreinte : rien n'a été installé",
+        "the downloaded program doesn’t match its checksum: nothing was installed",
+    ),
+    (
+        "plugin du store sans manifeste",
+        "store plugin without a manifest",
+    ),
+    (
+        "indiquez un plugin ou un dépôt",
+        "give a plugin or a repository",
+    ),
+    ("déjà installé", "already installed"),
+    (
+        "un autre plugin « {} » est déjà installé",
+        "another plugin “{}” is already installed",
+    ),
+    (
+        "des plugins externes s'en servent : désinstallez-les d'abord",
+        "external plugins rely on it: uninstall them first",
+    ),
+    (
+        "connexion intégrée : rien à relancer",
+        "built-in connection: nothing to restart",
+    ),
+    (
+        "aucun broker MQTT : allumez celui de Heim",
+        "no MQTT broker: turn Heim’s on",
+    ),
+    (
+        "Tasmota, ESPHome, Shelly et tout ce qui s'annonce en MQTT",
+        "Tasmota, ESPHome, Shelly and anything that announces itself over MQTT",
+    ),
+    (
+        "Plugin {} installé (dépôt externe)",
+        "Plugin {} installed (external repository)",
+    ),
+    ("Plugin {} installé", "Plugin {} installed"),
+    (
+        "impossible de lancer le plugin : {}",
+        "can’t start the plugin: {}",
+    ),
+    ("arrêté ({})", "stopped ({})"),
     // Connexions (Zigbee, Matter, Tuya)
     ("port invalide", "invalid port"),
     (

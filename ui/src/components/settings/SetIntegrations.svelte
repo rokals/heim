@@ -5,6 +5,8 @@
   import IntegrationCard from './IntegrationCard.svelte';
   import ZigbeeSetup from './ZigbeeSetup.svelte';
   import SetBroker from './SetBroker.svelte';
+  import PluginStore from './PluginStore.svelte';
+  import PluginDetail from './PluginDetail.svelte';
   import PairingSheet from '../PairingSheet.svelte';
   import SetTuya from './SetTuya.svelte';
   import SetMatter from './SetMatter.svelte';
@@ -18,6 +20,23 @@
   let pairing = $state(false);
   let power = $state(null);
   let applying = $state(false);
+  let view = $state('installed');
+  let removing = $state(false);
+
+  async function uninstallBuiltin(id) {
+    if (!removing) {
+      removing = true;
+      return;
+    }
+    try {
+      await api(`/plugins/${id}`, { method: 'DELETE' });
+      toast(tr("Connexion retirée : elle reste dans le store"));
+      removing = false;
+      onnavigate('integrations');
+    } catch (e) {
+      toast(e.message, 'alert');
+    }
+  }
 
   async function load() {
     list = await api('/integrations/catalog').catch(() => []);
@@ -76,7 +95,14 @@
 </script>
 
 {#if !detail}
-  <p class="muted">{tr("Les passerelles vers vos appareils. Touchez-en une pour la régler.")}</p>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected={view === 'installed'} class:on={view === 'installed'} onclick={() => (view = 'installed')}>{tr("Installées")}</button>
+    <button role="tab" aria-selected={view === 'store'} class:on={view === 'store'} onclick={() => (view = 'store')}><Icon name="plus" size={16} /> {tr("Store")}</button>
+  </div>
+  {#if view === 'store'}
+    <PluginStore oninstalled={load} />
+  {:else}
+  <p class="muted">{tr("Les passerelles vers vos appareils. Touchez-en une pour la régler, ou ajoutez-en depuis le store.")}</p>
   <div class="list">
     {#each list as item (item.id)}
       <IntegrationCard {item} busy={busy === item.id} onopen={() => onnavigate(`integrations/${item.id}`)} ontoggle={(on) => toggle(item, on)} />
@@ -111,6 +137,7 @@
       {/if}
     </section>
   {/if}
+  {/if}
 {:else if current}
   <div class="detail-head">
     <IntegrationCard item={current} busy={busy === current.id} ontoggle={(on) => toggle(current, on)} />
@@ -128,6 +155,15 @@
     <SetMatter embedded />
   {:else if current.id === 'mqtt'}
     <SetBroker />
+  {:else if current.id === 'mqtt_discovery'}
+    <p class="muted">{tr("Heim lit les appareils qui s'annoncent sur le broker au format de Home Assistant : Tasmota (commande SetOption19 1), ESPHome (mqtt: discovery: true), Shelly, OpenMQTTGateway… Ils apparaissent tout seuls dans Appareils.")}</p>
+  {:else if current.id.startsWith('plugin:')}
+    <PluginDetail id={current.id.slice(7)} onremoved={() => onnavigate('integrations')} />
+  {/if}
+  {#if ['zigbee2mqtt', 'tuya', 'matter', 'mqtt_discovery'].includes(current.id)}
+    <p class="remove">
+      <button class="link danger" onclick={() => uninstallBuiltin(current.id)}>{removing ? tr("Confirmer : retirer {v} des connexions", { v: current.name }) : tr("Retirer cette connexion")}</button>
+    </p>
   {/if}
 {/if}
 
@@ -136,6 +172,40 @@
 {/if}
 
 <style>
+  .tabs {
+    display: flex;
+    padding: 3px;
+    border-radius: 14px;
+    background: var(--surface-2);
+    margin-bottom: 14px;
+  }
+
+  .tabs button {
+    flex: 1;
+    min-height: 40px;
+    border-radius: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .tabs button.on {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+  }
+
+  .remove {
+    margin-top: 32px;
+  }
+
+  .danger {
+    color: var(--alert);
+  }
+
   .list {
     display: grid;
     gap: 12px;

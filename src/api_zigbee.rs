@@ -60,6 +60,8 @@ pub async fn put_broker(
         .set(broker::SETTINGS_KEY, &s)
         .map_err(bad_request)?;
     core.apply_broker_settings().await.map_err(bad_request)?;
+    // La découverte MQTT et les plugins suivent le broker.
+    core.apply_plugins();
     if local.enabled && s.port != old_port {
         // Zigbee2MQTT et Heim doivent suivre le nouveau port.
         start_local(core, &local).await.map_err(bad_request)?;

@@ -5,6 +5,7 @@
 //! et le reste de Heim continue de tourner.
 
 pub mod matter;
+pub mod mqtt_discovery;
 pub mod tuya;
 pub mod tuya_proto;
 pub mod virtual_dev;

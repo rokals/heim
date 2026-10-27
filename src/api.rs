@@ -25,6 +25,7 @@ use crate::api_accounts as acc;
 use crate::api_boards as boards;
 use crate::api_controls as ctl;
 use crate::api_devices as dev;
+use crate::api_plugins as plug;
 use crate::api_presence as pres;
 use crate::api_security as sec;
 use crate::api_zigbee as zb;
@@ -207,6 +208,12 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
         .route("/security/snapshots/{name}", get(sec::get_snapshot))
         .route("/zigbee/pairing", get(sec::get_pairing))
         .route("/zigbee/permit_join", post(sec::permit_join))
+        .route("/plugins", get(plug::list))
+        .route("/plugins/preview", post(plug::preview))
+        .route("/plugins/install", post(plug::install))
+        .route("/plugins/{id}", put(plug::update).delete(plug::uninstall))
+        .route("/plugins/{id}/restart", post(plug::restart))
+        .route("/plugins/{id}/log", get(plug::log))
         .route("/broker", get(zb::get_broker).put(zb::put_broker))
         .route("/broker/users", post(zb::add_broker_user))
         .route(

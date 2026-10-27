@@ -119,15 +119,28 @@ fn rss_bytes(status: &str) -> Option<u64> {
 }
 
 /// À qui appartient un processus, d'après sa ligne de commande.
-pub fn classify(own_pid: u32, pid: u32, cmdline: &str) -> Option<&'static str> {
+pub fn classify(own_pid: u32, pid: u32, cmdline: &str) -> Option<String> {
     if pid == own_pid {
-        return Some("Heim");
+        return Some("Heim".into());
+    }
+    // Un plugin externe : …/plugins/<id>/bin/plugin
+    if let Some(i) = cmdline
+        .find("/plugins/")
+        .or_else(|| cmdline.find("\\plugins\\"))
+    {
+        let rest = &cmdline[i + 9..];
+        if let Some(id) = rest.split(['/', '\\']).next()
+            && (rest[id.len()..].starts_with("/bin/") || rest[id.len()..].starts_with("\\bin\\"))
+            && crate::plugins::valid_id(id)
+        {
+            return Some(format!("plugin:{id}"));
+        }
     }
     if cmdline.contains("zigbee2mqtt") {
-        return Some("Zigbee2MQTT");
+        return Some("Zigbee2MQTT".into());
     }
     if cmdline.contains("matter_server") || cmdline.contains("matter-server") {
-        return Some("Serveur Matter");
+        return Some("Serveur Matter".into());
     }
     None
 }
@@ -243,7 +256,7 @@ impl Sampler {
 
         // Ce que prend chaque morceau.
         let own = std::process::id();
-        let mut by_name: std::collections::BTreeMap<&'static str, Process> = Default::default();
+        let mut by_name: std::collections::BTreeMap<String, Process> = Default::default();
         let mut ticks = std::collections::HashMap::new();
         if let Ok(entries) = std::fs::read_dir("/proc") {
             for e in entries.flatten() {
@@ -261,8 +274,8 @@ impl Sampler {
                     .and_then(rss_bytes)
                     .unwrap_or(0);
                 let t = read(e.path().join("stat")).as_deref().and_then(proc_ticks);
-                let p = by_name.entry(name).or_insert_with(|| Process {
-                    name: name.into(),
+                let p = by_name.entry(name.clone()).or_insert_with(|| Process {
+                    name,
                     ..Default::default()
                 });
                 p.memory += mem;
@@ -285,7 +298,7 @@ impl Sampler {
         if by_name.is_empty() {
             // Hors Linux : au moins Heim.
             by_name.insert(
-                "Heim",
+                "Heim".into(),
                 Process {
                     name: "Heim".into(),
                     memory: crate::api_more::rss_kib().unwrap_or(0) * 1024,
@@ -436,14 +449,19 @@ mod tests {
             rss_bytes("Name:\theim\nVmRSS:\t   10240 kB\n"),
             Some(10240 * 1024)
         );
-        assert_eq!(classify(7, 7, ""), Some("Heim"));
+        assert_eq!(classify(7, 7, "").as_deref(), Some("Heim"));
         assert_eq!(
             classify(
                 7,
                 9,
                 "node /opt/zigbee2mqtt/node_modules/zigbee2mqtt/index.js"
-            ),
+            )
+            .as_deref(),
             Some("Zigbee2MQTT")
+        );
+        assert_eq!(
+            classify(7, 9, "/var/lib/heim/plugins/wled/bin/plugin ").as_deref(),
+            Some("plugin:wled")
         );
         assert_eq!(classify(7, 9, "/usr/sbin/sshd"), None);
     }

@@ -21,7 +21,7 @@ async fn broker(port: u16) -> Broker {
         ..Default::default()
     })
     .await
-    .unwrap();
+    .unwrap_or_else(|e| panic!("broker sur {port} : {e}"));
     b
 }
 

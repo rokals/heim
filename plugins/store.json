@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "id": "zigbee2mqtt",
+      "builtin": true,
+      "category": "connections",
+      "name": "Zigbee",
+      "icon": "plug",
+      "author": "Heim",
+      "description": {
+        "fr": "Appareils Zigbee par Zigbee2MQTT, sur la box (clé USB) ou sur une autre machine.",
+        "en": "Zigbee devices through Zigbee2MQTT, on the box (USB stick) or on another machine."
+      },
+      "memory_mb": 120,
+      "memory_note": {
+        "fr": "Surtout Zigbee2MQTT (Node.js), quand il tourne sur la box.",
+        "en": "Mostly Zigbee2MQTT (Node.js), when it runs on the box."
+      }
+    },
+    {
+      "id": "mqtt_discovery",
+      "builtin": true,
+      "category": "connections",
+      "name": "Découverte MQTT",
+      "name_en": "MQTT discovery",
+      "icon": "link",
+      "author": "Heim",
+      "description": {
+        "fr": "Tasmota, ESPHome, Shelly et tout ce qui s'annonce sur le broker au format de Home Assistant. Aussi la base des plugins externes.",
+        "en": "Tasmota, ESPHome, Shelly and anything that announces itself on the broker in the Home Assistant format. Also what external plugins build on."
+      },
+      "memory_mb": 1
+    },
+    {
+      "id": "tuya",
+      "builtin": true,
+      "category": "connections",
+      "name": "Tuya",
+      "icon": "bolt",
+      "author": "Heim",
+      "description": {
+        "fr": "Prises, ampoules et interrupteurs Wi-Fi Tuya (LSC, Lidl…), pilotés en local, sans cloud.",
+        "en": "Tuya Wi-Fi plugs, bulbs and switches (LSC, Lidl…), controlled locally, without the cloud."
+      },
+      "memory_mb": 2
+    },
+    {
+      "id": "matter",
+      "builtin": true,
+      "category": "connections",
+      "name": "Matter",
+      "icon": "grid",
+      "author": "Heim",
+      "description": {
+        "fr": "Appareils Matter, par un serveur Matter (celui de Home Assistant ou python-matter-server).",
+        "en": "Matter devices, through a Matter server (Home Assistant's or python-matter-server)."
+      },
+      "memory_mb": 1,
+      "memory_note": {
+        "fr": "Plus le serveur Matter, à part (environ 80 Mo).",
+        "en": "Plus the Matter server, separately (about 80 MB)."
+      }
+    }
+  ]
+}

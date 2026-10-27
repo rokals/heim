@@ -25,10 +25,11 @@
       <span class="top">
         <strong>{item.name}</strong>
         <span class="badge {st.tone}"><i></i>{st.text}</span>
+        {#if item.external && item.official === false}<span class="badge community">{tr("communauté")}</span>{/if}
       </span>
       <span class="desc">{item.description}</span>
       <span class="meta">
-        {#if item.enabled && item.configured && item.devices != null}{tr("{devices} appareil(s){v}", { devices: item.devices, v: item.detail ? ` · ${item.detail}` : '' })}{:else if item.summary}{item.summary}{item.detail ? ` · ${item.detail}` : ''}{/if}
+        {#if item.enabled && item.configured && item.devices != null}{tr("{devices} appareil(s){v}", { devices: item.devices, v: item.detail ? ` · ${item.detail}` : '' })}{:else if item.summary}{item.summary}{item.detail ? ` · ${item.detail}` : ''}{/if}{#if item.memory}{` · ${tr("{v} Mo", { v: Math.round(item.memory / 1048576) })}`}{/if}
       </span>
     </span>
     {#if onopen}<span class="chev" aria-hidden="true">›</span>{/if}
@@ -128,6 +129,11 @@
 
   .badge.ok {
     color: var(--moss);
+  }
+
+  .badge.community {
+    color: var(--ember-ink);
+    background: color-mix(in srgb, var(--ember) 30%, transparent);
   }
 
   .badge.ok i {

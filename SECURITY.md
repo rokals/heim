@@ -38,6 +38,10 @@ possible, and the fix ships in a version published through the releases.
   `heim-system` downloads that release's `heim-system.tar.gz` from the repository written in
   `/etc/heim/repo` at install time, checks its SHA-256 and applies it. Nothing Heim writes is run
   as root.
+- **External plugins** run as programs next to Heim, with Heim's own rights (user `heim`): they
+  can reach your devices and read Heim's data. The store marks them *community* and shows a
+  warning before installing. Their download is checked against the SHA-256 of their manifest.
+  Running each plugin under its own user is planned.
 - **Zigbee2MQTT on the box** runs as the `heim` user, with its own systemd service. Heim may only
   start, stop and restart that service (polkit). Its web interface is off by default; when on,
   it asks for a token.

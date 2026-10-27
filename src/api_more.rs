@@ -536,7 +536,8 @@ pub async fn integrations_catalog(
         .as_str()
         .map(|e| json!(crate::i18n::tr(lang, e)))
         .unwrap_or(Value::Null);
-    Json(json!([
+    let plugins = core.plugin_settings();
+    let all = vec![
         entry(
             zigbee2mqtt::INTEGRATION,
             "Zigbee",
@@ -574,8 +575,58 @@ pub async fn integrations_catalog(
             !m.url.trim().is_empty(),
             m.url.clone(),
         ),
-        mqtt,
-    ]))
+    ];
+    // Le broker d'abord (toujours là), puis les connexions installées, puis les plugins.
+    let mut out = vec![mqtt];
+    out.extend(
+        all.into_iter()
+            .filter(|e| plugins.has(e["id"].as_str().unwrap_or(""))),
+    );
+    if plugins.has(crate::integrations::mqtt_discovery::INTEGRATION) {
+        let p = &plugins.installed[crate::integrations::mqtt_discovery::INTEGRATION];
+        let mut e = entry(
+            crate::integrations::mqtt_discovery::INTEGRATION,
+            if lang == "en" {
+                "MQTT discovery"
+            } else {
+                "Découverte MQTT"
+            },
+            "Tasmota, ESPHome, Shelly et tout ce qui s'annonce en MQTT",
+            "link",
+            p.enabled,
+            true,
+            String::new(),
+        );
+        e["plugin"] = json!(true);
+        out.push(e);
+    }
+    for p in plugins.installed.values().filter(|p| !p.builtin) {
+        let Some(m) = &p.manifest else { continue };
+        let run = core.plugins.state(&p.id);
+        let status = match (&run, p.enabled) {
+            (_, false) => "stopped",
+            (Some(r), true) if r.running => "connected",
+            (Some(r), true) if r.last_exit.is_some() => "failed",
+            _ => "starting",
+        };
+        out.push(json!({
+            "id": format!("plugin:{}", p.id),
+            "plugin": true,
+            "external": true,
+            "official": p.official,
+            "name": m.display_name(lang),
+            "description": m.description.get(lang),
+            "icon": m.icon.clone().unwrap_or_else(|| "grid".into()),
+            "enabled": p.enabled,
+            "configured": true,
+            "status": status,
+            "detail": run.and_then(|r| r.last_exit).filter(|_| status == "failed"),
+            "devices": Value::Null,
+            "summary": m.version.clone().map(|v| format!("v{v}")).unwrap_or_default(),
+            "memory": core.perf.last().processes.iter().find(|x| x.name == format!("plugin:{}", p.id)).map(|x| x.memory),
+        }));
+    }
+    Json(json!(out))
 }
 
 #[derive(Deserialize)]
@@ -612,6 +663,22 @@ pub async fn set_integration_enabled(
                 .set(tuya::SETTINGS_KEY, &s)
                 .map_err(bad_request)?;
             core.apply_tuya_settings();
+        }
+        id if id == crate::integrations::mqtt_discovery::INTEGRATION
+            || id.starts_with("plugin:") =>
+        {
+            let pid = id.trim_start_matches("plugin:");
+            let mut s = core.plugin_settings();
+            let p = s.installed.get_mut(pid).ok_or_else(|| not_found(pid))?;
+            p.enabled = input.enabled;
+            let p = p.clone();
+            core.settings
+                .set(crate::plugins::SETTINGS_KEY, &s)
+                .map_err(bad_request)?;
+            if !p.builtin {
+                core.apply_external(&p);
+            }
+            core.apply_discovery();
         }
         "mqtt" => {
             let local: crate::zigbee_local::LocalSettings = core

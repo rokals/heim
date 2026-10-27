@@ -4,7 +4,7 @@
 watts and about 10 MB of memory. It needs no cloud and no YAML: everything is set up from a phone.
 Plug a Zigbee stick into the box and that's it: Zigbee2MQTT and an MQTT broker come with it.
 
-[Français](README.fr.md) · [API](docs/API.md) · [Security](SECURITY.md) · [Translating](docs/TRANSLATING.md)
+[Français](README.fr.md) · [API](docs/API.md) · [Plugins](docs/PLUGINS.md) · [Security](SECURITY.md) · [Translating](docs/TRANSLATING.md)
 
 <p align="center">
   <img src="docs/home.png" width="230" alt="Home screen with tiles">
@@ -55,6 +55,14 @@ Plug a Zigbee stick into the box and that's it: Zigbee2MQTT and an MQTT broker c
 - **Matter** through a Matter server (Home Assistant's, or python-matter-server).
 - Every setting a device offers (colour, white, effects, fades, power-on behaviour, child
   lock…), firmware updates, battery and signal at a glance.
+
+### Plugins
+- **Connections à la carte**: Settings › Connections › Store, by category (connections, display,
+  features, network). Zigbee, Tuya, Matter and **MQTT discovery** (Tasmota, ESPHome, Shelly…) are
+  built in; the MQTT broker is always there.
+- **External plugins** from any GitHub repository, with their memory shown and a clear warning
+  (uncertified developer, performance) that must be read for 5 seconds. They run next to Heim,
+  never inside it. Writing one: [docs/PLUGINS.md](docs/PLUGINS.md).
 
 ### Scenes and automations
 - **Scenes**: each device set the way you want, with a live preview on the real lamps,
