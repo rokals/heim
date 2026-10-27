@@ -415,7 +415,10 @@ impl Notifier {
         };
         // Sur l'écran verrouillé, dans la langue de la maison.
         let lang = crate::i18n::house_lang();
-        let title = n.title.as_deref().map(|t| crate::i18n::tr(&lang, t).into_owned());
+        let title = n
+            .title
+            .as_deref()
+            .map(|t| crate::i18n::tr(&lang, t).into_owned());
         let payload = crate::push::payload(
             title.as_deref().unwrap_or("Heim"),
             &crate::i18n::tr(&lang, &n.message),
@@ -461,7 +464,10 @@ impl Notifier {
             .ok_or("clés push absentes")?;
         let payload = crate::push::payload(
             "Heim",
-            &crate::i18n::tr(&crate::i18n::house_lang(), "Les notifications marchent sur cet appareil."),
+            &crate::i18n::tr(
+                &crate::i18n::house_lang(),
+                "Les notifications marchent sur cet appareil.",
+            ),
             "info",
             "/",
             Some("test"),

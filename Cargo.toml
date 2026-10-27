@@ -1,6 +1,6 @@
 [package]
 name = "heim"
-version = "0.14.0"
+version = "0.15.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Heim - noyau domotique léger en Rust (cible : Raspberry Pi Zero 2 W, 512 Mo)"
@@ -25,6 +25,10 @@ chrono = { version = "0.4.45", default-features = false, features = ["serde", "c
 futures-util = "0.3.34"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 rumqttc = { version = "0.25.1", default-features = false }
+# Broker MQTT intégré : les paquets sont décodés par rumqttc, bytes vient avec.
+bytes = "1"
+# La configuration de Zigbee2MQTT (configuration.yaml).
+yaml_serde = "0.10"
 rusqlite = { version = "0.41.0", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive", "rc"] }
 serde_json = "1.0.154"

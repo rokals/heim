@@ -1,0 +1,11 @@
+[Unit]
+Description=Heim : mise à jour des fichiers système (services, polkit, Zigbee2MQTT)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/heim/heim-system
+# Une mise à jour de Zigbee2MQTT (npm) peut prendre un moment sur un Pi Zero 2 W.
+TimeoutStartSec=30min
+Nice=10

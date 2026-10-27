@@ -66,6 +66,7 @@ async fn matter_server_bridge() {
         token: None,
         demo: false,
         zigbee2mqtt: None,
+        broker: false,
     })
     .unwrap();
     let url = format!("127.0.0.1:{port}");

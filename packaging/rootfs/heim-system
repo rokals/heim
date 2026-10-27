@@ -1,0 +1,46 @@
+#!/bin/sh
+# Lancé en root par heim-system.service quand Heim dépose /var/lib/heim/system.request.
+# Met à jour les fichiers système de la box (services, règles polkit, Zigbee2MQTT, paquets…)
+# avec l'archive heim-system.tar.gz de la release officielle du dépôt gravé dans l'image
+# (/etc/heim/repo). Heim ne fournit que le numéro de version : rien de ce qu'il écrit n'est
+# exécuté ici.
+set -eu
+DATA=${HEIM_SYSTEM_DATA:-/var/lib/heim}
+REQ="$DATA/system.request"
+RES="$DATA/system.result"
+[ -f "$REQ" ] || exit 0
+version=$(sed -n 's/^version=//p' "$REQ" | head -n 1)
+rm -f "$REQ"
+REPO=$(head -n 1 /etc/heim/repo 2>/dev/null || true)
+
+write_result() {
+  printf '%s' "$1" > "$RES.tmp"
+  chown heim:heim "$RES.tmp" 2>/dev/null || true
+  mv -f "$RES.tmp" "$RES"
+}
+fail() {
+  write_result "$(printf 'status=failed\nversion=%s\nmessage=%s\nat=%s\n' "$version" "$1" "$(date -Iseconds)")"
+  echo "heim-system : $1" >&2
+  exit 1
+}
+
+echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$' || fail "version invalide"
+echo "$REPO" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || fail "dépôt inconnu (/etc/heim/repo)"
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+base="${HEIM_SYSTEM_URL:-https://github.com/$REPO/releases/download/v$version}"
+curl -fsSL --retry 3 -o "$TMP/heim-system.tar.gz" "$base/heim-system.tar.gz" || fail "téléchargement impossible (pas d'Internet ?)"
+curl -fsSL --retry 3 -o "$TMP/SHA256SUMS" "$base/SHA256SUMS" || fail "empreintes introuvables"
+(cd "$TMP" && grep ' \*\?heim-system.tar.gz$' SHA256SUMS | sha256sum -c - >/dev/null 2>&1) || fail "empreinte incorrecte"
+mkdir "$TMP/src"
+tar -xzf "$TMP/heim-system.tar.gz" -C "$TMP/src" || fail "archive illisible"
+[ -f "$TMP/src/apply.sh" ] || fail "apply.sh absent de l'archive"
+
+if HEIM_SYSTEM_SRC="$TMP/src" HEIM_SYSTEM_VERSION="$version" sh "$TMP/src/apply.sh" > "$TMP/log" 2>&1; then
+  write_result "$(printf 'status=ok\nversion=%s\nat=%s\n' "$version" "$(date -Iseconds)")"
+  echo "heim-system : fichiers système de la $version appliqués"
+else
+  cat "$TMP/log" >&2
+  fail "$(tail -n 1 "$TMP/log" | tr -d '\n' | cut -c1-200)"
+fi

@@ -83,6 +83,7 @@ async fn tuya_33_34_35_against_tinytuya() {
         token: None,
         demo: false,
         zigbee2mqtt: None,
+        broker: false,
     })
     .unwrap();
     let mapping = json!({"1": {"code": "switch_1", "type": "Boolean"}, "19": {"code": "cur_power", "values": {"scale": 1}}});

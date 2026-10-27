@@ -31,8 +31,16 @@ possible, and the fix ships in a version published through the releases.
   an administrator account, and a Heim without accounts reopens the setup.
 - **Access from outside**: only through Tailscale (HTTPS, no port opened on the router). Never
   open Heim's port to the internet.
-- **MQTT**: Heim talks to the broker without encryption, like Home Assistant by default. It must
-  stay on the home network.
+- **MQTT**: MQTT has no encryption here, like Home Assistant by default. Heim's built-in broker
+  only listens on the box itself (127.0.0.1) unless you open it to the home network; then every
+  network device needs an account (generated password). Never forward port 1883 on the router.
+- **System files**: Heim only writes a version number (`system.request`); the root service
+  `heim-system` downloads that release's `heim-system.tar.gz` from the repository written in
+  `/etc/heim/repo` at install time, checks its SHA-256 and applies it. Nothing Heim writes is run
+  as root.
+- **Zigbee2MQTT on the box** runs as the `heim` user, with its own systemd service. Heim may only
+  start, stop and restart that service (polkit). Its web interface is off by default; when on,
+  it asks for a token.
 - **Backups**: a backup file contains everything, including Tuya keys and the MQTT password.
   Keep it to yourself (never in a public repository).
 - **Pi console account** (`heim-admin`): SSH is off. Set the `PI_PASSWORD` secret in the

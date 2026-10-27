@@ -2,6 +2,7 @@
 
 **Une box domotique locale et économe.** Heim tourne sur un Raspberry Pi Zero 2 W ou un Pi 3 :
 quelques watts et environ 10 Mo de mémoire. Ni cloud ni YAML : tout se règle depuis un téléphone.
+Une clé Zigbee branchée sur la box, et c'est tout : Zigbee2MQTT et un broker MQTT sont fournis.
 
 [English](README.md) · [API](docs/API.md) · [Sécurité](SECURITY.fr.md) · [Traduire](docs/TRANSLATING.md)
 
@@ -43,7 +44,13 @@ quelques watts et environ 10 Mo de mémoire. Ni cloud ni YAML : tout se règle d
   - soleil, horloge, scènes, minuteurs.
 
 ### Appareils et connexions
-- **Zigbee** par Zigbee2MQTT (clé Sonoff ZBDongle-E ou autre). Appairage depuis l'appli, en direct.
+- **Zigbee** par Zigbee2MQTT (clé Sonoff ZBDongle-E ou autre), **sur la box elle-même** :
+  l'image SD l'installe, Heim trouve la clé USB, écrit sa configuration et le démarre.
+  Appairage depuis l'appli, en direct. Un Zigbee2MQTT existant (celui de Home Assistant) se
+  reprend sans rien réappairer, et Heim sait toujours lire un Zigbee2MQTT installé ailleurs.
+- **Broker MQTT intégré** : Zigbee2MQTT se branche directement sur Heim, sans Mosquitto. On peut
+  l'ouvrir au réseau de la maison pour des appareils Tasmota, Shelly ou ESPHome, chacun avec
+  son compte.
 - **Tuya Wi-Fi** : prises, ampoules et interrupteurs (LSC, Lidl…), pilotés en local, sans cloud
   (protocoles 3.3, 3.4 et 3.5).
 - **Matter** par un serveur Matter (celui de Home Assistant, ou python-matter-server).
@@ -95,7 +102,7 @@ quelques watts et environ 10 Mo de mémoire. Ni cloud ni YAML : tout se règle d
 | | |
 | --- | --- |
 | Box | Raspberry Pi Zero 2 W, Pi 3, Pi 4 ou Pi 5 (64 bits). Environ 1 à 2 W au repos pour un Zero 2 W ou un Pi 3. |
-| Zigbee | Une clé USB Zigbee et Zigbee2MQTT avec son broker MQTT (pour l'instant, ceux d'un Home Assistant existant conviennent). |
+| Zigbee | Une clé USB Zigbee (Sonoff ZBDongle-E, ZBDongle-P, ConBee…). Zigbee2MQTT et le broker MQTT sont sur la box. |
 | Stockage | Une carte SD de 8 Go ou plus. |
 
 ## Installer
@@ -120,6 +127,7 @@ L'assistant se déroule comme un installateur, étape par étape :
 | Réseau | Obligatoire. Câble ou Wi-Fi, réseau caché, adresse fixe, nom de la box (`heim.local`). |
 | Apparence | Facultative. Thème, couleur, taille du texte… |
 | Maison | Facultative. Pièces, lieu pour le lever et le coucher du soleil, fuseau horaire. |
+| Connexions | Facultative. Le broker MQTT tourne déjà (rien à régler) ; la clé Zigbee trouvée sur la box, et Zigbee2MQTT démarré. |
 | Résumé | Puis on entre dans Heim. |
 
 Après le passage sur le Wi-Fi de la maison, reconnectez-y le téléphone, ouvrez
@@ -130,6 +138,8 @@ Après le passage sur le Wi-Fi de la maison, reconnectez-y le téléphone, ouvre
 ```sh
 curl -fsSL https://raw.githubusercontent.com/PROPRIETAIRE/heim/main/packaging/install.sh | sudo HEIM_REPO=PROPRIETAIRE/heim bash
 ```
+
+Ajoutez `HEIM_ZIGBEE=1` après `HEIM_REPO=…` pour installer aussi Zigbee2MQTT (Node.js 22), comme l'image SD.
 
 **Sur un PC**, pour essayer avec des appareils virtuels :
 
@@ -143,6 +153,10 @@ HEIM_DEMO=1 ./target/release/heim      # puis http://<ip>:8090
 Les nouvelles versions sont proposées dans Réglages › Système (vérification deux fois par jour).
 Heim contrôle le SHA-256, sauvegarde ses données, et revient tout seul à la version d'avant si la
 nouvelle ne démarre pas. Une sauvegarde est aussi faite chaque nuit (les 7 dernières sont gardées).
+
+Les fichiers système de la box (services, permissions, Zigbee2MQTT) suivent aussi : après une
+mise à jour, un petit service root les récupère dans la même release GitHub, les vérifie et les
+applique. Plus besoin de reflasher la carte pour une nouvelle version.
 
 ## Configuration
 
@@ -159,6 +173,9 @@ particuliers :
 | `HEIM_DEMO` | `0` | `1` pour les appareils virtuels |
 | `HEIM_NETSETUP` | `0` | `1` : Heim gère le réseau du Pi (NetworkManager), réglé par l'image SD |
 | `HEIM_HTTP_ALSO` | aucun | Adresses d'écoute en plus, séparées par des virgules |
+| `HEIM_BROKER` | `1` | `0` : ne pas allumer le broker MQTT intégré au premier démarrage |
+| `HEIM_Z2M_CMD` | aucun | Lancer Zigbee2MQTT comme un programme démarré par Heim, hors du Pi (`node C:\zigbee2mqtt\index.js`) |
+| `HEIM_Z2M_DIR` / `HEIM_Z2M_DATA` | `/opt/zigbee2mqtt` / `<données>/zigbee2mqtt` | Où Zigbee2MQTT est installé / garde ses données |
 | `RUST_LOG` | `heim=info,warn` | `heim=debug` pour tout voir |
 
 ## Développement
@@ -187,4 +204,5 @@ Heim dans votre langue ? Voir [docs/TRANSLATING.md](docs/TRANSLATING.md) : un se
 
 ## Licence
 
-Apache-2.0. Zigbee2MQTT (GPL-3.0) est utilisé comme service séparé, via MQTT : aucun de son code n'est repris.
+Apache-2.0. Zigbee2MQTT (GPL-3.0) est installé sur l'image SD comme programme à part, tel quel,
+et Heim lui parle en MQTT : aucun de son code n'est repris dans Heim.

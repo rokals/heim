@@ -1,0 +1,38 @@
+[Unit]
+Description=Zigbee2MQTT (piloté par Heim)
+Documentation=https://www.zigbee2mqtt.io
+# Heim écrit la configuration et porte le broker MQTT : sans configuration, rien ne démarre.
+After=heim.service network.target
+Wants=heim.service
+ConditionPathExists=/var/lib/heim/zigbee2mqtt/configuration.yaml
+ConditionPathExists=!/var/lib/heim/zigbee2mqtt/.heim-disabled
+
+[Service]
+Type=simple
+User=heim
+Group=heim
+# La clé USB Zigbee.
+SupplementaryGroups=dialout
+WorkingDirectory=/opt/zigbee2mqtt/node_modules/zigbee2mqtt
+Environment=ZIGBEE2MQTT_DATA=/var/lib/heim/zigbee2mqtt
+Environment=NODE_ENV=production
+# Pas d'assistant web de Zigbee2MQTT : c'est Heim qui règle.
+Environment=Z2M_ONBOARD_NO_SERVER=1
+# Assez pour un Pi Zero 2 W (512 Mo), Heim compris.
+Environment=NODE_OPTIONS=--max-old-space-size=192
+ExecStart=/usr/bin/node /opt/zigbee2mqtt/node_modules/zigbee2mqtt/index.js
+Restart=on-failure
+RestartSec=10
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/heim/zigbee2mqtt
+MemoryMax=300M
+
+[Install]
+WantedBy=multi-user.target

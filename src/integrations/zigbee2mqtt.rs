@@ -735,6 +735,8 @@ pub async fn run(
         controls,
     };
     let mut connected = false;
+    // Broker joint mais aucun signe de Zigbee2MQTT : on le dit au bout de quelques secondes.
+    let mut waiting_bridge: Option<tokio::time::Instant> = None;
     // On prévient une fois clairement, puis on réessaie sans inonder le terminal.
     let mut warned = false;
     let mut backoff = Duration::from_secs(1);
@@ -755,8 +757,25 @@ pub async fn run(
                     bridge.client.try_subscribe(topic, QoS::AtMostOnce)?;
                     bus.integration_status(INTEGRATION, IntegrationState::Connected, None);
                     tracing::info!("zigbee2mqtt : connecté au broker MQTT");
+                    waiting_bridge = Some(tokio::time::Instant::now() + Duration::from_secs(12));
                 }
-                Ok(MqttEvent::Incoming(Packet::Publish(p))) => bridge.on_publish(&p.topic, &p.payload).await,
+                Ok(MqttEvent::Incoming(Packet::Publish(p))) => {
+                    if p.topic.ends_with("/bridge/state") || p.topic.ends_with("/bridge/devices") {
+                        waiting_bridge = None;
+                    }
+                    if p.topic == format!("{}/bridge/state", bridge.cfg.base_topic) {
+                        match parse_online(&p.payload) {
+                            Some(true) => bus.integration_status(INTEGRATION, IntegrationState::Connected, None),
+                            Some(false) => bus.integration_status(
+                                INTEGRATION,
+                                IntegrationState::Disconnected,
+                                Some("Zigbee2MQTT est arrêté".into()),
+                            ),
+                            None => {}
+                        }
+                    }
+                    bridge.on_publish(&p.topic, &p.payload).await
+                }
                 Ok(_) => {}
                 Err(e) => {
                     if connected {
@@ -781,6 +800,14 @@ pub async fn run(
                     backoff = (backoff * 2).min(Duration::from_secs(15));
                 }
             },
+            _ = tokio::time::sleep_until(waiting_bridge.unwrap_or_else(tokio::time::Instant::now)), if waiting_bridge.is_some() => {
+                waiting_bridge = None;
+                bus.integration_status(
+                    INTEGRATION,
+                    IntegrationState::Connected,
+                    Some("broker joint, mais Zigbee2MQTT ne répond pas".into()),
+                );
+            }
             ev = bus_rx.recv() => match ev {
                 Ok(Event::CommandRequested { integration, entity_id, target, .. }) if integration == INTEGRATION => {
                     bridge.send_command(&entity_id, &target).await;

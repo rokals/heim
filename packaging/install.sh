@@ -3,6 +3,9 @@
 # Même résultat que l'image SD : service, mises à jour, Wi-Fi « Heim-XXXX » si besoin.
 #
 #   curl -fsSL https://raw.githubusercontent.com/PROPRIETAIRE/heim/main/packaging/install.sh | sudo HEIM_REPO=PROPRIETAIRE/heim bash
+#
+# Avec Zigbee2MQTT sur la box (comme l'image SD), ajoutez HEIM_ZIGBEE=1 :
+#   ... | sudo HEIM_REPO=PROPRIETAIRE/heim HEIM_ZIGBEE=1 bash
 set -euo pipefail
 
 REPO="${HEIM_REPO:-}"
@@ -50,25 +53,52 @@ install -d -o heim -g heim -m 700 /var/lib/heim
 install -d /usr/local/lib/heim /etc/polkit-1/rules.d /etc/NetworkManager/dnsmasq-shared.d
 systemctl stop heim.service 2>/dev/null || true
 install -m 755 -o heim -g heim "$TMP/$ASSET" /opt/heim/heim
-for f in heim.service heim-guard 50-heim.rules heim-captive.conf; do
+for f in heim.service heim-guard 50-heim.rules heim-captive.conf zigbee2mqtt.service heim-system heim-system.service heim-system.path heim-journald.conf; do
   curl -fsSL -o "$TMP/$f" "$RAW/$f"
 done
 install -m 755 "$TMP/heim-guard" /usr/local/lib/heim/heim-guard
+install -m 755 "$TMP/heim-system" /usr/local/lib/heim/heim-system
+install -m 644 "$TMP/heim-system.service" /etc/systemd/system/heim-system.service
+install -m 644 "$TMP/heim-system.path" /etc/systemd/system/heim-system.path
+install -d /etc/systemd/journald.conf.d /etc/heim
+install -m 644 "$TMP/heim-journald.conf" /etc/systemd/journald.conf.d/heim.conf
+# Le dépôt d'où heim-system tirera les fichiers système des versions suivantes.
+echo "$REPO" > /etc/heim/repo
 install -m 644 "$TMP/heim.service" /etc/systemd/system/heim.service
 install -m 644 "$TMP/50-heim.rules" /etc/polkit-1/rules.d/50-heim.rules
 install -m 644 "$TMP/heim-captive.conf" /etc/NetworkManager/dnsmasq-shared.d/heim-captive.conf
 
+# Les réglages propres à cette machine vont dans un complément (heim.service.d) : les mises à
+# jour des fichiers système peuvent remplacer heim.service sans les perdre.
+install -d /etc/systemd/system/heim.service.d
+LOCAL=/etc/systemd/system/heim.service.d/local.conf
+echo "[Service]" > "$LOCAL"
 # Sans NetworkManager actif (ancienne installation avec dhcpcd), Heim ne touche pas au Wi-Fi.
 if ! systemctl is-active --quiet NetworkManager; then
   echo "  NetworkManager inactif : Heim ne gérera pas le Wi-Fi."
-  sed -i 's/^Environment=HEIM_NETSETUP=1/# Environment=HEIM_NETSETUP=1/' /etc/systemd/system/heim.service
+  echo "Environment=HEIM_NETSETUP=0" >> "$LOCAL"
 fi
 # Port 80 déjà pris (autre serveur web) : Heim reste sur 8090.
 if ss -ltn 'sport = :80' | grep -q LISTEN; then
   echo "  Port 80 occupé : Heim écoutera seulement sur 8090."
-  sed -i 's/^Environment=HEIM_HTTP=0.0.0.0:80/Environment=HEIM_HTTP=0.0.0.0:8090/; s/^Environment=HEIM_HTTP_ALSO=.*/Environment=HEIM_HTTP_ALSO=/' /etc/systemd/system/heim.service
+  printf 'Environment=HEIM_HTTP=0.0.0.0:8090\nEnvironment=HEIM_HTTP_ALSO=\n' >> "$LOCAL"
+fi
+if [ "${HEIM_ZIGBEE:-0}" = "1" ]; then
+  echo "• Zigbee2MQTT (Node.js 22)"
+  if ! node --version 2>/dev/null | grep -q '^v2[2-9]'; then
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs >/dev/null
+  fi
+  install -d /opt/zigbee2mqtt
+  (cd /opt/zigbee2mqtt && npm install --omit=dev --no-audit --no-fund --no-update-notifier "zigbee2mqtt@${Z2M_VERSION:-2.14.2}" >/dev/null)
+  usermod -aG dialout heim
+  install -d -m 700 -o heim -g heim /var/lib/heim/zigbee2mqtt
+  install -m 644 "$TMP/zigbee2mqtt.service" /etc/systemd/system/zigbee2mqtt.service
+  systemctl enable zigbee2mqtt.service >/dev/null 2>&1
+  echo "  Zigbee2MQTT est installé : branchez la clé USB, puis Réglages › Connexions › Zigbee."
 fi
 systemctl daemon-reload
+systemctl enable heim-system.path >/dev/null 2>&1
 systemctl enable --now heim.service
 systemctl restart polkit 2>/dev/null || true
 

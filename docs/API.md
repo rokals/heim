@@ -70,6 +70,15 @@ GET    /api/security/snapshots/{nom}     JPEG image
 
 GET    /api/zigbee/pairing               {"open": true, "until": "...", "version": "2.1.0", "events": [...]}
 POST   /api/zigbee/permit_join           {"seconds": 240}   (0 = close)
+GET    /api/zigbee/local                 Zigbee2MQTT on the box: installed, state, USB sticks found, config summary, log tail
+PUT    /api/zigbee/local                 {"enabled": true, "port": "/dev/serial/by-id/...", "adapter": "ember", "frontend": false}
+POST   /api/zigbee/local/restart
+POST   /api/zigbee/local/import          {"configuration": "<configuration.yaml>", "database": "<database.db>", "coordinator_backup": "<json>"}
+
+GET    /api/broker                       built-in MQTT broker: settings (no passwords), running, error, clients, retained, received, sent
+PUT    /api/broker                       {"enabled": true, "open": false, "port": 1883}
+POST   /api/broker/users                 {"username": "shelly"}   returns the generated password, once
+DELETE /api/broker/users/{name}
 
 GET    /api/auth/status                  public: {"open": false, "users": [{"id": "alex", "name": "Alex"}]}
 POST   /api/auth/login                   {"name": "alex", "password": "..."}   sets the session cookie

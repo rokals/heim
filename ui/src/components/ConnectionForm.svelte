@@ -62,7 +62,7 @@
     <p class="status" class:ok={status.status === 'connected'} class:bad={['failed', 'disconnected'].includes(status.status)}>
       <span class="led"></span>
       {STATUS[status.status] ?? status.status}
-      {#if status.detail && status.status !== 'connected'}<small>{status.detail}</small>{/if}
+      {#if status.detail}<small>{status.detail}</small>{/if}
     </p>
   {/if}
 

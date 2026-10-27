@@ -31,8 +31,17 @@ donnée dès que possible, et la correction sort dans une version publiée par l
   passer sans compte administrateur, et un Heim sans compte rouvre l'assistant.
 - **Accès depuis dehors** : seulement par Tailscale (HTTPS, aucun port ouvert sur la box).
   N'ouvrez pas le port de Heim sur Internet.
-- **MQTT** : Heim parle au broker sans chiffrement, comme Home Assistant par défaut. Il doit
-  rester sur le réseau de la maison.
+- **MQTT** : pas de chiffrement ici, comme Home Assistant par défaut. Le broker intégré de Heim
+  n'écoute que la box elle-même (127.0.0.1), sauf si vous l'ouvrez au réseau de la maison ; il
+  faut alors un compte (mot de passe généré) à chaque appareil du réseau. N'ouvrez jamais le
+  port 1883 sur la box Internet.
+- **Fichiers système** : Heim écrit seulement un numéro de version (`system.request`) ; le
+  service root `heim-system` télécharge alors l'archive `heim-system.tar.gz` de cette release,
+  depuis le dépôt inscrit dans `/etc/heim/repo` à l'installation, vérifie son SHA-256 et
+  l'applique. Rien de ce que Heim écrit n'est exécuté en root.
+- **Zigbee2MQTT sur la box** tourne sous l'utilisateur `heim`, avec son propre service systemd.
+  Heim peut seulement démarrer, arrêter et relancer ce service (polkit). Son interface web est
+  coupée par défaut ; allumée, elle demande un jeton.
 - **Sauvegardes** : un fichier de sauvegarde contient tout, y compris les clés Tuya et le mot de
   passe MQTT. Gardez-le pour vous (jamais dans un dépôt public).
 - **Compte console du Pi** (`heim-admin`) : SSH est coupé. Définissez le secret `PI_PASSWORD`

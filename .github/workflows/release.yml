@@ -80,10 +80,17 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+      # Les fichiers système de la box, que heim-system applique sans reflasher.
+      - name: Archive des fichiers système
+        run: |
+          mkdir -p sys && cp packaging/rootfs/* packaging/system/apply.sh sys/
+          chmod +x sys/heim-guard sys/heim-system sys/apply.sh
+          tar -czf dist/heim-system.tar.gz -C sys .
       - run: cd dist && sha256sum heim-* > SHA256SUMS && cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
@@ -107,9 +114,10 @@ jobs:
         run: |
           f=packaging/pi-gen/stage-heim/00-heim/files
           # Depuis Windows, git peut perdre le droit d'exécution des scripts.
-          chmod +x packaging/pi-gen/stage-heim/prerun.sh packaging/pi-gen/stage-heim/00-heim/01-run.sh packaging/rootfs/heim-guard
+          chmod +x packaging/pi-gen/stage-heim/prerun.sh packaging/pi-gen/stage-heim/00-heim/01-run.sh packaging/pi-gen/stage-heim/01-zigbee2mqtt/01-run-chroot.sh packaging/rootfs/heim-guard packaging/rootfs/heim-system
           install -m 755 dist/heim-aarch64-linux $f/heim
-          cp packaging/rootfs/heim.service packaging/rootfs/heim-guard packaging/rootfs/50-heim.rules packaging/rootfs/heim-captive.conf packaging/rootfs/heim-journald.conf $f/
+          cp packaging/rootfs/* $f/
+          echo "${{ github.repository }}" > $f/heim-repo
       # Place disque : on supprime nous-mêmes les gros outils inutiles du runner. L'option
       # increase-runner-disk-size de pi-gen-action passe par apt et casse sur les runners
       # récents (« sudo failed with exit code 100 »).

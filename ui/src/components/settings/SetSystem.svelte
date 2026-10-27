@@ -163,6 +163,14 @@
       <label class="check"><input type="checkbox" checked={up.settings.auto_check} onchange={(e) => saveSettings({ auto_check: e.currentTarget.checked })} /> {tr("Vérifier toute seule deux fois par jour et prévenir les admins")}</label>
       <label class="check"><input type="checkbox" checked={up.settings.prereleases} onchange={(e) => saveSettings({ prereleases: e.currentTarget.checked })} /> {tr("Proposer aussi les versions d'essai")}</label>
     </details>
+    {#if up.system?.managed}
+      <p class="muted small">
+        {#if up.system.pending}{tr("Fichiers système : mise à jour en cours…")}
+        {:else if up.system.status === 'ok'}{tr("Fichiers système à jour (version {v}).", { v: up.system.version })}
+        {:else if up.system.status === 'failed'}{tr("Fichiers système : échec pour la {v} ({m}). Nouvel essai d'ici quelques heures.", { v: up.system.version, m: up.system.message })}
+        {:else}{tr("Fichiers système : en attente.")}{/if}
+      </p>
+    {/if}
   </section>
 {/if}
 

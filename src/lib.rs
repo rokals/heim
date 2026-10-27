@@ -19,7 +19,9 @@ pub mod api_life;
 pub mod api_more;
 pub mod api_presence;
 pub mod api_security;
+pub mod api_zigbee;
 pub mod automations;
+pub mod broker;
 pub mod bus;
 pub mod dashboards;
 pub mod devices;
@@ -39,10 +41,12 @@ pub mod security;
 pub mod settings;
 pub mod store;
 pub mod sun;
+pub mod sysfiles;
 pub mod system;
 pub mod timers;
 pub mod update;
 pub mod websec;
+pub mod zigbee_local;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -67,6 +71,8 @@ pub struct Config {
     pub token: Option<String>,
     pub demo: bool,
     pub zigbee2mqtt: Option<integrations::zigbee2mqtt::Config>,
+    /// Broker MQTT intégré allumé par défaut (premier démarrage). `HEIM_BROKER=0` pour ne pas.
+    pub broker: bool,
 }
 
 impl Config {
@@ -107,12 +113,22 @@ impl Config {
                 Some("1" | "true" | "oui" | "yes")
             ),
             zigbee2mqtt,
+            broker: !matches!(
+                var("HEIM_BROKER").as_deref(),
+                Some("0" | "false" | "non" | "no")
+            ),
         })
     }
 }
 
 /// Tolère une adresse copiée depuis le navigateur : `http://192.168.1.50:8123/` -> `192.168.1.50`.
 /// Le port 8123 (interface web de Home Assistant) est ignoré : MQTT n'y est jamais.
+/// Une adresse qui désigne la box elle-même.
+pub fn is_local_host(host: &str) -> bool {
+    let (h, _) = clean_mqtt_host(host);
+    matches!(h.as_str(), "127.0.0.1" | "localhost" | "::1" | "[::1]")
+}
+
 pub fn clean_mqtt_host(raw: &str) -> (String, Option<u16>) {
     let mut s = raw.trim();
     for scheme in ["mqtt://", "tcp://", "http://", "https://"] {
@@ -177,6 +193,10 @@ pub struct Core {
     /// Appareils Tuya entendus sur le réseau (pendant que l'intégration tourne).
     pub tuya_seen: integrations::tuya::Seen,
     matter: Arc<std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    /// Le broker MQTT intégré (Zigbee2MQTT, Tasmota, Shelly… s'y branchent).
+    pub broker: broker::Broker,
+    /// Zigbee2MQTT sur la box elle-même.
+    pub zigbee_local: Arc<zigbee_local::ZigbeeLocal>,
 }
 
 impl Core {
@@ -327,7 +347,10 @@ impl Core {
             tuya: Arc::new(std::sync::Mutex::new(None)),
             tuya_seen: Default::default(),
             matter: Arc::new(std::sync::Mutex::new(None)),
+            broker: broker::Broker::new(Some(config.data_dir.join("mqtt-retained.json"))),
+            zigbee_local: zigbee_local::ZigbeeLocal::detect(&config.data_dir),
         };
+        core.init_broker(config.broker);
         core.start_integrations(config);
         if !config.demo {
             core.purge_demo_devices();
@@ -337,7 +360,53 @@ impl Core {
         core.apply_matter_settings();
         core.spawn_update_checker();
         core.spawn_power_on_for_new();
+        api_zigbee::spawn_at_start(core.clone());
+        if !config.demo {
+            // Au démarrage, puis toutes les heures (premier démarrage sans Internet…).
+            let data = config.data_dir.clone();
+            tokio::spawn(async move {
+                let mut tick = tokio::time::interval(std::time::Duration::from_secs(3600));
+                loop {
+                    tick.tick().await;
+                    sysfiles::request_if_needed(&data);
+                }
+            });
+        }
         Ok(core)
+    }
+
+    /// Premier démarrage : le broker intégré s'allume, sauf si Zigbee2MQTT est déjà branché sur
+    /// un broker ailleurs (Home Assistant). Ensuite, il suit ses réglages.
+    fn init_broker(&self, default_on: bool) {
+        let wanted: broker::BrokerSettings = match self.settings.get(broker::SETTINGS_KEY) {
+            Some(b) => b,
+            None => {
+                let z: Option<Zigbee2MqttSettings> = self.settings.get(settings::ZIGBEE2MQTT);
+                let external = z
+                    .as_ref()
+                    .is_some_and(|z| !z.host.trim().is_empty() && !is_local_host(&z.host));
+                let b = broker::BrokerSettings {
+                    enabled: default_on && !external,
+                    ..Default::default()
+                };
+                let _ = self.settings.set(broker::SETTINGS_KEY, &b);
+                b
+            }
+        };
+        let _ = wanted;
+        // Les réglages sont relus au moment d'écouter : un changement arrivé entre-temps gagne.
+        let (broker, settings) = (self.broker.clone(), self.settings.clone());
+        tokio::spawn(async move {
+            let wanted = settings.get(broker::SETTINGS_KEY).unwrap_or_default();
+            let _ = broker.apply(wanted).await;
+        });
+    }
+
+    /// Réglages du broker changés depuis l'interface.
+    pub async fn apply_broker_settings(&self) -> Result<(), String> {
+        let wanted: broker::BrokerSettings =
+            self.settings.get(broker::SETTINGS_KEY).unwrap_or_default();
+        self.broker.apply(wanted).await
     }
 
     /// (Re)démarre ou arrête Zigbee2MQTT selon les réglages. Appelé au démarrage et à chaque

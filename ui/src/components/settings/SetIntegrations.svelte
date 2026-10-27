@@ -3,7 +3,8 @@
   // Toutes les intégrations au même endroit, puis la page de chacune.
   import { onMount } from 'svelte';
   import IntegrationCard from './IntegrationCard.svelte';
-  import ConnectionForm from '../ConnectionForm.svelte';
+  import ZigbeeSetup from './ZigbeeSetup.svelte';
+  import SetBroker from './SetBroker.svelte';
   import PairingSheet from '../PairingSheet.svelte';
   import SetTuya from './SetTuya.svelte';
   import SetMatter from './SetMatter.svelte';
@@ -115,9 +116,8 @@
     <IntegrationCard item={current} busy={busy === current.id} ontoggle={(on) => toggle(current, on)} />
   </div>
   {#if current.id === 'zigbee2mqtt'}
-    <h2>{tr("Connexion au broker MQTT")}</h2>
-    <p class="muted">{tr("Heim lit vos appareils Zigbee par le broker MQTT de Zigbee2MQTT (souvent installé avec Home Assistant). Les deux peuvent tourner en même temps.")}</p>
-    <ConnectionForm />
+    <h2>{tr("Où tourne Zigbee2MQTT ?")}</h2>
+    <ZigbeeSetup />
     {#if current.status === 'connected'}
       <h2>{tr("Nouvel appareil")}</h2>
       <button class="btn" onclick={() => (pairing = true)}><Icon name="plus" size={18} /> {tr("Ajouter un appareil Zigbee")}</button>
@@ -126,6 +126,8 @@
     <SetTuya embedded />
   {:else if current.id === 'matter'}
     <SetMatter embedded />
+  {:else if current.id === 'mqtt'}
+    <SetBroker />
   {/if}
 {/if}
 

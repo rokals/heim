@@ -1,5 +1,5 @@
-// Heim (utilisateur « heim ») peut régler le Wi-Fi, le nom de la machine, le fuseau horaire
-// et redémarrer le Raspberry Pi, sans être root. Rien d'autre.
+// Heim (utilisateur « heim ») peut régler le Wi-Fi, le nom de la machine, le fuseau horaire,
+// démarrer ou arrêter Zigbee2MQTT et redémarrer le Raspberry Pi, sans être root. Rien d'autre.
 polkit.addRule(function (action, subject) {
   if (subject.user !== "heim") {
     return polkit.Result.NOT_HANDLED;
@@ -17,6 +17,15 @@ polkit.addRule(function (action, subject) {
     action.id === "org.freedesktop.timedate1.set-timezone"
   ) {
     return polkit.Result.YES;
+  }
+  if (
+    action.id === "org.freedesktop.systemd1.manage-units" &&
+    action.lookup("unit") === "zigbee2mqtt.service"
+  ) {
+    var verb = action.lookup("verb");
+    if (verb === "start" || verb === "stop" || verb === "restart") {
+      return polkit.Result.YES;
+    }
   }
   return polkit.Result.NOT_HANDLED;
 });

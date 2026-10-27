@@ -12,7 +12,7 @@
   import ForSheet from './ForSheet.svelte';
   import CardSheet from './CardSheet.svelte';
   import AddCardSheet from './AddCardSheet.svelte';
-  import ConnectionForm from './ConnectionForm.svelte';
+  import ZigbeeSetup from './settings/ZigbeeSetup.svelte';
   import Icon from './Icon.svelte';
   import Sheet from './Sheet.svelte';
   import AlarmCard from './AlarmCard.svelte';
@@ -485,8 +485,7 @@
 {#if empty && !zigbeeConfigured}
   <section class="setup">
     <h2>{tr("Connectez vos appareils Zigbee")}</h2>
-    <p>{tr("Heim lit vos appareils via Zigbee2MQTT. Indiquez l'adresse de la machine où tourne le broker MQTT (souvent celle de Home Assistant).")}</p>
-    <ConnectionForm />
+    <ZigbeeSetup />
   </section>
 {/if}
 
@@ -713,11 +712,6 @@
   .setup h2 {
     margin: 0 0 6px;
     font-size: 22px;
-  }
-
-  .setup p {
-    margin: 0 0 16px;
-    color: var(--muted);
   }
 
   .bar {

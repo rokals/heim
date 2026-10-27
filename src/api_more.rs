@@ -373,7 +373,12 @@ pub async fn get_update(State(app): State<AppState>) -> impl IntoResponse {
     if status.repo.is_none() {
         status.repo = s.repo();
     }
-    Json(json!({ "status": status, "settings": s, "default_repo": update::default_repo() }))
+    Json(json!({
+        "status": status,
+        "settings": s,
+        "default_repo": update::default_repo(),
+        "system": crate::sysfiles::status(&core.data_dir),
+    }))
 }
 
 pub async fn check_update(State(app): State<AppState>) -> impl IntoResponse {
@@ -480,17 +485,63 @@ pub async fn integrations_catalog(
             "summary": tr(&summary),
         })
     };
+    let local: crate::zigbee_local::LocalSettings = core
+        .settings
+        .get(crate::zigbee_local::SETTINGS_KEY)
+        .unwrap_or_default();
+    let b: crate::broker::BrokerSettings = core
+        .settings
+        .get(crate::broker::SETTINGS_KEY)
+        .unwrap_or_default();
+    let bs = core.broker.status();
+    let clients = bs["clients"].as_array().map(Vec::len).unwrap_or(0);
+    let mut mqtt = entry(
+        "mqtt",
+        "MQTT",
+        "Le broker intégré : Zigbee2MQTT, Tasmota, Shelly…",
+        "link",
+        b.enabled,
+        true,
+        if b.enabled {
+            format!("port {} · {} client(s)", b.port, clients)
+        } else {
+            String::new()
+        },
+    );
+    mqtt["status"] = json!(if !b.enabled {
+        "stopped"
+    } else if core.broker.running() {
+        "connected"
+    } else if bs["error"].is_string() {
+        "failed"
+    } else {
+        "starting"
+    });
+    // Pas d'appareils à compter : la carte montre le résumé (port, clients).
+    mqtt["devices"] = Value::Null;
+    mqtt["detail"] = bs["error"]
+        .as_str()
+        .map(|e| json!(crate::i18n::tr(lang, e)))
+        .unwrap_or(Value::Null);
     Json(json!([
         entry(
             zigbee2mqtt::INTEGRATION,
             "Zigbee",
-            "Par Zigbee2MQTT et son broker MQTT",
+            if local.enabled {
+                "Zigbee2MQTT sur la box"
+            } else {
+                "Par Zigbee2MQTT et son broker MQTT"
+            },
             "plug",
             z.as_ref().is_some_and(|s| s.enabled),
-            z.as_ref().is_some_and(|s| !s.host.trim().is_empty()),
-            z.as_ref()
-                .map(|s| format!("{}:{}", s.host, s.port))
-                .unwrap_or_default(),
+            local.enabled || z.as_ref().is_some_and(|s| !s.host.trim().is_empty()),
+            if local.enabled {
+                "Sur la box".to_string()
+            } else {
+                z.as_ref()
+                    .map(|s| format!("{}:{}", s.host, s.port))
+                    .unwrap_or_default()
+            },
         ),
         entry(
             tuya::INTEGRATION,
@@ -510,6 +561,7 @@ pub async fn integrations_catalog(
             !m.url.trim().is_empty(),
             m.url.clone(),
         ),
+        mqtt,
     ]))
 }
 
@@ -547,6 +599,26 @@ pub async fn set_integration_enabled(
                 .set(tuya::SETTINGS_KEY, &s)
                 .map_err(bad_request)?;
             core.apply_tuya_settings();
+        }
+        "mqtt" => {
+            let local: crate::zigbee_local::LocalSettings = core
+                .settings
+                .get(crate::zigbee_local::SETTINGS_KEY)
+                .unwrap_or_default();
+            if !input.enabled && local.enabled {
+                return Err(bad_request(
+                    "Zigbee2MQTT sur la box utilise le broker : arrêtez d'abord Zigbee sur la box",
+                ));
+            }
+            let mut s: crate::broker::BrokerSettings = core
+                .settings
+                .get(crate::broker::SETTINGS_KEY)
+                .unwrap_or_default();
+            s.enabled = input.enabled;
+            core.settings
+                .set(crate::broker::SETTINGS_KEY, &s)
+                .map_err(bad_request)?;
+            core.apply_broker_settings().await.map_err(bad_request)?;
         }
         matter::INTEGRATION => {
             let mut s: matter::MatterSettings =

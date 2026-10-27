@@ -28,7 +28,7 @@
       </span>
       <span class="desc">{item.description}</span>
       <span class="meta">
-        {#if item.enabled && item.configured}{tr("{devices} appareil(s){v}", { devices: item.devices, v: item.detail ? ` · ${item.detail}` : '' })}{:else if item.summary}{item.summary}{/if}
+        {#if item.enabled && item.configured && item.devices != null}{tr("{devices} appareil(s){v}", { devices: item.devices, v: item.detail ? ` · ${item.detail}` : '' })}{:else if item.summary}{item.summary}{item.detail ? ` · ${item.detail}` : ''}{/if}
       </span>
     </span>
     {#if onopen}<span class="chev" aria-hidden="true">›</span>{/if}

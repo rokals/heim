@@ -96,7 +96,8 @@ pub fn clean_hostname(name: &str) -> Option<String> {
         && n.len() <= 30
         && !n.starts_with('-')
         && !n.ends_with('-')
-        && n.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'))
+        && n.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-'))
     .then_some(n)
 }
 
@@ -109,7 +110,10 @@ pub fn clean_timezone(tz: &str) -> Option<String> {
         && tz
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '_' | '-' | '+'));
-    (ok && std::path::Path::new("/usr/share/zoneinfo").join(tz).is_file()).then(|| tz.to_string())
+    (ok && std::path::Path::new("/usr/share/zoneinfo")
+        .join(tz)
+        .is_file())
+    .then(|| tz.to_string())
 }
 
 /// `nmcli -t` sépare par « : » et échappe « \: ».
@@ -284,12 +288,19 @@ impl NetSetup {
             && let Some(dev) = nmcli(&["-t", "-f", "DEVICE,TYPE", "device"])
                 .await
                 .ok()
-                .and_then(|t| t.lines().find_map(|l| l.strip_suffix(":ethernet").map(str::to_string)))
+                .and_then(|t| {
+                    t.lines()
+                        .find_map(|l| l.strip_suffix(":ethernet").map(str::to_string))
+                })
         {
             ethernet_ip = nmcli(&["-g", "IP4.ADDRESS", "device", "show", &dev])
                 .await
                 .ok()
-                .and_then(|t| t.lines().next().map(|l| l.split('/').next().unwrap_or_default().to_string()))
+                .and_then(|t| {
+                    t.lines()
+                        .next()
+                        .map(|l| l.split('/').next().unwrap_or_default().to_string())
+                })
                 .filter(|s| !s.is_empty());
         }
         let mut s = self.lock();
@@ -547,7 +558,10 @@ mod tests {
             .check()
             .is_err()
         );
-        assert_eq!(clean_hostname(" Heim-Salon ").as_deref(), Some("heim-salon"));
+        assert_eq!(
+            clean_hostname(" Heim-Salon ").as_deref(),
+            Some("heim-salon")
+        );
         assert!(clean_hostname("heim salon").is_none());
         assert!(clean_hostname("-heim").is_none());
         assert!(clean_timezone("../../etc/passwd").is_none());

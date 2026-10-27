@@ -27,6 +27,7 @@ use crate::api_controls as ctl;
 use crate::api_devices as dev;
 use crate::api_presence as pres;
 use crate::api_security as sec;
+use crate::api_zigbee as zb;
 use crate::bus::Event;
 use crate::model::Action;
 use crate::notify::{NotifyRequest, TargetKind};
@@ -205,6 +206,18 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
         .route("/security/snapshots/{name}", get(sec::get_snapshot))
         .route("/zigbee/pairing", get(sec::get_pairing))
         .route("/zigbee/permit_join", post(sec::permit_join))
+        .route("/broker", get(zb::get_broker).put(zb::put_broker))
+        .route("/broker/users", post(zb::add_broker_user))
+        .route(
+            "/broker/users/{name}",
+            axum::routing::delete(zb::delete_broker_user),
+        )
+        .route("/zigbee/local", get(zb::get_local).put(zb::put_local))
+        .route("/zigbee/local/restart", post(zb::restart_local))
+        .route(
+            "/zigbee/local/import",
+            post(zb::import_local).layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024)),
+        )
         .route("/auth/status", get(acc::status))
         .route("/auth/me", get(acc::me))
         .route("/auth/login", post(acc::login))
@@ -836,7 +849,8 @@ async fn ws_session(socket: WebSocket, app: AppState, caller: Caller) {
     let mut events = app.core.bus.subscribe();
     let mut target_id: Option<String> = None;
     let mut screen_id: Option<String> = None;
-    let mut lang: &'static str = crate::i18n::known(Some(&crate::i18n::house_lang())).unwrap_or("fr");
+    let mut lang: &'static str =
+        crate::i18n::known(Some(&crate::i18n::house_lang())).unwrap_or("fr");
     let tr = |lang: &str, s: &str| crate::i18n::tr(lang, s).into_owned();
 
     if tx.send(snapshot_msg(&app).await).await.is_err() {

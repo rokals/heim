@@ -10,6 +10,7 @@
   import { api, connect, home, loadLook, loadMe, loadSetup, saveLayout, toast } from '../lib/store.svelte.js';
   import { ROOM_PRESETS } from '../lib/rooms.js';
   import { cleanLook } from '../lib/theme.js';
+  import ZigbeeLocal from './settings/ZigbeeLocal.svelte';
 
   const STEPS = [
     { id: 'language', label: tr('Langue'), icon: 'globe' },
@@ -17,6 +18,7 @@
     { id: 'network', label: tr('Réseau'), icon: 'wifi' },
     { id: 'look', label: tr('Apparence'), icon: 'sun', optional: true },
     { id: 'house', label: tr('Maison'), icon: 'house', optional: true },
+    { id: 'connections', label: tr('Connexions'), icon: 'link', optional: true },
     { id: 'summary', label: tr('Résumé'), icon: 'check' },
   ];
   const KEY = 'heim_setup_step';
@@ -263,7 +265,34 @@
     }
   }
 
-  // ---- 6. Résumé ----
+  // ---- 6. Connexions : le broker MQTT (rien à régler) et Zigbee sur la box ----
+  let zigbeeOn = $state(false);
+  let zigbeeInstalled = $state(null);
+  let broker = $state(null);
+
+  $effect(() => {
+    if (step === 'connections' && zigbeeInstalled === null) {
+      api('/zigbee/local')
+        .then((z) => {
+          zigbeeInstalled = z.installed;
+          zigbeeOn = z.enabled;
+        })
+        .catch(() => (zigbeeInstalled = false));
+      api('/broker')
+        .then((b) => (broker = b))
+        .catch(() => {});
+    }
+  });
+
+  async function brokerOpen(open) {
+    try {
+      broker = await api('/broker', { method: 'PUT', body: { enabled: true, open, port: broker?.settings?.port } });
+    } catch (e) {
+      toast(e.message, 'alert');
+    }
+  }
+
+  // ---- 7. Résumé ----
   let autoUpdate = $state(true);
 
   async function finish() {
@@ -499,6 +528,31 @@
       {#if managed && browserTz}
         <p class="muted small tz">{tr('Fuseau horaire : {tz} (celui de ce téléphone).', { tz: browserTz })}</p>
       {/if}
+    {:else if step === 'connections'}
+      <h1>{tr('Connexions')}</h1>
+      <p class="lead">{tr('Ce qui relie Heim à vos appareils. Tuya et Matter se règlent ensuite dans Réglages, Connexions.')}</p>
+      <h2>{tr('Broker MQTT')}</h2>
+      {#if broker?.running}
+        <p class="ok-line"><Icon name="check" size={18} /> {tr('Le broker MQTT de Heim tourne déjà : rien à régler, ni compte ni mot de passe. Zigbee2MQTT s’y branche tout seul.')}</p>
+        <label class="check big">
+          <input type="checkbox" checked={broker.settings.open} onchange={(e) => brokerOpen(e.currentTarget.checked)} />
+          <span><strong>{tr('Ouvrir au réseau de la maison')}</strong><em>{tr('Seulement pour des appareils Tasmota, Shelly ou ESPHome. Leurs comptes se créent dans Réglages, Connexions, MQTT.')}</em></span>
+        </label>
+      {:else if broker?.settings?.enabled === false}
+        <p class="muted">{tr('Heim lit Zigbee par le broker d’une autre machine : le sien reste éteint.')}</p>
+      {:else if broker?.error}
+        <p class="muted">{broker.error}</p>
+      {:else}
+        <p class="muted">{tr('Chargement…')}</p>
+      {/if}
+      <h2>{tr('Zigbee')}</h2>
+      {#if zigbeeInstalled === false}
+        <p class="muted">{tr('Zigbee2MQTT n’est pas installé sur cette machine. Vous pourrez brancher Heim sur un Zigbee2MQTT existant dans Réglages, Connexions.')}</p>
+      {:else if zigbeeInstalled}
+        <p class="muted">{tr('Branchez la clé Zigbee sur la box : Zigbee2MQTT tourne ici, avec le broker MQTT de Heim. Rien d’autre à installer.')}</p>
+        <ZigbeeLocal compact onstarted={() => (zigbeeOn = true)} />
+        <p class="muted small">{tr('Vos appareils sont déjà dans un Zigbee2MQTT (Home Assistant) ? Passez cette étape : Réglages, Connexions, Zigbee permet de le reprendre sans rien réappairer.')}</p>
+      {/if}
     {:else}
       <h1>{tr('Tout est prêt')}</h1>
       <p class="lead">{tr('Vérifiez, puis entrez dans Heim. Tout se change ensuite dans Réglages.')}</p>
@@ -508,12 +562,14 @@
         <div><dt>{tr('Réseau')}</dt><dd>{netLine}</dd></div>
         <div><dt>{tr('Apparence')}</dt><dd>{skipped.includes('look') || !Object.keys(look).some((k) => k !== 'lang') ? tr('D’origine') : tr('Choisie')}</dd></div>
         <div><dt>{tr('Maison')}</dt><dd>{skipped.includes('house') ? tr('Plus tard') : tr('{n} pièce(s)', { n: picked.length })}</dd></div>
+        <div><dt>{tr('Broker MQTT')}</dt><dd>{broker?.running ? (broker.settings.open ? tr('Sur la box, ouvert au réseau') : tr('Sur la box')) : tr('Éteint')}</dd></div>
+        <div><dt>{tr('Zigbee')}</dt><dd>{zigbeeOn ? tr('Sur la box') : tr('Plus tard')}</dd></div>
       </dl>
       <label class="check big">
         <input type="checkbox" bind:checked={autoUpdate} />
         <span><strong>{tr('Vérifier les mises à jour')}</strong><em>{tr('Deux fois par jour. Rien ne s’installe sans votre accord.')}</em></span>
       </label>
-      <p class="muted small">{tr('Prochaine étape : relier vos appareils (Zigbee, Tuya, Matter) dans Réglages, Connexions.')}</p>
+      <p class="muted small">{zigbeeOn ? tr('Prochaine étape : ajouter vos appareils Zigbee (Réglages, Connexions, Zigbee), et Tuya ou Matter si vous en avez.') : tr('Prochaine étape : relier vos appareils (Zigbee, Tuya, Matter) dans Réglages, Connexions.')}</p>
     {/if}
 
     {#if !switched}
@@ -543,6 +599,8 @@
             <button class="btn" onclick={saveLook} disabled={busy}>{tr('Suivant')}</button>
           {:else if step === 'house'}
             <button class="btn" onclick={saveHouse} disabled={busy}>{tr('Suivant')}</button>
+          {:else if step === 'connections'}
+            <button class="btn" onclick={next} disabled={busy}>{tr('Suivant')}</button>
           {:else}
             <button class="btn" onclick={finish} disabled={busy || !hasAccount}>{tr('Entrer dans Heim')}</button>
           {/if}
@@ -832,6 +890,19 @@
     width: 20px;
     height: 20px;
     accent-color: var(--ink);
+  }
+
+  .ok-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 0 8px;
+  }
+
+  .ok-line :global(svg) {
+    flex: none;
+    margin-top: 2px;
+    color: var(--moss);
   }
 
   .check.big {

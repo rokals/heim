@@ -166,7 +166,15 @@ pub async fn setup_step(
     State(app): State<AppState>,
     Json(input): Json<StepInput>,
 ) -> ApiResult<impl IntoResponse> {
-    const STEPS: [&str; 6] = ["language", "account", "network", "look", "house", "summary"];
+    const STEPS: [&str; 7] = [
+        "language",
+        "account",
+        "network",
+        "look",
+        "house",
+        "connections",
+        "summary",
+    ];
     if !STEPS.contains(&input.step.as_str()) {
         return Err(bad_request("étape inconnue"));
     }
@@ -226,7 +234,9 @@ pub async fn setup_hostname(Json(input): Json<NameInput>) -> ApiResult<impl Into
     run("hostnamectl", &["set-hostname", &name])
         .await
         .map_err(bad_request)?;
-    Ok(Json(json!({ "hostname": name, "address": format!("http://{name}.local") })))
+    Ok(Json(
+        json!({ "hostname": name, "address": format!("http://{name}.local") }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -237,7 +247,9 @@ pub struct TzInput {
 /// Le fuseau horaire de la box (proposé d'après celui du téléphone).
 pub async fn setup_timezone(Json(input): Json<TzInput>) -> ApiResult<impl IntoResponse> {
     if !crate::netsetup::enabled() {
-        return Err(bad_request("le fuseau horaire se règle sur la machine elle-même"));
+        return Err(bad_request(
+            "le fuseau horaire se règle sur la machine elle-même",
+        ));
     }
     let tz = crate::netsetup::clean_timezone(&input.timezone)
         .ok_or_else(|| bad_request("fuseau horaire inconnu"))?;
@@ -307,7 +319,9 @@ pub async fn setup_done(State(app): State<AppState>) -> ApiResult<impl IntoRespo
     if core.accounts.is_open() {
         return Err(bad_request("créez d'abord le compte administrateur"));
     }
-    core.settings.set("setup.done", &true).map_err(bad_request)?;
+    core.settings
+        .set("setup.done", &true)
+        .map_err(bad_request)?;
     core.settings.remove(SETUP_RESUME);
     Ok(StatusCode::NO_CONTENT)
 }

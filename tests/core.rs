@@ -15,6 +15,7 @@ fn config(dir: &std::path::Path, demo: bool) -> Config {
         token: None,
         demo,
         zigbee2mqtt: None,
+        broker: false,
     }
 }
 
