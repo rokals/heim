@@ -121,7 +121,7 @@ jobs:
           chmod +x sys/heim-guard sys/heim-system sys/apply.sh
           tar -czf dist/heim-system.tar.gz -C sys .
       - run: cd dist && sha256sum heim-* > SHA256SUMS && cat SHA256SUMS
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true
@@ -178,7 +178,7 @@ jobs:
           wpa-country: FR
           compression: xz
           increase-runner-disk-size: false
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         if: needs.check.outputs.release == 'true'
         with:
           tag_name: ${{ needs.check.outputs.tag }}
