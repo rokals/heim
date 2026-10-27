@@ -677,6 +677,12 @@ pub const EN: &[(&str, &str)] = &[
         "connexion à « {} » impossible : {}",
         "can’t connect to “{}”: {}",
     ),
+    // Performances
+    ("Box Heim", "Heim box"),
+    ("Mémoire", "Memory"),
+    ("Processeur", "Processor"),
+    ("Carte SD", "SD card"),
+    ("Température du processeur", "Processor temperature"),
     // Connexions (Zigbee, Matter, Tuya)
     ("port invalide", "invalid port"),
     (

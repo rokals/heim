@@ -43,8 +43,8 @@
             entity: r,
             name: d.readings.length > 1 ? `${d.name} · ${r.name.replace(d.name, '').trim() || r.name}` : d.name,
             where: d.room || tr("Sans pièce"),
-            icon: iconFor(r),
-            kind: 'sensor',
+            icon: r.integration === 'system' ? 'chip' : iconFor(r),
+            kind: r.integration === 'system' ? 'system' : 'sensor',
           });
       }
     }
@@ -55,6 +55,7 @@
     { id: 'light', icon: 'bulb', label: tr("Lumières") },
     { id: 'plug', icon: 'plug', label: tr("Prises") },
     { id: 'sensor', icon: 'thermo', label: tr("Capteurs") },
+    { id: 'system', icon: 'chip', label: tr("La box (performances)") },
     { id: 'other', icon: 'grid', label: tr("Le reste") },
   ];
   const counts = $derived(Object.fromEntries(KINDS.map((k) => [k.id, devices.filter((m) => m.kind === k.id).length])));

@@ -198,7 +198,7 @@ fn hostname() -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
-fn rss_kib() -> Option<u64> {
+pub fn rss_kib() -> Option<u64> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
     status
         .lines()
@@ -231,6 +231,19 @@ pub async fn system(State(app): State<AppState>) -> impl IntoResponse {
         "entities": entities,
         "local_time": now.to_rfc3339(),
     }))
+}
+
+/// Les performances de la box (relevé de moins de 5 s).
+pub async fn perf(State(app): State<AppState>) -> impl IntoResponse {
+    let core = app.core();
+    let mut snap = core.perf.last();
+    if snap.at.is_none() {
+        let p = core.perf.clone();
+        snap = tokio::task::spawn_blocking(move || p.sample())
+            .await
+            .unwrap_or_default();
+    }
+    Json(json!(snap))
 }
 
 // ---- Sauvegarde -------------------------------------------------------------------

@@ -69,6 +69,7 @@ export function iconFor(entity) {
   if (entity.domain === 'light') return 'bulb';
   if (entity.domain === 'switch') return 'plug';
   if (entity.domain === 'siren') return 'siren';
+  if (entity.integration === 'system') return 'chip';
   if (kind === 'temperature') return 'thermo';
   if (kind === 'humidity') return 'drop';
   if (kind === 'contact') return 'door';

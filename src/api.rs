@@ -165,6 +165,7 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
             get(more::get_setting).put(more::put_setting),
         )
         .route("/system", get(more::system))
+        .route("/system/perf", get(more::perf))
         .route("/backup", get(more::backup))
         .route(
             "/restore",

@@ -86,6 +86,12 @@ Plug a Zigbee stick into the box and that's it: Zigbee2MQTT and an MQTT broker c
 - **Remote access** with Tailscale: one https address at home and outside, no port opened on the
   router.
 
+### Performance
+- **Settings › System › Performance**: rings for memory, processor, SD card and temperature,
+  and how much each part takes (Heim, Zigbee2MQTT…).
+- The same readings exist as the **Heim box** device: tiles, graphs and automations like any
+  sensor. Any numeric tile can show its value as a number, a **bar** or a **ring**.
+
 ### Looks and languages
 - Light, dark or the device's theme. Interface colour, text size, corners, spacing and background.
 - **Languages**: French and English. The interface, server messages and notifications all

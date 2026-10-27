@@ -42,6 +42,7 @@ pub mod settings;
 pub mod store;
 pub mod sun;
 pub mod sysfiles;
+pub mod sysstats;
 pub mod system;
 pub mod timers;
 pub mod update;
@@ -197,6 +198,8 @@ pub struct Core {
     pub broker: broker::Broker,
     /// Zigbee2MQTT sur la box elle-même.
     pub zigbee_local: Arc<zigbee_local::ZigbeeLocal>,
+    /// Mémoire, processeur, carte SD, température (page Performances, appareil « Box Heim »).
+    pub perf: Arc<sysstats::Sampler>,
 }
 
 impl Core {
@@ -349,7 +352,9 @@ impl Core {
             matter: Arc::new(std::sync::Mutex::new(None)),
             broker: broker::Broker::new(Some(config.data_dir.join("mqtt-retained.json"))),
             zigbee_local: zigbee_local::ZigbeeLocal::detect(&config.data_dir),
+            perf: sysstats::Sampler::new(config.data_dir.clone()),
         };
+        sysstats::spawn(core.perf.clone(), core.registry.clone());
         core.init_broker(config.broker);
         core.start_integrations(config);
         if !config.demo {

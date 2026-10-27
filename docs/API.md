@@ -57,6 +57,7 @@ GET    /api/settings/{clé}               zigbee2mqtt | home | location | alerts
 PUT    /api/settings/{clé}
 GET    /api/system
 GET    /api/backup                       a .db file
+GET    /api/system/perf                  memory, swap, cpu (%), cores, load, disk, temperature (°C), uptime_s, processes [{name, memory, cpu}]
 POST   /api/restore                      a .db file, loaded at the next start
 
 GET    /api/security                     state, settings (without the code), history, photos

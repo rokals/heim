@@ -25,7 +25,7 @@
     domainOf,
     valueText,
   } from '../lib/tiles.js';
-  import { INFOS, LAYOUTS, SIZE_PRESETS, cardSize, cleanAppearance, showGraph, showSlider } from '../lib/layout.js';
+  import { INFOS, LAYOUTS, SIZE_PRESETS, cardSize, cleanAppearance, gaugeRange, showGraph, showSlider } from '../lib/layout.js';
 
   let { ref, sections, onchange, onclose } = $props();
 
@@ -127,7 +127,10 @@
     out.rules = (out.rules ?? []).filter((r) => String(r.value).trim() !== '');
     if (!out.rules.length) delete out.rules;
     if (!canSlider) delete out.slider;
-    if (!canGraph) delete out.graph;
+    if (!canGraph) {
+      delete out.graph;
+      delete out.gauge;
+    }
     out = cleanAppearance(out);
     return out;
   }
@@ -373,6 +376,27 @@
           </div>
         {/if}
         {#if canGraph}
+          <div class="field">
+            <span>{tr("Forme de la valeur")}</span>
+            <div class="seg">
+              {#each [['value', tr("Chiffre")], ['bar', tr("Barre")], ['ring', tr("Anneau")]] as [id, label] (id)}
+                <button class:on={(card.gauge ?? 'value') === id} onclick={() => (card.gauge = id)}>{label}</button>
+              {/each}
+            </div>
+          </div>
+          {#if card.gauge === 'bar' || card.gauge === 'ring'}
+            {@const range = gaugeRange({}, entity)}
+            <div class="two">
+              <label class="field">
+                <span>{tr("Minimum")}</span>
+                <input class="input num" type="number" step="any" bind:value={card.min} placeholder={String(range.min)} />
+              </label>
+              <label class="field">
+                <span>{tr("Maximum")}</span>
+                <input class="input num" type="number" step="any" bind:value={card.max} placeholder={String(range.max)} />
+              </label>
+            </div>
+          {/if}
           <div class="field">
             <span>{tr("Courbe des dernières 24 h")}</span>
             <div class="seg">
@@ -751,6 +775,16 @@
   .si {
     font-weight: 700;
     color: var(--muted);
+  }
+
+  .two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 12px;
+  }
+
+  .two .input {
+    width: 100%;
   }
 
   .mini {

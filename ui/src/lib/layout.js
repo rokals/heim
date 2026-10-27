@@ -67,6 +67,36 @@ export function showGraph(card, entity, w, h) {
   return w >= 3 || h >= 3 || (w >= 2 && h >= 2);
 }
 
+/** Les formes d'une valeur numérique : le chiffre seul, une barre, un anneau. */
+export const GAUGES = ['value', 'bar', 'ring'];
+
+/**
+ * L'échelle d'une jauge : réglée sur la tuile, sinon donnée par l'appareil, sinon devinée
+ * d'après l'unité (un pourcentage va de 0 à 100).
+ */
+export function gaugeRange(card, entity) {
+  const caps = entity?.capabilities ?? {};
+  const kind = caps.kind;
+  const unit = caps.unit;
+  let [min, max] = [0, 100];
+  if (kind === 'temperature' || unit === '°C') [min, max] = caps.kind === 'temperature' && entity?.integration === 'system' ? [20, 90] : [0, 40];
+  else if (kind === 'power' || unit === 'W') [min, max] = [0, 3000];
+  else if (kind === 'co2' || unit === 'ppm') [min, max] = [400, 2000];
+  else if (kind === 'illuminance' || unit === 'lx') [min, max] = [0, 1000];
+  if (typeof caps.min === 'number') min = caps.min;
+  if (typeof caps.max === 'number') max = caps.max;
+  if (card?.min !== undefined && card.min !== '' && !Number.isNaN(Number(card.min))) min = Number(card.min);
+  if (card?.max !== undefined && card.max !== '' && !Number.isNaN(Number(card.max))) max = Number(card.max);
+  if (max <= min) max = min + 1;
+  return { min, max };
+}
+
+/** La part remplie (0 à 1) d'une jauge. */
+export function gaugeFraction(value, { min, max }) {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 0;
+  return Math.min(1, Math.max(0, (value - min) / (max - min)));
+}
+
 /** Tout ce qu'une carte affiche, défauts compris. */
 export function cardConfig(card, entity) {
   const { w, h } = cardSize(card, entity);
@@ -82,6 +112,7 @@ export function cardConfig(card, entity) {
     fill: card?.fill ?? 'tint',
     slider: layout !== 'icon' && showSlider(card, entity, w, h),
     graph: layout !== 'icon' && showGraph(card, entity, w, h),
+    gauge: domain(entity) === 'sensor' && typeof entity?.state?.value === 'number' && GAUGES.includes(card?.gauge) && card.gauge !== 'value' ? card.gauge : null,
   };
 }
 
@@ -120,10 +151,15 @@ export function cleanAppearance(card) {
     ['show_icon', true],
     ['info', 'state'],
     ['fill', 'tint'],
+    ['gauge', 'value'],
   ]) {
     if (out[k] === def || out[k] === undefined) delete out[k];
   }
   for (const k of ['slider', 'graph']) if (out[k] === undefined || out[k] === null) delete out[k];
+  for (const k of ['min', 'max']) {
+    if (!out.gauge || out[k] === undefined || out[k] === null || String(out[k]).trim() === '' || Number.isNaN(Number(out[k]))) delete out[k];
+    else out[k] = Number(out[k]);
+  }
   return out;
 }
 

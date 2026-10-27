@@ -60,3 +60,18 @@ test('encre lisible', async () => {
   assert.equal(inkFor('#ffd23f'), '#2a1904');
   assert.equal(inkFor('#3e63dd'), '#fff');
 });
+
+test('jauges', async () => {
+  const { gaugeRange, gaugeFraction, cleanAppearance, cardConfig } = await import('./layout.js');
+  const hum = { entity_id: 'sensor.h', integration: 'zigbee2mqtt', capabilities: { kind: 'humidity', unit: '%' }, state: { value: 48 } };
+  assert.deepEqual(gaugeRange({}, hum), { min: 0, max: 100 });
+  assert.equal(gaugeFraction(48, { min: 0, max: 100 }), 0.48);
+  assert.equal(gaugeFraction(150, { min: 0, max: 100 }), 1);
+  const cpu = { entity_id: 'sensor.heim_temperature', integration: 'system', capabilities: { kind: 'temperature', unit: '°C' }, state: { value: 55 } };
+  assert.deepEqual(gaugeRange({}, cpu), { min: 20, max: 90 });
+  assert.deepEqual(gaugeRange({ min: '10', max: 30 }, cpu), { min: 10, max: 30 });
+  assert.equal(cardConfig({ entity_id: 'sensor.h', gauge: 'ring' }, hum).gauge, 'ring');
+  assert.equal(cardConfig({ entity_id: 'sensor.h', gauge: 'value' }, hum).gauge, null);
+  assert.deepEqual(cleanAppearance({ entity_id: 'x', gauge: 'value', min: 3 }), { entity_id: 'x' });
+  assert.deepEqual(cleanAppearance({ entity_id: 'x', gauge: 'bar', min: '3', max: '' }), { entity_id: 'x', gauge: 'bar', min: 3 });
+});

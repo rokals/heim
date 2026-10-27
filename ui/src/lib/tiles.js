@@ -154,6 +154,12 @@ export function defaultRules(card, entity) {
   const d = domainOf(entity?.entity_id);
   if (d === 'house') return houseRules(card);
   const kind = entity?.capabilities?.kind;
+  // La box : orange à 85 %, rouge à 95 % (70 et 80 °C pour le processeur).
+  if (entity?.integration === 'system') {
+    return kind === 'temperature'
+      ? [{ op: 'gte', value: 80, color: 'red' }, { op: 'gte', value: 70, color: 'orange' }]
+      : [{ op: 'gte', value: 95, color: 'red' }, { op: 'gte', value: 85, color: 'orange' }];
+  }
   if (d === 'automation' && card?.facet !== 'enabled') return [{ op: 'eq', value: 'vrai', color: 'red' }];
   if (d === 'binary_sensor') {
     if (kind === 'water_leak' || kind === 'smoke') return [{ op: 'eq', value: 'on', color: 'red' }];
@@ -229,6 +235,7 @@ export function appearance(card, entity, now = Date.now()) {
 export function defaultIcon(entity) {
   const d = domainOf(entity?.entity_id);
   if (d === 'house') return entity?.capabilities?.icon || 'house';
+  if (entity?.integration === 'system') return entity.capabilities?.kind === 'temperature' ? 'thermo' : 'chip';
   const kind = entity?.capabilities?.kind;
   if (d === 'light') return 'bulb';
   if (d === 'switch') return 'plug';

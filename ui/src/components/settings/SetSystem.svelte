@@ -1,6 +1,7 @@
 <script>
   import { tr, locale } from '../../lib/i18n.js';
   import Icon from '../Icon.svelte';
+  import SetPerf from './SetPerf.svelte';
   import { onMount } from 'svelte';
   import { api, toast } from '../../lib/store.svelte.js';
 
@@ -110,6 +111,8 @@
 
   const address = $derived(info?.ip ? `http://${info.ip}${info.port === 80 ? '' : `:${info.port}`}` : null);
 </script>
+
+<SetPerf />
 
 {#if restarting}
   <section class="card restarting" role="status">

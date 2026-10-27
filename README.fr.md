@@ -87,6 +87,13 @@ Une clé Zigbee branchée sur la box, et c'est tout : Zigbee2MQTT et un broker M
 - **Accès à distance** par Tailscale : une adresse https à la maison et dehors, aucun port
   ouvert sur la box.
 
+### Performances
+- **Réglages › Système › Performances** : des anneaux pour la mémoire, le processeur, la carte
+  SD et la température, et ce que prend chaque morceau (Heim, Zigbee2MQTT…).
+- Les mêmes mesures existent comme appareil **Box Heim** : tuiles, courbes et automatismes comme
+  n'importe quel capteur. Toute tuile numérique peut montrer sa valeur en chiffre, en **barre**
+  ou en **anneau**.
+
 ### Apparence et langues
 - Thème clair, sombre ou celui de l'appareil. Couleur de l'interface, taille du texte, arrondi,
   espacement, fond.

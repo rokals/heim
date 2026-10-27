@@ -1,12 +1,13 @@
 <script>
-  import { tr } from '../lib/i18n.js';
+  import { tr, locale } from '../lib/i18n.js';
   // La carte unique de l'accueil, façon Mushroom : une pastille d'icône, un nom, un état.
   // De 1×1 (l'icône seule, le quart d'une tuile d'avant) à 4×4. Selon la place, elle ajoute
   // un curseur de luminosité, une petite courbe des dernières 24 h, d'autres mesures…
   // L'appui court arrive par ontap ; l'appui long est géré par la page.
   import Icon from './Icon.svelte';
   import { appearance, COLORS, domainOf, sinceText } from '../lib/tiles.js';
-  import { cardConfig, inkFor, secondary, sparkPath } from '../lib/layout.js';
+  import { cardConfig, gaugeFraction, gaugeRange, inkFor, secondary, sparkPath } from '../lib/layout.js';
+  import Gauge from './Gauge.svelte';
   import { sparkOf, wantSpark } from '../lib/sparks.svelte.js';
   import { autoRemaining, isAvailable, isOn } from '../lib/house.js';
   import { clock, formatValue } from '../lib/format.js';
@@ -80,6 +81,18 @@
   const sub = $derived(secondary(cfg.info, stateText, since));
   const big = $derived(numeric && cfg.layout === 'vertical' && cfg.h >= 2);
 
+  // Jauge (barre ou anneau) d'une valeur numérique.
+  const fraction = $derived(cfg.gauge ? gaugeFraction(entity?.state?.value, gaugeRange(card, entity)) : 0);
+  const ringLabel = $derived.by(() => {
+    if (cfg.gauge !== 'ring') return '';
+    const v = entity?.state?.value;
+    const unit = entity?.capabilities?.unit ?? '';
+    const n = Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+    const txt = Number.isInteger(n) ? String(n) : n.toLocaleString(locale(), { maximumFractionDigits: 1 });
+    return unit === '%' ? `${txt}%` : unit.startsWith('°') ? `${txt}°` : txt;
+  });
+  const ringSize = $derived(cfg.layout === 'icon' ? (cfg.w === 1 && cfg.h === 1 ? 50 : 64) : cfg.h >= 3 && !row ? 96 : cfg.h >= 2 && !row ? 72 : 46);
+
   // La courbe : demandée seulement si la carte la montre.
   $effect(() => {
     if (cfg.graph && entity) wantSpark(entity.entity_id);
@@ -115,7 +128,7 @@
   class:row
   class:tall={cfg.h >= 3}
   class:mini={cfg.w === 1 && cfg.h === 1}
-  class:with-num={cfg.layout === 'icon' && numeric && card.show_state !== false}
+  class:with-num={cfg.layout === 'icon' && numeric && card.show_state !== false && cfg.gauge !== 'ring'}
   class:has-tool={onfor && controllable && available && !preview && cfg.w >= 2 && cfg.h >= 2}
   style:--accent={accent}
   style:--on-accent={ink}
@@ -130,16 +143,21 @@
   {/if}
 
   <div class="body">
-    {#if cfg.showIcon}
+    {#if cfg.gauge === 'ring'}
+      <Gauge kind="ring" {fraction} size={ringSize} label={ringLabel} />
+    {:else if cfg.showIcon}
       <span class="shape" class:spin={pending} class:big={cfg.h >= 3 && !row}>
         <Icon name={look.icon} size={iconSize} />
       </span>
     {/if}
     {#if cfg.layout === 'icon'}
-      {#if numeric && card.show_state !== false}<span class="tiny num">{formatValue(entity)}</span>{/if}
+      {#if numeric && card.show_state !== false && cfg.gauge !== 'ring'}<span class="tiny num">{formatValue(entity)}</span>{/if}
     {:else}
       <span class="text">
-        {#if big}
+        {#if big && cfg.gauge === 'ring'}
+          {#if cfg.showName}<span class="name">{name}</span>{/if}
+          {#if cfg.info === 'last_changed' || cfg.info === 'both'}<span class="state">{tr("il y a {since}", { since })}</span>{/if}
+        {:else if big}
           {#if cfg.showName}<span class="name">{name}</span>{/if}
           {#if cfg.showState}<span class="value num" class:huge={cfg.h >= 3}>{look.rule?.text ? look.text : formatValue(entity)}</span>{/if}
           {#if cfg.info === 'last_changed' || cfg.info === 'both'}<span class="state">{tr("il y a {since}", { since })}</span>{/if}
@@ -153,6 +171,10 @@
       </span>
     {/if}
   </div>
+
+  {#if cfg.gauge === 'bar'}
+    <div class="gaugebar"><Gauge kind="bar" {fraction} thick={cfg.h >= 2} label={formatValue(entity)} /></div>
+  {/if}
 
   {#if cfg.slider}
     <div class="slider" style:--pct="{pct}%">
@@ -186,6 +208,7 @@
 <style>
   .tile {
     --pad: 12px;
+    --gauge: var(--accent);
     position: relative;
     display: flex;
     flex-direction: column;
@@ -202,6 +225,16 @@
     user-select: none;
     -webkit-user-select: none;
     transition: background-color 0.35s ease, color 0.35s ease;
+  }
+
+  .fill-solid.lit {
+    --gauge: var(--on-accent);
+  }
+
+  .gaugebar {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
   }
 
   .hit {

@@ -1,6 +1,6 @@
 [package]
 name = "heim"
-version = "0.15.0"
+version = "0.16.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Heim - noyau domotique léger en Rust (cible : Raspberry Pi Zero 2 W, 512 Mo)"
@@ -29,6 +29,10 @@ rumqttc = { version = "0.25.1", default-features = false }
 bytes = "1"
 # La configuration de Zigbee2MQTT (configuration.yaml).
 yaml_serde = "0.10"
+
+[target.'cfg(unix)'.dependencies]
+# Place libre sur la carte SD (statvfs), pour la page Performances.
+libc = "0.2"
 rusqlite = { version = "0.41.0", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive", "rc"] }
 serde_json = "1.0.154"
