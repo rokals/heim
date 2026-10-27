@@ -82,7 +82,7 @@ jobs:
       - run: pip install ziglang cargo-zigbuild
       - run: cargo zigbuild --release --target ${{ matrix.target }}
       - run: cp target/${{ matrix.target }}/release/heim ${{ matrix.asset }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}
@@ -97,7 +97,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release
       - run: copy target\release\heim.exe heim-x86_64-windows.exe
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: heim-x86_64-windows.exe
           path: heim-x86_64-windows.exe
@@ -183,7 +183,7 @@ jobs:
         with:
           tag_name: ${{ needs.check.outputs.tag }}
           files: ${{ steps.build.outputs.image-path }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: needs.check.outputs.release != 'true'
         with:
           name: image-sd
