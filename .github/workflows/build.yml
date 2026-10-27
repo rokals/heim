@@ -17,7 +17,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Version de Rust figée : une nouvelle règle de clippy ne casse plus le build par surprise.
       # On la monte exprès, de temps en temps.
       - uses: dtolnay/rust-toolchain@master
@@ -46,7 +46,7 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
