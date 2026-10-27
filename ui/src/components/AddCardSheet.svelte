@@ -18,6 +18,8 @@
   let query = $state('');
   let tab = $state('devices');
   let open = $state(null);
+  // Filtre rapide de l'onglet Appareils : null = tout.
+  let only = $state(null);
 
   const used = $derived(new Set((dashboard?.sections ?? []).flatMap((s) => s.cards.map((c) => c.entity_id))));
   const all = $derived(Object.values(home.entities));
@@ -28,12 +30,12 @@
   const devices = $derived.by(() => {
     const out = [];
     for (const g of all.filter((e) => e.domain === 'group')) {
-      out.push({ entity: g, name: g.name, where: tr("Groupe · {v}", { v: g.room || tr("Sans pièce") }), icon: 'bulb' });
+      out.push({ entity: g, name: g.name, where: tr("Groupe · {v}", { v: g.room || tr("Sans pièce") }), icon: 'bulb', kind: 'light' });
     }
     for (const d of groupDevices(all).filter((d) => !d.hidden)) {
       if (d.controls.length) {
         for (const c of d.controls)
-          out.push({ entity: c, name: d.controls.length > 1 ? c.name : d.name, where: d.room || tr("Sans pièce"), icon: iconFor(c) });
+          out.push({ entity: c, name: d.controls.length > 1 ? c.name : d.name, where: d.room || tr("Sans pièce"), icon: iconFor(c), kind: c.domain === 'light' ? 'light' : c.domain === 'switch' ? 'plug' : 'other' });
       } else if (d.readings.length) {
         // Un capteur à plusieurs mesures : chacune peut avoir son bouton.
         for (const r of d.readings)
@@ -42,12 +44,22 @@
             name: d.readings.length > 1 ? `${d.name} · ${r.name.replace(d.name, '').trim() || r.name}` : d.name,
             where: d.room || tr("Sans pièce"),
             icon: iconFor(r),
+            kind: 'sensor',
           });
       }
     }
-    for (const p of all.filter((e) => e.domain === 'person')) out.push({ entity: p, name: p.name, where: tr("Personne suivie"), icon: 'user' });
+    for (const p of all.filter((e) => e.domain === 'person')) out.push({ entity: p, name: p.name, where: tr("Personne suivie"), icon: 'user', kind: 'other' });
     return out.filter((m) => match(m.name, m.where)).sort((a, b) => a.where.localeCompare(b.where, 'fr') || byName(a, b));
   });
+  const KINDS = [
+    { id: 'light', icon: 'bulb', label: tr("Lumières") },
+    { id: 'plug', icon: 'plug', label: tr("Prises") },
+    { id: 'sensor', icon: 'thermo', label: tr("Capteurs") },
+    { id: 'other', icon: 'grid', label: tr("Le reste") },
+  ];
+  const counts = $derived(Object.fromEntries(KINDS.map((k) => [k.id, devices.filter((m) => m.kind === k.id).length])));
+  const shown = $derived(only ? devices.filter((m) => m.kind === only) : devices);
+
   const scenes = $derived(
     all
       .filter((e) => e.domain === 'scene' && !e.hidden)
@@ -79,7 +91,7 @@
     { id: 'spacer', name: tr("Espace vide"), hint: tr("Une case vide pour aérer ou aligner"), icon: 'plus', card: { type: 'spacer', w: 1, h: 1 } },
   ];
   const TABS = $derived([
-    { id: 'devices', label: tr("Appareils"), items: devices },
+    { id: 'devices', label: tr("Appareils"), items: shown },
     { id: 'scenes', label: tr("Scènes"), items: scenes },
     { id: 'automations', label: tr("Automatismes"), items: automations },
     { id: 'house', label: tr("Maison"), items: HOUSE },
@@ -104,6 +116,22 @@
     <Icon name="search" size={18} />
     <input class="input" type="search" placeholder={tr("Chercher par nom ou pièce")} bind:value={query} aria-label={tr("Chercher")} />
   </div>
+
+  {#if tab === 'devices'}
+    <div class="kinds" role="group" aria-label={tr("Filtrer")}>
+      {#each KINDS as k (k.id)}
+        <button
+          class="kind"
+          class:on={only === k.id}
+          aria-pressed={only === k.id}
+          aria-label={tr("{v} ({n})", { v: k.label, n: counts[k.id] })}
+          title={k.label}
+          disabled={!counts[k.id]}
+          onclick={() => ((only = only === k.id ? null : k.id), (open = null))}
+        ><Icon name={k.icon} size={20} /></button>
+      {/each}
+    </div>
+  {/if}
 
   {#if dashboard?.sections?.length > 1}
     <label class="field">
@@ -296,6 +324,32 @@
   .choice span {
     font-size: 12px;
     color: var(--muted);
+  }
+
+  .kinds {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .kind {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    color: var(--muted);
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .kind.on {
+    background: var(--ember);
+    color: var(--ember-ink);
+  }
+
+  .kind:disabled {
+    opacity: 0.35;
   }
 
   .field {

@@ -9,12 +9,12 @@
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
   import Tile from './Tile.svelte';
+  import ColorPick from './ColorPick.svelte';
   import HouseSpecial from './HouseSpecial.svelte';
   import { houseActionLabel, houseActions, houseDefaults, kindInfo } from '../lib/housecards.js';
   import { home, homeRooms } from '../lib/store.svelte.js';
   import { isConfigured } from '../lib/security.js';
   import {
-    COLORS,
     COLOR_NAMES,
     OPS,
     TILE_ICONS,
@@ -28,6 +28,15 @@
   import { INFOS, LAYOUTS, SIZE_PRESETS, cardSize, cleanAppearance, showGraph, showSlider } from '../lib/layout.js';
 
   let { ref, sections, onchange, onclose } = $props();
+
+  // Les couleurs des scènes, proposées en tête des pastilles (pour reprendre celle d'une scène).
+  const sceneColors = $derived.by(() => {
+    const seen = new Map();
+    for (const e of Object.values(home.entities))
+      if (e.domain === 'scene' && !e.hidden && /^#[0-9a-f]{6}$/i.test(e.capabilities?.color ?? '') && !seen.has(e.capabilities.color.toLowerCase()))
+        seen.set(e.capabilities.color.toLowerCase(), { hex: e.capabilities.color, label: tr("Couleur de la scène {v}", { v: e.name }) });
+    return [...seen.values()];
+  });
 
   const s = untrack(() => ref.section);
   const i = untrack(() => ref.index);
@@ -105,7 +114,7 @@
 
   function clean(c) {
     let out = { ...c };
-    for (const k of ['name', 'icon', 'color', 'text', 'subtitle', 'align']) if (!String(out[k] ?? '').trim()) delete out[k];
+    for (const k of ['name', 'icon', 'color', 'color_off', 'text', 'subtitle', 'align']) if (!String(out[k] ?? '').trim()) delete out[k];
     if (!tiled) {
       for (const k of ['tap', 'hold', 'double', 'rules', 'for_min', 'facet']) delete out[k];
       return out;
@@ -336,12 +345,12 @@
 
         <div class="field">
           <span>{tr("Couleur quand c'est allumé / actif")}</span>
-          <div class="colors" role="radiogroup" aria-label={tr("Couleur")}>
-            <button class="sw auto" class:sel={!card.color} onclick={() => (card.color = '')} title={tr("Automatique")} aria-label={tr("Automatique")}>A</button>
-            {#each Object.entries(COLORS) as [id, hex] (id)}
-              <button class="sw" class:sel={card.color === id} style:background={hex} onclick={() => (card.color = id)} title={COLOR_NAMES[id]} aria-label={COLOR_NAMES[id]}></button>
-            {/each}
-          </div>
+          <ColorPick value={card.color ?? ''} extra={sceneColors} onchange={(v) => (card.color = v)} />
+        </div>
+
+        <div class="field">
+          <span>{tr("Couleur quand c'est éteint / inactif")}</span>
+          <ColorPick value={card.color_off ?? ''} empty="none" extra={sceneColors} onchange={(v) => (card.color_off = v)} />
         </div>
 
         <div class="field">
@@ -399,12 +408,7 @@
                   <input class="input" bind:value={rule.value} placeholder="25" inputmode="decimal" aria-label={tr("Valeur")} />
                 {/if}
               </div>
-              <div class="colors" role="radiogroup" aria-label={tr("Couleur")}>
-                <button class="sw none" class:sel={!rule.color} onclick={() => (rule.color = '')} title={tr("Sans couleur")} aria-label={tr("Sans couleur")}></button>
-                {#each Object.entries(COLORS) as [id, hex] (id)}
-                  <button class="sw" class:sel={rule.color === id} style:background={hex} onclick={() => (rule.color = id)} title={COLOR_NAMES[id]} aria-label={COLOR_NAMES[id]}></button>
-                {/each}
-              </div>
+<ColorPick value={rule.color ?? ''} empty="none" extra={sceneColors} onchange={(v) => (rule.color = v)} />
               <div class="then">
                 <button class="ic small" onclick={() => (iconPicker = iconPicker === k ? null : k)} aria-label={tr("Icône de la règle")}>
                   <Icon name={rule.icon || card.icon || defaultIcon(entity)} size={18} />
@@ -747,36 +751,6 @@
   .si {
     font-weight: 700;
     color: var(--muted);
-  }
-
-  .colors {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .sw {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border: 2px solid transparent;
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
-  }
-
-  .sw.none {
-    background: repeating-linear-gradient(45deg, var(--surface-2) 0 4px, var(--line) 4px 6px);
-  }
-
-  .sw.auto {
-    background: var(--surface-2);
-    font-size: 12px;
-    font-weight: 800;
-    color: var(--muted);
-  }
-
-  .sw.sel {
-    border-color: var(--ink);
-    transform: scale(1.08);
   }
 
   .mini {

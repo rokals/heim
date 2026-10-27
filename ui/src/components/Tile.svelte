@@ -32,15 +32,18 @@
   const numeric = $derived(d === 'sensor' && typeof entity?.state?.value === 'number');
 
   /** La couleur de la carte quand elle est « allumée » ou qu'une règle colore. */
+  const offColor = $derived(card.color_off ? (COLORS[card.color_off] ?? card.color_off) : null);
   const accent = $derived.by(() => {
     if (look.color) return look.color;
+    if (!on && offColor) return offColor;
     if (card.color) return COLORS[card.color] ?? card.color;
     if (d === 'person' || (d === 'house' && card.kind === 'people')) return COLORS.green;
     if (d === 'house' && ['lights', 'plugs', 'room', 'leave'].includes(card.kind)) return 'var(--ember)';
     if (['light', 'switch', 'group', 'scene', 'siren'].includes(d)) return 'var(--ember)';
     return COLORS.blue;
   });
-  const lit = $derived(on || !!look.color);
+  // Éteinte, la tuile se colore aussi si on lui a donné une couleur « inactif ».
+  const lit = $derived(on || !!look.color || !!offColor);
   const ink = $derived(String(accent).startsWith('var(') ? 'var(--ember-ink)' : inkFor(accent));
 
   let drag = $state(null);
@@ -112,6 +115,7 @@
   class:row
   class:tall={cfg.h >= 3}
   class:mini={cfg.w === 1 && cfg.h === 1}
+  class:with-num={cfg.layout === 'icon' && numeric && card.show_state !== false}
   class:has-tool={onfor && controllable && available && !preview && cfg.w >= 2 && cfg.h >= 2}
   style:--accent={accent}
   style:--on-accent={ink}
@@ -271,6 +275,21 @@
   .mini .shape {
     width: 38px;
     height: 38px;
+  }
+
+  /* 1×1 avec une valeur sous l'icône : on serre pour que le chiffre tienne. */
+  .mini.with-num {
+    padding: 4px;
+  }
+
+  .mini.with-num .shape {
+    width: 32px;
+    height: 32px;
+  }
+
+  .mini.with-num .tiny {
+    line-height: 1.1;
+    white-space: nowrap;
   }
 
   .text {

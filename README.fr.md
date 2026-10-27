@@ -31,8 +31,10 @@ quelques watts et environ 10 Mo de mémoire. Ni cloud ni YAML : tout se règle d
   place un curseur de luminosité, une courbe des 24 h ou les autres mesures de l'appareil.
   Déplacées d'un appui long, redimensionnées à la poignée.
 - **Chaque tuile a deux onglets.** *Fonction* : appui court, long et double. *Apparence* :
-  taille, disposition, couleur, remplissage, et couleurs selon la valeur (« au-dessus de 25 °C :
-  orange, *Chaud* »).
+  taille, disposition, une couleur allumée et une éteinte (celle d'une scène, ou n'importe
+  laquelle), remplissage, et couleurs selon la valeur (« au-dessus de 25 °C : orange, *Chaud* »).
+- **Ajouter une tuile** va vite : une recherche, et des filtres ronds pour les lumières, les
+  prises, les capteurs et le reste.
 - **Tuiles Maison** qui se recalculent toutes seules :
   - toutes les lumières, toutes les prises, une pièce ;
   - *Je pars* : tout s'éteint, et l'alarme s'active si vous le voulez ;

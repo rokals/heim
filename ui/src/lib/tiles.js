@@ -208,7 +208,8 @@ export function appearance(card, entity, now = Date.now()) {
   // Une scène active prend sa couleur à elle, quand elle en a une.
   const house = domainOf(entity?.entity_id) === 'house';
   const tone = house ? entity.state?.attributes?.tone : null;
-  const own = rule
+  // Une couleur choisie sur la tuile passe avant celle de la scène.
+  const own = rule || card?.color
     ? null
     : domainOf(entity?.entity_id) === 'scene' && value === true
       ? entity?.capabilities?.color

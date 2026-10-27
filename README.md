@@ -30,7 +30,10 @@ watts and about 10 MB of memory. It needs no cloud and no YAML: everything is se
   there's room a brightness slider, a 24-hour graph or the device's other readings. Move them
   with a long press, resize them with the handle.
 - **Each tile has two tabs.** *Function*: short, long and double press. *Appearance*: size,
-  layout, colour, fill, and colours by value (“above 25 °C: orange, *Hot*”).
+  layout, a colour for on and one for off (a scene's colour, or any colour), fill, and colours
+  by value (“above 25 °C: orange, *Hot*”).
+- **Adding a tile** is quick: a search, and round filter buttons for lights, plugs, sensors and
+  everything else.
 - **House tiles** that update by themselves:
   - all the lights, all the plugs, a room;
   - *Leaving*: everything off, and the alarm armed if you wish;

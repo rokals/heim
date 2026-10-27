@@ -1479,4 +1479,8 @@ export default {
   " (service web)": " (web service)",
   "(par défaut : {default_repo})": "(default: {default_repo})",
   "{n} sur {total}": "{n} of {total}",
+  "Le reste": "Everything else",
+  "{v} ({n})": "{v} ({n})",
+  "Couleur quand c'est éteint / inactif": "Colour when off / inactive",
+  "Couleur de la scène {v}": "Colour of the scene {v}",
 };
