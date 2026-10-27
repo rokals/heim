@@ -204,8 +204,9 @@ npm run build                     # régénère static/index.html, puis `cargo b
 ```
 
 L'interface est embarquée dans le binaire : Heim n'a besoin ni de Node ni d'Internet pour
-fonctionner. Pour publier une version : monter `version` dans `Cargo.toml`, pousser un tag
-`vX.Y.Z` ; GitHub Actions compile aarch64, armv7, x86_64 et Windows, puis l'image SD.
+fonctionner. Pour publier une version : monter `version` dans `Cargo.toml` et pousser sur `main`. GitHub
+Actions crée le tag `vX.Y.Z`, compile aarch64, armv7, x86_64 et Windows, publie la release, puis
+l'image SD. Pousser un tag à la main marche toujours.
 
 Heim dans votre langue ? Voir [docs/TRANSLATING.md](docs/TRANSLATING.md) : un seul fichier à traduire.
 

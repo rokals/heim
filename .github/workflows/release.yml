@@ -1,10 +1,14 @@
 name: release
 
-# Pousser un tag « v0.6.0 » : compile Heim pour chaque machine, publie une release GitHub
-# (que les Heim installés proposent en mise à jour), puis fabrique l'image SD.
+# Compile Heim pour chaque machine, publie une release GitHub (que les Heim installés
+# proposent en mise à jour), puis fabrique l'image SD. Deux façons de lancer une release :
+#  - monter `version` dans Cargo.toml et pousser sur main : le tag vX.Y.Z est créé ici même ;
+#  - pousser un tag « vX.Y.Z » (ou créer la release sur GitHub), comme avant.
 on:
   push:
     tags: ["v*"]
+    branches: [main]
+    paths: ["Cargo.toml"]
   workflow_dispatch:
     inputs:
       image:
@@ -23,16 +27,40 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Le droit d'écrire sert seulement à créer le tag quand la version change sur main.
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      release: ${{ steps.v.outputs.release }}
     steps:
       - uses: actions/checkout@v4
-      - name: Le tag correspond à la version de Cargo.toml
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Version, tag et release
+        id: v
         run: |
           v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
-          test "v$v" = "${GITHUB_REF_NAME%%-*}" -o "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME ≠ version $v"; exit 1; }
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            test "v$v" = "${GITHUB_REF_NAME%%-*}" -o "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME ≠ version $v"; exit 1; }
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            if git ls-remote --exit-code --tags origin "refs/tags/v$v" >/dev/null; then
+              echo "v$v existe déjà : pas de nouvelle release."
+              echo "release=false" >> "$GITHUB_OUTPUT"
+            else
+              # Un tag créé avec GITHUB_TOKEN ne relance pas ce workflow : tout se fait ici.
+              git tag "v$v" "$GITHUB_SHA"
+              git push origin "v$v"
+              echo "tag=v$v" >> "$GITHUB_OUTPUT"
+              echo "release=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
 
   linux:
     needs: check
+    if: needs.check.outputs.release == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -61,6 +89,7 @@ jobs:
 
   windows:
     needs: check
+    if: needs.check.outputs.release == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,8 +105,8 @@ jobs:
   publish:
     permissions:
       contents: write
-    needs: [linux, windows]
-    if: startsWith(github.ref, 'refs/tags/')
+    needs: [check, linux, windows]
+    if: needs.check.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -96,13 +125,14 @@ jobs:
         with:
           files: dist/*
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          tag_name: ${{ needs.check.outputs.tag }}
+          prerelease: ${{ contains(needs.check.outputs.tag, '-') }}
 
   image:
     permissions:
       contents: write
-    needs: [linux, publish]
-    if: ${{ !failure() && !cancelled() && (startsWith(github.ref, 'refs/tags/') || inputs.image) }}
+    needs: [check, linux, publish]
+    if: ${{ !failure() && !cancelled() && (needs.check.outputs.release == 'true' || inputs.image) }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -129,7 +159,7 @@ jobs:
       - uses: usimd/pi-gen-action@v1
         id: build
         with:
-          image-name: heim-${{ github.ref_name }}
+          image-name: heim-${{ needs.check.outputs.tag || github.ref_name }}
           # Branche « arm64 » = Debian 13 (trixie) depuis fin 2025 : la mélanger avec
           # release bookworm casse les clés Debian (NO_PUBKEY). On prend la branche bookworm.
           pi-gen-version: bookworm-arm64
@@ -149,11 +179,12 @@ jobs:
           compression: xz
           increase-runner-disk-size: false
       - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: needs.check.outputs.release == 'true'
         with:
+          tag_name: ${{ needs.check.outputs.tag }}
           files: ${{ steps.build.outputs.image-path }}
       - uses: actions/upload-artifact@v4
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        if: needs.check.outputs.release != 'true'
         with:
           name: image-sd
           path: ${{ steps.build.outputs.image-path }}
