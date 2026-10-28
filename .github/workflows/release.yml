@@ -26,7 +26,7 @@ env:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Le droit d'écrire sert seulement à créer le tag quand la version change sur main.
     permissions:
       contents: write
@@ -34,7 +34,7 @@ jobs:
       tag: ${{ steps.v.outputs.tag }}
       release: ${{ steps.v.outputs.release }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Version, tag et release
         id: v
         run: |
@@ -61,7 +61,7 @@ jobs:
   linux:
     needs: check
     if: needs.check.outputs.release == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
@@ -72,7 +72,7 @@ jobs:
           - target: x86_64-unknown-linux-musl
             asset: heim-x86_64-linux       # mini PC
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -82,7 +82,7 @@ jobs:
       - run: pip install ziglang cargo-zigbuild
       - run: cargo zigbuild --release --target ${{ matrix.target }}
       - run: cp target/${{ matrix.target }}/release/heim ${{ matrix.asset }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}
@@ -92,12 +92,12 @@ jobs:
     if: needs.check.outputs.release == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release
       - run: copy target\release\heim.exe heim-x86_64-windows.exe
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: heim-x86_64-windows.exe
           path: heim-x86_64-windows.exe
@@ -107,10 +107,10 @@ jobs:
       contents: write
     needs: [check, linux, windows]
     if: needs.check.outputs.release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -121,7 +121,7 @@ jobs:
           chmod +x sys/heim-guard sys/heim-system sys/apply.sh
           tar -czf dist/heim-system.tar.gz -C sys .
       - run: cd dist && sha256sum heim-* > SHA256SUMS && cat SHA256SUMS
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: dist/*
           generate_release_notes: true
@@ -135,8 +135,8 @@ jobs:
     if: ${{ !failure() && !cancelled() && (needs.check.outputs.release == 'true' || inputs.image) }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: heim-aarch64-linux
           path: dist
@@ -158,6 +158,10 @@ jobs:
           df -h /
       - uses: usimd/pi-gen-action@v1
         id: build
+        env:
+          # La construction Docker de pi-gen n'a pas git sous la main : on ne lui demande pas
+          # d'y lire le commit (sinon, un avertissement à chaque image).
+          BUILDX_GIT_INFO: "false"
         with:
           image-name: heim-${{ needs.check.outputs.tag || github.ref_name }}
           # Branche « arm64 » = Debian 13 (trixie) depuis fin 2025 : la mélanger avec
@@ -178,12 +182,12 @@ jobs:
           wpa-country: FR
           compression: xz
           increase-runner-disk-size: false
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         if: needs.check.outputs.release == 'true'
         with:
           tag_name: ${{ needs.check.outputs.tag }}
           files: ${{ steps.build.outputs.image-path }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: needs.check.outputs.release != 'true'
         with:
           name: image-sd
