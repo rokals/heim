@@ -30,7 +30,7 @@ jobs:
       # Faux appareils Tuya et faux serveur Matter des tests de bout en bout.
       - run: pip install tinytuya websockets
       - run: cargo test
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Interface (tests + vérifie que static/index.html est à jour)
@@ -51,7 +51,7 @@ jobs:
         with:
           tool: cargo-audit
       - run: cargo audit
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - working-directory: ui
