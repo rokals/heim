@@ -45,7 +45,7 @@ getrandom = "0.2"
 p256 = { version = "0.14", features = ["ecdh", "ecdsa"] }
 aes-gcm = "0.11"
 hkdf = "0.13"
-base64 = "0.22"
+base64 = "0.23"
 # Tuya local : AES-ECB (3.3/3.4), HMAC-SHA256 (3.4), CRC32, clé de découverte MD5.
 aes = "0.9"
 hmac = "0.13"
