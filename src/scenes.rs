@@ -754,12 +754,19 @@ impl Engine {
     /// Envoie une cible à un appareil. Une ampoule Zigbee reçoit tout en un seul message
     /// (couleur, effet, fondu compris) ; les autres reçoivent la partie commune.
     async fn send(&self, entity_id: &str, t: &SceneTarget, transition: Option<f64>, source: &str) {
-        let zigbee = self.meta.get(entity_id).and_then(|(integration, device)| {
-            (integration == crate::integrations::zigbee2mqtt::INTEGRATION)
-                .then(|| device.clone())
-                .flatten()
+        // Zigbee et Tuya : par les réglages de l'appareil, comme la tuile (couleur, effet,
+        // fondu compris). Le reste : la commande commune.
+        let direct = self.meta.get(entity_id).and_then(|(integration, device)| {
+            [
+                crate::integrations::zigbee2mqtt::INTEGRATION,
+                crate::integrations::tuya::INTEGRATION,
+            ]
+            .contains(&integration.as_str())
+            .then(|| device.clone().map(|d| (integration.clone(), d)))
+            .flatten()
         });
-        if let Some(device) = zigbee {
+        if let Some((integration, device)) = direct {
+            let zigbee = integration == crate::integrations::zigbee2mqtt::INTEGRATION;
             let keys: Vec<String> = devices::lock(&self.controls)
                 .get(&device)
                 .map(|d| {
@@ -778,7 +785,11 @@ impl Engine {
                         && keys.iter().any(|k| k == "brightness")
                     {
                         // Heim compte de 0 à 255, Zigbee2MQTT de 0 à 254.
-                        let z = (b as f64 * 254.0 / 255.0).round().max(1.0) as u64;
+                        let z = if zigbee {
+                            (b as f64 * 254.0 / 255.0).round().max(1.0) as u64
+                        } else {
+                            b.max(1) as u64
+                        };
                         v.insert("brightness".into(), json!(z));
                     }
                     if let Some(c) = &t.color
@@ -800,7 +811,7 @@ impl Engine {
                     v.insert("transition".into(), json!(tr));
                 }
                 self.bus.publish(Event::DeviceSet {
-                    integration: crate::integrations::zigbee2mqtt::INTEGRATION.into(),
+                    integration,
                     device_id: device,
                     values: v,
                 });
