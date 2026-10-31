@@ -1587,6 +1587,7 @@ export default {
   "Touchez les croix sur l'écran": "Touch the crosses on the screen",
   "Refaire le réglage du tactile": "Redo the touch setup",
   "3,5\" générique (Waveshare A, MPI3501, « 3.5inch RPi Display »)": "Generic 3.5\" (Waveshare A, MPI3501, “3.5inch RPi Display”)",
+  "Page « Box » en premier : processeur, mémoire, carte SD, température": "“Box” page first: processor, memory, SD card, temperature",
   "Zigbee2MQTT s'est arrêté sur une erreur": "Zigbee2MQTT stopped with an error",
   "Arrêté": "Stopped",
   "Pas installé sur cette box": "Not installed on this box",

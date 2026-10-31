@@ -26,6 +26,12 @@ if [ -f "$DREQ" ]; then
         if [ "$model" != none ]; then
           printf '# heim-ecran début\ndtparam=spi=on\ndtoverlay=%s,speed=16000000,rotate=%s\n# heim-ecran fin\n' "$model" "$rotate" >> "$CFG"
         fi
+        # La console texte ne doit pas s'afficher (curseur qui clignote) sur le petit écran.
+        CMD="$(dirname "$CFG")/cmdline.txt"
+        if [ -f "$CMD" ]; then
+          sed -i 's/ fbcon=map:0//; s/ vt.global_cursor_default=0//' "$CMD"
+          [ "$model" != none ] && sed -i '1 s/$/ fbcon=map:0 vt.global_cursor_default=0/' "$CMD"
+        fi
         printf 'status=ok\nmodel=%s\nrotate=%s\nat=%s\n' "$model" "$rotate" "$(date -Iseconds)" > "$DRES"
       else
         printf 'status=failed\nmessage=config.txt introuvable\n' > "$DRES"

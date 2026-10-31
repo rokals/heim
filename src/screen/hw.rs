@@ -83,33 +83,34 @@ impl Fb {
         })
     }
 
-    /// Envoie l'image (RGB565) à l'écran.
-    pub fn show(&self, px: &[u16], w: i32) -> std::io::Result<()> {
+    /// Envoie l'image (RGB565, taille logique `w` × h) à l'écran, tournée selon `rot`.
+    pub fn show(&self, px: &[u16], w: i32, rot: super::Rot) -> std::io::Result<()> {
         use std::os::unix::fs::FileExt;
+        let (lw, lh) = rot.size();
         let mut buf = Vec::with_capacity(self.stride * self.h as usize);
-        for y in 0..self.h {
-            let row = &px[(y * w) as usize..(y * w + self.w.min(w)) as usize];
-            match self.bpp {
-                32 => {
-                    for &p in row {
-                        let r = ((p >> 11) & 0x1F) as u8;
-                        let g = ((p >> 5) & 0x3F) as u8;
-                        let b = (p & 0x1F) as u8;
-                        buf.extend_from_slice(&[
-                            b << 3 | b >> 2,
-                            g << 2 | g >> 4,
-                            r << 3 | r >> 2,
-                            0xFF,
-                        ]);
-                    }
-                }
-                _ => {
-                    for &p in row {
-                        buf.extend_from_slice(&p.to_le_bytes());
-                    }
+        for ny in 0..self.h {
+            for nx in 0..self.w {
+                let (lx, ly) = rot.to_logical(nx, ny);
+                let p = if lx >= 0 && ly >= 0 && lx < lw.min(w) && ly < lh {
+                    px[(ly * w + lx) as usize]
+                } else {
+                    0
+                };
+                if self.bpp == 32 {
+                    let r = ((p >> 11) & 0x1F) as u8;
+                    let g = ((p >> 5) & 0x3F) as u8;
+                    let b = (p & 0x1F) as u8;
+                    buf.extend_from_slice(&[
+                        b << 3 | b >> 2,
+                        g << 2 | g >> 4,
+                        r << 3 | r >> 2,
+                        0xFF,
+                    ]);
+                } else {
+                    buf.extend_from_slice(&p.to_le_bytes());
                 }
             }
-            buf.resize((y as usize + 1) * self.stride, 0);
+            buf.resize((ny as usize + 1) * self.stride, 0);
         }
         self.file.write_all_at(&buf, 0)
     }

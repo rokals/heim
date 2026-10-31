@@ -78,29 +78,33 @@
     </label>
     <label class="field">
       <span>{tr("Orientation")}</span>
-      <select class="input" value={String(st.settings.rotate)} disabled={busy} onchange={(e) => save({ rotate: Number(e.currentTarget.value) }, tr("Orientation enregistrée : redémarrez la box"))}>
-        <option value="90">{tr("Paysage")}</option>
-        <option value="270">{tr("Paysage retourné")}</option>
-        <option value="0">{tr("Portrait")}</option>
-        <option value="180">{tr("Portrait retourné")}</option>
+      <select class="input" value={String(st.settings.rotate)} disabled={busy} onchange={(e) => save({ rotate: Number(e.currentTarget.value) }, tr("Réglage enregistré"))}>
+        <option value="0">{tr("Paysage")}</option>
+        <option value="180">{tr("Paysage retourné")}</option>
+        <option value="90">{tr("Portrait")}</option>
+        <option value="270">{tr("Portrait retourné")}</option>
       </select>
     </label>
     <label class="field">
       <span>{tr("Tableau affiché")}</span>
-      <select class="input" value={st.settings.board ?? ''} disabled={busy} onchange={(e) => save({ board: e.currentTarget.value })}>
+      <select class="input" value={st.settings.board ?? ''} disabled={busy} onchange={(e) => save({ board: e.currentTarget.value }, tr("Réglage enregistré"))}>
         <option value="">{tr("Le premier tableau")}</option>
         {#each boards as b (b.id)}<option value={b.id}>{b.name}</option>{/each}
       </select>
     </label>
     <label class="field">
       <span>{tr("Mise en veille")}</span>
-      <select class="input" value={String(st.settings.sleep_min)} disabled={busy} onchange={(e) => save({ sleep_min: Number(e.currentTarget.value) })}>
+      <select class="input" value={String(st.settings.sleep_min)} disabled={busy} onchange={(e) => save({ sleep_min: Number(e.currentTarget.value) }, tr("Réglage enregistré"))}>
         <option value="1">{tr("Après 1 minute")}</option>
         <option value="5">{tr("Après 5 minutes")}</option>
         <option value="15">{tr("Après 15 minutes")}</option>
         <option value="60">{tr("Après 1 heure")}</option>
         <option value="0">{tr("Jamais")}</option>
       </select>
+    </label>
+    <label class="check">
+      <input type="checkbox" checked={st.settings.perf_page ?? true} disabled={busy} onchange={(e) => save({ perf_page: e.currentTarget.checked }, tr("Réglage enregistré"))} />
+      {tr("Page « Box » en premier : processeur, mémoire, carte SD, température")}
     </label>
     <button class="btn quiet" disabled={busy || !st.framebuffer} onclick={() => save({ recalibrate: true }, tr("Touchez les croix sur l'écran"))}>
       {tr("Refaire le réglage du tactile")}
@@ -160,5 +164,16 @@
 
   .btn {
     justify-self: start;
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .check input {
+    width: 20px;
+    height: 20px;
   }
 </style>

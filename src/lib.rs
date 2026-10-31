@@ -451,6 +451,23 @@ impl Core {
         if let Some(previous) = slot.take() {
             previous.abort();
         }
+        // Un écran réglé avant la 0.19.1 (rotation dans config.txt) : on le remet en paysage,
+        // Heim tourne lui-même l'image désormais.
+        let mut s: screen::ScreenSettings =
+            self.settings.get(screen::SETTINGS_KEY).unwrap_or_default();
+        if !s.soft_rotate {
+            s.rotate = 0;
+            s.calib = None;
+            s.soft_rotate = true;
+            let _ = self.settings.set(screen::SETTINGS_KEY, &s);
+        }
+        if s.enabled {
+            let st = screen::status(&self.data_dir, &s);
+            let rot = st["applied_rotate"].as_u64();
+            if rot.is_some() && rot != Some(screen::NATIVE_ROTATE as u64) && st["pending"] != true {
+                let _ = screen::request_overlay(&self.data_dir, &s);
+            }
+        }
         *slot = screen::spawn(self.clone());
     }
 

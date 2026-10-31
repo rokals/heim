@@ -20,6 +20,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 pub const SETTINGS_KEY: &str = "screen_gpio";
+/// La rotation réglée dans config.txt : l'écran en paysage 480 × 320.
+pub const NATIVE_ROTATE: u16 = 90;
 pub const PLUGIN_ID: &str = "screen35";
 /// Les modèles acceptés par le service root (même liste dans `heim-system`).
 pub const MODELS: &[(&str, &str)] = &[(
@@ -27,7 +29,8 @@ pub const MODELS: &[(&str, &str)] = &[(
     "3,5\" générique (Waveshare A, MPI3501, « 3.5inch RPi Display »)",
 )];
 
-/// Coordonnées brutes du tactile → pixels : x = ax·brut + bx (après échange éventuel des axes).
+/// Coordonnées brutes du tactile → pixels de l'écran (en paysage, avant la rotation faite
+/// par Heim) : x = ax·brut + bx, après échange éventuel des axes. Faite une fois pour toutes.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Calib {
     pub swap: bool,
@@ -77,14 +80,57 @@ impl Calib {
     }
 }
 
+/// Rotation faite par Heim : coordonnées logiques (ce qu'on dessine) ↔ coordonnées de
+/// l'écran (`nw` × `nh`, paysage).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Rot {
+    pub deg: u16,
+    pub nw: i32,
+    pub nh: i32,
+}
+
+impl Rot {
+    /// Taille logique.
+    pub fn size(&self) -> (i32, i32) {
+        if self.deg == 90 || self.deg == 270 {
+            (self.nh, self.nw)
+        } else {
+            (self.nw, self.nh)
+        }
+    }
+
+    pub fn to_native(&self, x: i32, y: i32) -> (i32, i32) {
+        match self.deg {
+            180 => (self.nw - 1 - x, self.nh - 1 - y),
+            90 => (y, self.nh - 1 - x),
+            270 => (self.nw - 1 - y, x),
+            _ => (x, y),
+        }
+    }
+
+    pub fn to_logical(&self, nx: i32, ny: i32) -> (i32, i32) {
+        match self.deg {
+            180 => (self.nw - 1 - nx, self.nh - 1 - ny),
+            90 => (self.nh - 1 - ny, nx),
+            270 => (ny, self.nw - 1 - nx),
+            _ => (nx, ny),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScreenSettings {
     #[serde(default)]
     pub enabled: bool,
     #[serde(default = "d_model")]
     pub model: String,
-    #[serde(default = "d_rotate")]
+    /// Orientation, faite par Heim (sans redémarrage) : 0 paysage, 180 paysage retourné,
+    /// 90 et 270 portrait. L'écran lui-même reste réglé en paysage (overlay `rotate=90`).
+    #[serde(default)]
     pub rotate: u16,
+    /// Une page « Box » en tête : processeur, mémoire, carte SD, température.
+    #[serde(default = "d_true")]
+    pub perf_page: bool,
     /// Le tableau affiché (vide : le premier).
     #[serde(default)]
     pub board: Option<String>,
@@ -93,13 +139,17 @@ pub struct ScreenSettings {
     pub sleep_min: u32,
     #[serde(default)]
     pub calib: Option<Calib>,
+    /// Vrai depuis la 0.19.1 : `rotate` est la rotation faite par Heim (avant : celle de
+    /// config.txt, 90 par défaut).
+    #[serde(default)]
+    pub soft_rotate: bool,
 }
 
 fn d_model() -> String {
     "piscreen".into()
 }
-fn d_rotate() -> u16 {
-    90
+fn d_true() -> bool {
+    true
 }
 fn d_sleep() -> u32 {
     5
@@ -110,7 +160,9 @@ impl Default for ScreenSettings {
         ScreenSettings {
             enabled: false,
             model: d_model(),
-            rotate: d_rotate(),
+            rotate: 0,
+            perf_page: true,
+            soft_rotate: true,
             board: None,
             sleep_min: d_sleep(),
             calib: None,
@@ -124,12 +176,10 @@ pub fn request_overlay(data: &Path, s: &ScreenSettings) -> Result<(), String> {
     if model != "none" && !MODELS.iter().any(|(m, _)| *m == model) {
         return Err("modèle d'écran inconnu".into());
     }
-    if ![0, 90, 180, 270].contains(&s.rotate) {
-        return Err("rotation invalide".into());
-    }
+    // L'écran reste toujours en paysage : c'est Heim qui tourne l'image.
     std::fs::write(
         data.join("display.request"),
-        format!("model={model}\nrotate={}\n", s.rotate),
+        format!("model={model}\nrotate={}\n", NATIVE_ROTATE),
     )
     .map_err(|e| e.to_string())
 }
@@ -166,14 +216,22 @@ pub fn status(data: &Path, s: &ScreenSettings) -> Value {
         "applied_rotate": get("rotate").and_then(|r| r.parse::<u16>().ok()),
         "result": get("status"),
         "message": get("message"),
-        // Réglé dans config.txt mais pas encore actif : il faut redémarrer.
-        "needs_reboot": s.enabled && fb.is_none() && applied.as_deref() == Some(wanted.as_str()),
+        // Réglé dans config.txt mais pas encore actif (ou réglage d'avant à remplacer) : il
+        // faut redémarrer.
+        "needs_reboot": s.enabled && applied.as_deref() == Some(wanted.as_str())
+            && (fb.is_none() || get("rotate").and_then(|r| r.parse::<u16>().ok()) != Some(NATIVE_ROTATE)),
     })
 }
 
 /// Les entités du tableau, dans l'ordre (toute clé `entity_id` du tableau choisi).
 pub fn board_entities(boards: &Value, wanted: Option<&str>) -> (String, Vec<String>) {
-    let list = boards.as_array().cloned().unwrap_or_default();
+    // Réglage « dashboards » : `{"boards": [...]}` (ou une liste, par sécurité).
+    let list = boards
+        .get("boards")
+        .and_then(Value::as_array)
+        .or_else(|| boards.as_array())
+        .cloned()
+        .unwrap_or_default();
     let board = wanted
         .and_then(|w| {
             list.iter()
@@ -277,13 +335,30 @@ mod tests {
     }
 
     #[test]
+    fn rotations_go_back_and_forth() {
+        for deg in [0, 90, 180, 270] {
+            let r = Rot {
+                deg,
+                nw: 480,
+                nh: 320,
+            };
+            let (w, h) = r.size();
+            for (x, y) in [(0, 0), (w - 1, 0), (10, h - 1), (123, 45)] {
+                let (nx, ny) = r.to_native(x, y);
+                assert!((0..480).contains(&nx) && (0..320).contains(&ny), "{deg}");
+                assert_eq!(r.to_logical(nx, ny), (x, y), "{deg}");
+            }
+        }
+    }
+
+    #[test]
     fn board_entities_in_order() {
-        let boards = json!([
+        let boards = json!({ "boards": [
             { "id": "a", "name": "Accueil", "sections": [{ "cards": [
                 { "entity_id": "light.salon" }, { "type": "title" }, { "entity_id": "switch.prise" }
             ]}]},
             { "id": "b", "name": "Cuisine", "sections": [{ "cards": [{ "entity_id": "light.cuisine" }]}]}
-        ]);
+        ]});
         assert_eq!(
             board_entities(&boards, None),
             (

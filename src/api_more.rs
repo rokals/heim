@@ -738,6 +738,8 @@ pub struct ScreenInput {
     board: Option<String>,
     #[serde(default)]
     sleep_min: Option<u32>,
+    #[serde(default)]
+    perf_page: Option<bool>,
     /// Refaire le réglage du tactile (les croix réapparaissent sur l'écran).
     #[serde(default)]
     recalibrate: bool,
@@ -752,7 +754,7 @@ pub async fn put_screen_local(
         .settings
         .get(crate::screen::SETTINGS_KEY)
         .unwrap_or_default();
-    let before = (s.model.clone(), s.rotate);
+    let before = s.model.clone();
     if let Some(m) = input.model {
         if !crate::screen::MODELS.iter().any(|(id, _)| *id == m) {
             return Err(bad_request("modèle d'écran inconnu"));
@@ -771,14 +773,17 @@ pub async fn put_screen_local(
     if let Some(m) = input.sleep_min {
         s.sleep_min = m.min(240);
     }
-    if input.recalibrate || (s.model.clone(), s.rotate) != before {
-        // Une autre orientation change le sens du tactile : on le recalibre.
+    if let Some(p) = input.perf_page {
+        s.perf_page = p;
+    }
+    // L'orientation est faite par Heim : ni redémarrage, ni nouveau réglage du tactile.
+    if input.recalibrate || s.model != before {
         s.calib = None;
     }
     core.settings
         .set(crate::screen::SETTINGS_KEY, &s)
         .map_err(bad_request)?;
-    if s.enabled && (s.model.clone(), s.rotate) != before {
+    if s.enabled && s.model != before {
         crate::screen::request_overlay(&core.data_dir, &s).map_err(bad_request)?;
     }
     core.apply_screen();
