@@ -52,6 +52,7 @@ pub mod timers;
 pub mod update;
 pub mod websec;
 pub mod zigbee_local;
+pub mod zigbee_probe;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;

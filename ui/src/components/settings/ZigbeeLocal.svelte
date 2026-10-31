@@ -87,6 +87,23 @@
     return startNow();
   }
 
+  // Demande à la clé son firmware (Zigbee2MQTT est arrêté quelques secondes pendant l'essai).
+  let probing = $state(false);
+  let probe = $state(null);
+  async function detect() {
+    probing = true;
+    try {
+      const r = await api('/zigbee/local/probe', { method: 'POST', body: { port: chosen || null } });
+      probe = { ...r.probe, detail: tr(r.probe.detail) };
+      if (r.probe.adapter) adapter = r.probe.adapter;
+      load();
+    } catch (e) {
+      toast(e.message, 'alert');
+    } finally {
+      probing = false;
+    }
+  }
+
   async function copyLog() {
     try {
       await copyText(st.log.join('\n'));
@@ -166,6 +183,12 @@
             {#if chosen === d.path}<Icon name="check" size={18} />{/if}
           </button>
         {/each}
+      </div>
+      <div class="probe">
+        <button class="btn quiet" class:okbtn={probe?.adapter} onclick={detect} disabled={busy || probing}>
+          <Icon name="search" size={18} /> {probing ? tr("Détection…") : tr("Détecter le firmware")}
+        </button>
+        {#if probe}<p class="small" class:okline={probe.adapter} class:badline={!probe.adapter}>{probe.detail}</p>{/if}
       </div>
     {:else}
       <p class="muted">{tr("Aucune clé détectée. Branchez la clé Zigbee (Sonoff ZBDongle-E…) sur un port USB : elle apparaît ici toute seule.")}</p>
@@ -249,6 +272,34 @@
     gap: 8px;
     margin: 0 0 16px;
     font-weight: 600;
+  }
+
+  .probe {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .probe .btn {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .okbtn {
+    background: var(--moss);
+    color: var(--surface);
+  }
+
+  .okline {
+    color: var(--moss);
+    margin: 0;
+  }
+
+  .badline {
+    color: var(--alert);
+    margin: 0;
   }
 
   .why {

@@ -21,6 +21,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio::sync::{broadcast::error::RecvError, mpsc};
 
+use super::tuya_light::{self as light, Intent, Lamp};
 use super::tuya_proto::{self as proto, Session, Version};
 use crate::bus::{Bus, Event, IntegrationState};
 use crate::model::{Attributes, Category, Domain, EntityMeta, Target, slugify};
@@ -137,12 +138,7 @@ pub fn import_tinytuya(text: &str) -> Result<Vec<TuyaDevice>, String> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Role {
-    Light {
-        switch: String,
-        bright: Option<(String, f64, f64)>,
-        temp: Option<(String, f64, f64)>,
-        mode: Option<String>,
-    },
+    Light(Lamp),
     Switch {
         dp: String,
     },
@@ -202,6 +198,13 @@ fn default_mapping(category: &str) -> BTreeMap<String, DpInfo> {
             m.insert(
                 "23".into(),
                 dp("temp_value_v2", json!({"min": 0, "max": 1000})),
+            );
+            m.insert(
+                "24".into(),
+                dp(
+                    "colour_data_v2",
+                    json!({"h": {"min": 0, "max": 360}, "s": {"min": 0, "max": 1000}, "v": {"min": 0, "max": 1000}}),
+                ),
             );
         }
         // Prises, multiprises, interrupteurs (et appareil ajouté à la main sans catégorie).
@@ -288,21 +291,30 @@ pub fn map_device(d: &TuyaDevice) -> Vec<Mapped> {
                 ((*dp).clone(), min, max)
             })
         });
+        let colour = ["colour_data_v2", "colour_data"].iter().find_map(|c| {
+            by_code
+                .get(c)
+                .map(|(dp, i)| ((*dp).clone(), light::format_of(c, &dp_values(i))))
+        });
         let mut extra = Attributes::new();
-        if bright.is_some() {
+        if bright.is_some() || colour.is_some() {
             extra.insert("brightness".into(), json!(true));
         }
         if temp.is_some() {
             extra.insert("color_temp".into(), json!([153, 500]));
         }
+        if colour.is_some() {
+            extra.insert("hs_color".into(), json!(true));
+        }
         out.push(Mapped {
             meta: meta(Domain::Light, "", d.name.clone(), extra, Category::Primary),
-            role: Role::Light {
+            role: Role::Light(Lamp {
                 switch: (*sw).clone(),
                 bright,
                 temp,
                 mode: by_code.get("work_mode").map(|(dp, _)| (*dp).clone()),
-            },
+                colour,
+            }),
         });
     }
 
@@ -384,23 +396,16 @@ pub fn state_of(role: &Role, dps: &Map<String, Value>) -> Option<(Value, Attribu
             .get(dp)
             .and_then(Value::as_bool)
             .map(|on| (json!(if on { "on" } else { "off" }), Attributes::new())),
-        Role::Light {
-            switch,
-            bright,
-            temp,
-            ..
-        } => {
-            let on = dps.get(switch).and_then(Value::as_bool);
+        Role::Light(lamp) => {
+            let on = dps.get(&lamp.switch).and_then(Value::as_bool);
             let mut attrs = Attributes::new();
-            if let Some((dp, min, max)) = bright
-                && let Some(v) = dps.get(dp).and_then(Value::as_f64)
-            {
-                let b = ((v - min) / (max - min) * 254.0 + 1.0)
-                    .round()
-                    .clamp(1.0, 255.0);
-                attrs.insert("brightness".into(), json!(b as u8));
+            if let Some(b) = lamp.brightness_now(dps) {
+                attrs.insert("brightness".into(), json!(b));
             }
-            if let Some((dp, min, max)) = temp
+            if let Some(m) = lamp.values(dps).get("color_mode") {
+                attrs.insert("color_mode".into(), m.clone());
+            }
+            if let Some((dp, min, max)) = &lamp.temp
                 && let Some(v) = dps.get(dp).and_then(Value::as_f64)
             {
                 // Tuya : min = le plus chaud. Heim : mireds (153 froid, 500 chaud).
@@ -423,43 +428,31 @@ pub fn state_of(role: &Role, dps: &Map<String, Value>) -> Option<(Value, Attribu
     }
 }
 
-/// Les points de données à envoyer pour une commande Heim.
-pub fn dps_for(role: &Role, target: &Target) -> Option<Map<String, Value>> {
-    let mut dps = Map::new();
+/// Les points de données à envoyer pour une commande Heim. `last` : le dernier état reçu
+/// (une lampe en couleur règle sa luminosité dans la couleur).
+pub fn dps_for(
+    role: &Role,
+    target: &Target,
+    last: &Map<String, Value>,
+    json_colour: bool,
+) -> Option<Map<String, Value>> {
     match role {
         Role::Switch { dp } => {
+            let mut dps = Map::new();
             dps.insert(dp.clone(), json!(target.on));
+            Some(dps)
         }
-        Role::Light {
-            switch,
-            bright,
-            temp,
-            mode,
-        } => {
-            dps.insert(switch.clone(), json!(target.on));
-            if target.on {
-                let mut white = false;
-                if let (Some(b), Some((dp, min, max))) = (target.brightness, bright) {
-                    let v = min + (b.max(1) as f64 - 1.0) / 254.0 * (max - min);
-                    dps.insert(dp.clone(), json!(v.round() as i64));
-                    white = true;
-                }
-                if let (Some(ct), Some((dp, min, max))) = (target.color_temp, temp) {
-                    let ratio = ((500.0 - ct as f64) / 347.0).clamp(0.0, 1.0);
-                    dps.insert(
-                        dp.clone(),
-                        json!((min + ratio * (max - min)).round() as i64),
-                    );
-                    white = true;
-                }
-                if let (true, Some(m)) = (white, mode) {
-                    dps.insert(m.clone(), json!("white"));
-                }
-            }
+        Role::Light(lamp) => {
+            let intent = Intent {
+                on: Some(target.on),
+                brightness: target.brightness,
+                color_temp: target.color_temp,
+                ..Default::default()
+            };
+            Some(lamp.dps(&intent, last, json_colour))
         }
-        Role::Sensor { .. } => return None,
+        Role::Sensor { .. } => None,
     }
-    Some(dps)
 }
 
 // ---- Découverte : les appareils s'annoncent toutes les 5 s en UDP ------------------------
@@ -695,6 +688,9 @@ const MAIN: &[&str] = &[
     "bright_value_v2",
     "temp_value",
     "temp_value_v2",
+    "work_mode",
+    "colour_data",
+    "colour_data_v2",
 ];
 
 fn dp_values(info: &DpInfo) -> Value {
@@ -712,6 +708,44 @@ pub fn device_controls(d: &TuyaDevice) -> Vec<Value> {
         d.mapping.clone()
     };
     let mut out = Vec::new();
+    // Une lampe : les réglages du panneau de lampe (luminosité, blanc, couleur, modes), sous
+    // les mêmes noms que Zigbee, pour que la fiche et la tuile les montrent pareil.
+    if let Some(Role::Light(lamp)) = map_device(d)
+        .into_iter()
+        .map(|m| m.role)
+        .find(|r| matches!(r, Role::Light(_)))
+    {
+        if lamp.bright.is_some() || lamp.colour.is_some() {
+            out.push(json!({"key": "brightness", "name": "brightness", "kind": "numeric", "label": "Luminosité",
+                            "group": "light", "min": 1, "max": 254}));
+        }
+        if lamp.temp.is_some() {
+            out.push(json!({"key": "color_temp", "name": "color_temp", "kind": "numeric", "label": "Blanc",
+                            "group": "light", "min": 153, "max": 500, "unit": "mired"}));
+        }
+        if lamp.colour.is_some() {
+            out.push(
+                json!({"key": "color", "name": "color_hs", "kind": "color", "label": "Couleur",
+                            "group": "light", "format": "hs"}),
+            );
+        }
+        if let Some(info) = lamp.mode.as_ref().and_then(|m| mapping.get(m)) {
+            let effects: Vec<Value> = dp_values(info)
+                .get("range")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter(|v| !matches!(v.as_str(), Some("white" | "colour")))
+                .cloned()
+                .collect();
+            if !effects.is_empty() {
+                out.push(
+                    json!({"key": "effect", "name": "effect", "kind": "enum", "label": "Mode",
+                                "group": "light", "values": effects}),
+                );
+            }
+        }
+    }
     let mut dps: Vec<(&String, &DpInfo)> = mapping.iter().collect();
     dps.sort_by_key(|(dp, _)| dp.parse::<u32>().unwrap_or(999));
     for (dp, info) in dps {
@@ -872,9 +906,32 @@ struct DeviceTask {
     controls: crate::devices::Controls,
     control_list: Vec<Value>,
     scales: HashMap<String, f64>,
+    /// Le dernier état de chaque point de données reçu.
+    last: Map<String, Value>,
+    /// L'appareil envoie sa couleur en JSON : on lui répond pareil.
+    json_colour: bool,
 }
 
 impl DeviceTask {
+    fn lamp(&self) -> Option<&Lamp> {
+        self.mapped.iter().find_map(|m| match &m.role {
+            Role::Light(l) => Some(l),
+            _ => None,
+        })
+    }
+
+    /// Les réglages de la fiche → points de données : ceux de la lampe (couleur, luminosité,
+    /// blanc, mode) convertis, les autres tels quels (échelle remise).
+    fn set_dps(&self, values: &Map<String, Value>) -> Map<String, Value> {
+        let mut rest = values.clone();
+        let intent = Intent::take_from(&mut rest);
+        let mut out = self.raw_dps(&rest);
+        if let (Some(i), Some(lamp)) = (intent, self.lamp()) {
+            out.extend(lamp.dps(&i, &self.last, self.json_colour));
+        }
+        out
+    }
+
     /// Réglage demandé dans l'interface -> points de données bruts (échelle remise).
     fn raw_dps(&self, values: &Map<String, Value>) -> Map<String, Value> {
         values
@@ -896,7 +953,20 @@ impl DeviceTask {
             .collect()
     }
 
-    async fn report(&self, dps: &Map<String, Value>) {
+    async fn report(&mut self, dps: &Map<String, Value>) {
+        for (k, v) in dps {
+            self.last.insert(k.clone(), v.clone());
+        }
+        let seen_json = self
+            .lamp()
+            .and_then(|l| l.colour.as_ref())
+            .and_then(|(dp, _)| dps.get(dp))
+            .and_then(Value::as_str)
+            .map(|v| v.trim_start().starts_with('{'));
+        if let Some(j) = seen_json {
+            self.json_colour = j;
+        }
+        let lamp_values = self.lamp().map(|l| l.values(&self.last));
         if let Some(d) =
             crate::devices::lock(&self.controls).get_mut(&format!("tuya:{}", self.dev.id))
         {
@@ -904,9 +974,17 @@ impl DeviceTask {
                 d.values
                     .insert(k.clone(), scaled_for_display(&self.scales, k, v));
             }
+            if let Some(lv) = lamp_values {
+                d.values.extend(lv);
+            }
         }
         for m in &self.mapped {
-            if let Some((value, attrs)) = state_of(&m.role, dps) {
+            // Une lampe se lit sur l'état complet (la luminosité dépend du mode).
+            let view = match &m.role {
+                Role::Light(_) => &self.last,
+                _ => dps,
+            };
+            if let Some((value, attrs)) = state_of(&m.role, view) {
                 if value.is_null() {
                     self.registry.seen(m.meta.entity_id.clone(), attrs).await;
                 } else {
@@ -935,7 +1013,7 @@ impl DeviceTask {
             .iter()
             .map(|m| match &m.role {
                 Role::Switch { dp } | Role::Sensor { dp, .. } => dp.clone(),
-                Role::Light { switch, .. } => switch.clone(),
+                Role::Light(l) => l.switch.clone(),
             })
             .collect();
         let mut backoff = Duration::from_secs(2);
@@ -1021,7 +1099,7 @@ impl DeviceTask {
                         conn.session.device22 = true;
                         let known: Vec<String> = self.mapped.iter().map(|m| match &m.role {
                             Role::Switch { dp } | Role::Sensor { dp, .. } => dp.clone(),
-                            Role::Light { switch, .. } => switch.clone(),
+                            Role::Light(l) => l.switch.clone(),
                         }).collect();
                         let q = conn.session.query(&known);
                         conn.send(&q).await?;
@@ -1037,13 +1115,13 @@ impl DeviceTask {
                 msg = rx.recv() => match msg {
                     Some(DeviceMsg::Command(entity_id, target)) => {
                         let role = self.mapped.iter().find(|m| m.meta.entity_id == entity_id).map(|m| m.role.clone());
-                        if let Some(dps) = role.as_ref().and_then(|r| dps_for(r, &target)) {
+                        if let Some(dps) = role.as_ref().and_then(|r| dps_for(r, &target, &self.last, self.json_colour)) {
                             let c = conn.session.control(&dps);
                             conn.send(&c).await?;
                         }
                     }
                     Some(DeviceMsg::Set(values)) => {
-                        let dps = self.raw_dps(&values);
+                        let dps = self.set_dps(&values);
                         let c = conn.session.control(&dps);
                         conn.send(&c).await?;
                     }
@@ -1130,6 +1208,8 @@ pub async fn run(
                 .as_deref()
                 .and_then(Version::parse)
                 .unwrap_or(Version::V33),
+            last: Map::new(),
+            json_colour: false,
         };
         joins.push(tokio::spawn(task.run(rx)));
     }
@@ -1262,7 +1342,7 @@ mod tests {
             brightness: Some(255),
             color_temp: Some(153),
         };
-        let out = dps_for(&bulb[0].role, &t).unwrap();
+        let out = dps_for(&bulb[0].role, &t, &Map::new(), false).unwrap();
         assert_eq!(out["20"], json!(true));
         assert_eq!(out["22"], json!(1000));
         assert_eq!(out["23"], json!(1000));
@@ -1273,6 +1353,32 @@ mod tests {
         let (v, attrs) = state_of(&bulb[0].role, &back).unwrap();
         assert_eq!(v, json!("on"));
         assert_eq!(attrs["brightness"], json!(1));
+    }
+
+    #[test]
+    fn a_colour_bulb_gets_the_lamp_panel() {
+        let d = TuyaDevice {
+            id: "bf0".into(),
+            name: "Applique".into(),
+            key: "0123456789abcdef".into(),
+            ip: None,
+            version: None,
+            category: Some("dj".into()),
+            product_name: None,
+            mapping: BTreeMap::new(),
+        };
+        let keys: Vec<String> = device_controls(&d)
+            .iter()
+            .filter_map(|c| c.get("key").and_then(Value::as_str).map(str::to_string))
+            .collect();
+        for k in ["brightness", "color_temp", "color"] {
+            assert!(keys.contains(&k.to_string()), "{k} manque : {keys:?}");
+        }
+        let lamp = map_device(&d);
+        let Role::Light(l) = &lamp[0].role else {
+            panic!("pas une lampe")
+        };
+        assert!(l.colour.is_some());
     }
 
     #[test]

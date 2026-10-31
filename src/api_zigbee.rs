@@ -194,6 +194,29 @@ pub async fn start_local(core: &Core, s: &LocalSettings) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
     core.apply_broker_settings().await?;
+    // Premier démarrage, pilote ni choisi ni connu : on demande à la clé quel firmware elle a.
+    let mut s = s.clone();
+    let configured = core
+        .zigbee_local
+        .config_summary()
+        .get("adapter")
+        .and_then(Value::as_str)
+        .is_some();
+    if s.adapter.is_none()
+        && !configured
+        && let Some(port) = s
+            .port
+            .clone()
+            .or_else(|| core.zigbee_local.dongles().first().map(|d| d.path.clone()))
+    {
+        let p = probe_port(core, &port).await;
+        tracing::info!("zigbee2mqtt local : {}", p.detail);
+        if let Some(a) = p.adapter {
+            s.adapter = Some(a.to_string());
+            let _ = core.settings.set(zigbee_local::SETTINGS_KEY, &s);
+        }
+    }
+    let s = &s;
     core.zigbee_local.write_config(s, b.port)?;
     // Heim lit Zigbee2MQTT sur son propre broker.
     let previous: Option<Zigbee2MqttSettings> = core.settings.get(settings::ZIGBEE2MQTT);
@@ -252,6 +275,52 @@ pub async fn put_local(
         core.zigbee_local.stop().await.map_err(bad_request)?;
     }
     Ok(Json(local_status(core).await))
+}
+
+/// Demande à la clé son firmware. Zigbee2MQTT est arrêté le temps de l'essai (le port série
+/// ne sert qu'à un programme) ; à l'appelant de le relancer.
+pub async fn probe_port(core: &Core, port: &str) -> crate::zigbee_probe::Probe {
+    let z = &core.zigbee_local;
+    let state = z.state().await;
+    if matches!(state.as_str(), "active" | "activating" | "failed") {
+        let _ = z.stop().await;
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+    let port = port.to_string();
+    tokio::task::spawn_blocking(move || crate::zigbee_probe::probe(&port))
+        .await
+        .unwrap_or_else(|_| crate::zigbee_probe::Probe {
+            adapter: None,
+            detail: "détection interrompue".into(),
+            baud: None,
+        })
+}
+
+#[derive(Deserialize)]
+pub struct ProbeInput {
+    #[serde(default)]
+    port: Option<String>,
+}
+
+/// Bouton « Détecter le firmware » : Zigbee2MQTT est relancé après, s'il était activé.
+pub async fn probe_local(
+    State(app): State<AppState>,
+    Json(input): Json<ProbeInput>,
+) -> ApiResult<impl IntoResponse> {
+    let core = app.core();
+    let dongles = core.zigbee_local.dongles();
+    let port = input
+        .port
+        .filter(|p| dongles.iter().any(|d| &d.path == p))
+        .or_else(|| local_settings(core).port)
+        .or_else(|| dongles.first().map(|d| d.path.clone()))
+        .ok_or_else(|| bad_request("aucune clé Zigbee branchée"))?;
+    let result = probe_port(core, &port).await;
+    let s = local_settings(core);
+    if s.enabled {
+        let _ = core.zigbee_local.start().await;
+    }
+    Ok(Json(json!({ "probe": result, "port": port })))
 }
 
 pub async fn restart_local(State(app): State<AppState>) -> ApiResult<impl IntoResponse> {
@@ -341,10 +410,41 @@ pub fn spawn_at_start(core: Core) {
             return;
         }
         let state = core.zigbee_local.state().await;
-        if state != "active"
-            && state != "activating"
-            && let Err(e) = core.zigbee_local.start().await
-        {
+        if state != "active" && state != "activating" {
+            if let Err(e) = core.zigbee_local.start().await {
+                tracing::warn!("zigbee2mqtt local : {e}");
+            }
+            return;
+        }
+        // Zigbee2MQTT tournait déjà (Heim seul a redémarré, après une mise à jour) : le broker
+        // de Heim a redémarré sous ses pieds. S'il ne s'y est pas reconnecté dans les 30 s, ou
+        // si la liste de ses appareils manque, Heim ne voit plus rien : on le relance.
+        let topic = core
+            .settings
+            .get::<Zigbee2MqttSettings>(settings::ZIGBEE2MQTT)
+            .map(|z| z.base_topic)
+            .unwrap_or_else(|| "zigbee2mqtt".into());
+        for _ in 0..30 {
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            let z2m_connected = core
+                .broker
+                .client_ids()
+                .iter()
+                .any(|id| !id.starts_with("heim"));
+            if z2m_connected
+                && core
+                    .broker
+                    .retained(&format!("{topic}/bridge/devices"))
+                    .is_some()
+                && bridge_online(&core)
+            {
+                return;
+            }
+        }
+        tracing::info!(
+            "zigbee2mqtt local : pas revenu sur le broker après le redémarrage de Heim, relance"
+        );
+        if let Err(e) = core.zigbee_local.start().await {
             tracing::warn!("zigbee2mqtt local : {e}");
         }
     });
@@ -391,9 +491,9 @@ fn spawn_hotplug(core: Core) {
     });
 }
 
-/// Pilote deviné au nom de la clé, mais la clé ne répond pas : on essaie l'autre pilote
-/// possible (une Sonoff « Dongle Plus » peut être en Z-Stack ou en EmberZNet), une fois.
-/// Dès que Zigbee2MQTT répond, le pilote qui marche est enregistré.
+/// Pilote pas choisi, et la clé ne répond pas avec celui de la configuration : on demande à
+/// la clé son firmware (une fois par clé et par pilote), et on relance avec le bon. Dès que
+/// Zigbee2MQTT répond, le pilote qui marche est enregistré.
 async fn auto_adapter(core: &Core) {
     let z = &core.zigbee_local;
     let mut s = local_settings(core);
@@ -417,23 +517,20 @@ async fn auto_adapter(core: &Core) {
     if state != "failed" {
         return;
     }
-    // Jamais sur un réseau inconnu : un essai qui réussit créerait un nouveau réseau sur la clé.
+    // Jamais sur un réseau inconnu : un démarrage réussi créerait un nouveau réseau sur la clé.
     if !z.network_known() && config.get("devices").and_then(Value::as_u64).unwrap_or(0) == 0 {
         return;
     }
     let Some(current) = current else { return };
     let dongles = z.dongles();
     let port = config.get("port").and_then(Value::as_str).unwrap_or("");
-    let Some(dongle) = dongles.iter().find(|d| d.path == port).or(dongles.first()) else {
+    let Some(port) = dongles
+        .iter()
+        .find(|d| d.path == port)
+        .or(dongles.first())
+        .map(|d| d.path.clone())
+    else {
         return;
-    };
-    let Some(alt) = dongle.alternate else {
-        return;
-    };
-    let candidate = if current == alt {
-        dongle.adapter.unwrap_or("zstack")
-    } else {
-        alt
     };
     // La dernière erreur doit être un silence de la clé, pas une autre panne.
     let log = z.journal_tail(40).await;
@@ -444,30 +541,34 @@ async fn auto_adapter(core: &Core) {
             || e.contains("ezsp")
             || e.contains("ash")
     });
-    if !mute || z.was_tried(&dongle.path, candidate) {
+    if !mute || z.was_tried(&port, &current) {
         return;
     }
-    z.mark_tried(&dongle.path, &current);
-    z.mark_tried(&dongle.path, candidate);
-    tracing::info!("zigbee2mqtt local : pas de réponse avec {current}, essai avec {candidate}");
+    z.mark_tried(&port, &current);
+    let probe = probe_port(core, &port).await;
+    tracing::info!("zigbee2mqtt local : {}", probe.detail);
+    let found = probe.adapter.filter(|a| *a != current);
     let mut trial = s.clone();
-    trial.adapter = Some(candidate.to_string());
+    trial.adapter = found.map(str::to_string);
     let b = broker_settings(core);
-    if let Err(e) = z.write_config(&trial, b.port) {
+    if found.is_some()
+        && let Err(e) = z.write_config(&trial, b.port)
+    {
         tracing::warn!("zigbee2mqtt local : {e}");
-        return;
     }
     if let Err(e) = z.start().await {
         tracing::warn!("zigbee2mqtt local : {e}");
     }
-    core.bus.publish(crate::bus::Event::Log {
-        kind: "system".into(),
-        message: format!(
-            "Zigbee2MQTT : la clé ne répond pas avec le pilote {current}, essai avec {candidate}"
-        ),
-        entity_id: None,
-        actor: None,
-    });
+    if let Some(a) = found {
+        core.bus.publish(crate::bus::Event::Log {
+            kind: "system".into(),
+            message: format!(
+                "Zigbee2MQTT : la clé ne répond pas avec le pilote {current}, essai avec {a}"
+            ),
+            entity_id: None,
+            actor: None,
+        });
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
