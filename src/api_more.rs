@@ -342,12 +342,90 @@ pub async fn delete_automation(
     }
 }
 
+#[derive(Deserialize, Default)]
+pub struct RunInput {
+    /// Essayer « comme si » ce Quand l'avait lancé (sa branche, ses conditions « lancé par »).
+    #[serde(default)]
+    trigger: Option<String>,
+}
+
 pub async fn run_automation(
     State(app): State<AppState>,
     Path(id): Path<String>,
+    body: Option<Json<RunInput>>,
 ) -> ApiResult<StatusCode> {
-    app.core().automations.run(&id).await.map_err(bad_request)?;
+    let input = body.map(|Json(b)| b).unwrap_or_default();
+    app.core()
+        .automations
+        .run(&id, input.trigger)
+        .await
+        .map_err(bad_request)?;
     Ok(StatusCode::ACCEPTED)
+}
+
+/// Les dernières exécutions d'un automatisme (déclencheur, actions, où ça s'est arrêté).
+pub async fn automation_traces(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    Json(app.core().automations.traces(&id).await)
+}
+
+/// Les appareils qui envoient des actions (boutons, télécommandes) et ces actions : celles
+/// annoncées par l'appareil et celles déjà reçues. `last` : la dernière reçue (« Détecter »).
+pub async fn automation_devices(State(app): State<AppState>) -> impl IntoResponse {
+    let core = app.core();
+    let got = core.automations.device_events().await;
+    let entities = core.registry.snapshot().await;
+    let room_of = |device: &str| {
+        entities
+            .iter()
+            .find(|e| e.meta.device_id.as_deref() == Some(device))
+            .and_then(|e| e.meta.room.clone())
+    };
+    let mut list: Vec<Value> = Vec::new();
+    let mut done = std::collections::HashSet::new();
+    {
+        let controls = crate::devices::lock(&core.controls);
+        for d in controls.values() {
+            let seen = got.seen.get(&d.device_id);
+            if d.events.is_empty() && seen.is_none() {
+                continue;
+            }
+            let mut events = d.events.clone();
+            for e in seen.map(|s| s.events.as_slice()).unwrap_or_default() {
+                if !events.contains(e) {
+                    events.push(e.clone());
+                }
+            }
+            done.insert(d.device_id.clone());
+            list.push(json!({
+                "device_id": d.device_id,
+                "integration": d.integration,
+                "name": d.name,
+                "model": d.info.get("model").or_else(|| d.info.get("description")),
+                "room": room_of(&d.device_id),
+                "events": events,
+            }));
+        }
+    }
+    for (id, s) in &got.seen {
+        if done.contains(id) {
+            continue;
+        }
+        list.push(json!({
+            "device_id": id,
+            "integration": s.integration,
+            "name": s.name,
+            "room": room_of(id),
+            "events": s.events,
+        }));
+    }
+    list.sort_by(|a, b| {
+        let n = |v: &Value| v["name"].as_str().unwrap_or_default().to_lowercase();
+        n(a).cmp(&n(b))
+    });
+    Json(json!({ "devices": list, "last": got.last }))
 }
 
 // ---- Supprimer un appareil disparu -------------------------------------------------

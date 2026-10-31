@@ -273,17 +273,6 @@ impl Core {
             store.clone(),
         );
         let screens = screens::Screens::new(settings.clone(), bus.clone());
-        let automations = automations::spawn(
-            loaded.take(Table::Automations),
-            automations::Deps {
-                registry: registry.clone(),
-                timers: timers.clone(),
-                notify: notify.clone(),
-                settings: settings.clone(),
-                bus: bus.clone(),
-                store: store.clone(),
-            },
-        );
         alerts::spawn(registry.clone(), notify.clone(), settings.clone(), &bus);
         groups::spawn(registry.clone(), &bus, settings.clone());
         system::spawn_watchdog(registry.clone());
@@ -348,6 +337,19 @@ impl Core {
         }
 
         let effects = effects::Effects::new(bus.clone(), registry.clone(), controls.clone());
+        let automations = automations::spawn(
+            loaded.take(Table::Automations),
+            automations::Deps {
+                registry: registry.clone(),
+                timers: timers.clone(),
+                notify: notify.clone(),
+                settings: settings.clone(),
+                bus: bus.clone(),
+                store: store.clone(),
+                effects: effects.clone(),
+                security: security.clone(),
+            },
+        );
         let core = Core {
             screen_task: Arc::new(std::sync::Mutex::new(None)),
             effects,

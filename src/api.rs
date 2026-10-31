@@ -183,6 +183,8 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
             put(more::put_automation).delete(more::delete_automation),
         )
         .route("/automations/{id}/run", post(more::run_automation))
+        .route("/automations/{id}/traces", get(more::automation_traces))
+        .route("/automation_devices", get(more::automation_devices))
         .route("/scenes", get(list_scenes))
         .route("/scenes/{id}", put(put_scene).delete(delete_scene))
         .route("/scenes/{id}/capture", post(capture_scene))
@@ -487,6 +489,7 @@ pub fn required_role(method: &axum::http::Method, path: &str) -> Option<Role> {
             Some(Role::Member)
         }
         ["automations", _, "run"] | ["automations", _, "op"] if post => Some(Role::Member),
+        ["automations", _, "traces"] if get => Some(Role::Member),
         ["history", _] if get => Some(Role::Guest),
         ["logbook"] | ["groups"] if get => Some(Role::Member),
         ["entities", _, "battery_reset"] if post => Some(Role::Member),

@@ -113,6 +113,14 @@ pub enum Event {
         device_id: String,
         values: serde_json::Map<String, serde_json::Value>,
     },
+    /// Un appareil a envoyé une action : appui sur un bouton, télécommande, cube…
+    /// (`event` : « single », « 1_double », « brightness_up »…). Pour les automatismes.
+    DeviceEvent {
+        integration: String,
+        device_id: String,
+        name: String,
+        event: String,
+    },
     /// Action sur un appareil : « remove », « ota_check », « ota_update », « interview ».
     DeviceAction {
         integration: String,

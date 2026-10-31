@@ -1229,6 +1229,7 @@ pub async fn run(
                     controls: control_list.clone(),
                     values: Map::new(),
                     info,
+                    events: Vec::new(),
                 },
             );
         }

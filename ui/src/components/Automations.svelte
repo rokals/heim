@@ -8,6 +8,7 @@
 
   let { page = '', onnavigate = null } = $props();
   let editing = $state(null);
+  let showPresets = $state(false);
 
   // #automatismes/<id> (depuis un bouton de l'accueil) : ouvre directement l'automatisme.
   $effect(() => {
@@ -46,15 +47,20 @@
 
 <header class="top">
   <h1>{tr("Automatismes")}</h1>
-  {#if isAdmin()}<button class="btn" onclick={() => (editing = { automation: null })}><Icon name="plus" size={18} /> {tr("Nouvel automatisme")}</button>{/if}
+  {#if isAdmin()}
+    <span class="actions">
+      {#if home.automations.length}<button class="btn quiet" onclick={() => (showPresets = !showPresets)}>{tr("Modèles")}</button>{/if}
+      <button class="btn" onclick={() => (editing = { automation: null })}><Icon name="plus" size={18} /> {tr("Nouvel automatisme")}</button>
+    </span>
+  {/if}
 </header>
 <p class="intro">{tr("Quand quelque chose se passe, et si les conditions sont réunies, Heim agit tout seul.")}</p>
 
-{#if !home.automations.length && isAdmin()}
-  <h2>{tr("Pour commencer")}</h2>
+{#if (!home.automations.length || showPresets) && isAdmin()}
+  <h2>{home.automations.length ? tr("Modèles") : tr("Pour commencer")}</h2>
   <div class="presets">
     {#each PRESETS as p (p.title)}
-      <button class="preset" onclick={() => (editing = { preset: structuredClone(p.value) })}>
+      <button class="preset" onclick={() => { showPresets = false; editing = { preset: structuredClone(p.value) }; }}>
         <strong>{p.title}</strong>
         <span>{p.detail}</span>
       </button>
@@ -95,6 +101,12 @@
 {/if}
 
 <style>
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   .flag {
     display: inline-block;
     margin-left: 6px;

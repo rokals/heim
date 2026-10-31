@@ -28,6 +28,9 @@ pub struct DeviceControls {
     pub values: Map<String, Value>,
     /// Modèle, fabricant, version du logiciel interne, mise à jour disponible...
     pub info: Map<String, Value>,
+    /// Actions que l'appareil peut envoyer (boutons, télécommandes) : « 1_single »…
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub events: Vec<String>,
 }
 
 pub type Controls = Arc<Mutex<HashMap<String, DeviceControls>>>;

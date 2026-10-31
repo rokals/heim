@@ -78,6 +78,23 @@ pub struct Device {
     /// Tout ce que l'appareil sait régler (voir `crate::devices`).
     pub controls: Vec<Value>,
     pub info: Map<String, Value>,
+    /// Les actions annoncées (`action` dans les exposes) : boutons, télécommandes.
+    pub events: Vec<String>,
+}
+
+/// Les valeurs possibles de l'action d'un appareil (bouton, télécommande).
+pub fn events_from_exposes(exposes: &[Value]) -> Vec<String> {
+    exposes
+        .iter()
+        .filter(|e| {
+            str_field(e, "name") == Some("action") || str_field(e, "property") == Some("action")
+        })
+        .filter_map(|e| e.get("values").and_then(Value::as_array))
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+        .collect()
 }
 
 /// Réglages modifiables d'un appareil, d'après ses « exposes » Zigbee2MQTT.
@@ -481,6 +498,7 @@ pub fn parse_devices(payload: &Value) -> Vec<Device> {
                 mappings,
                 ieee: ieee.clone(),
                 controls: controls_from_exposes(exposes),
+                events: events_from_exposes(exposes),
                 info,
             });
         }
@@ -923,6 +941,20 @@ impl Bridge {
                     d.values.insert(k.clone(), v.clone());
                 }
             }
+            // Un bouton, une télécommande : l'action part vers les automatismes.
+            if let Some(Value::String(action)) = obj.get("action")
+                && !action.is_empty()
+            {
+                self.bus.publish(Event::DeviceEvent {
+                    integration: INTEGRATION.into(),
+                    device_id: device
+                        .ieee
+                        .clone()
+                        .unwrap_or_else(|| device.friendly_name.clone()),
+                    name: device.friendly_name.clone(),
+                    event: action.clone(),
+                });
+            }
             // La qualité du signal vaut pour tout l'appareil.
             let mut technical = Attributes::new();
             if let Some(lq) = obj.get("linkquality").filter(|v| v.is_number()) {
@@ -964,6 +996,7 @@ impl Bridge {
                             controls: device.controls.clone(),
                             values: Map::new(),
                             info: device.info.clone(),
+                            events: device.events.clone(),
                         },
                     );
                 }
@@ -1208,6 +1241,19 @@ mod tests {
             },
             {"type": "EndDevice", "friendly_name": "Inconnu", "ieee_address": "0x04", "definition": null}
         ])
+    }
+
+    #[test]
+    fn lists_remote_actions() {
+        let exposes = json!([
+            {"type": "enum", "name": "action", "property": "action", "access": 1,
+             "values": ["1_single", "1_double", "2_single", ""]},
+            {"type": "numeric", "name": "battery", "property": "battery", "access": 1}
+        ]);
+        assert_eq!(
+            events_from_exposes(exposes.as_array().unwrap()),
+            vec!["1_single", "1_double", "2_single"]
+        );
     }
 
     #[test]
