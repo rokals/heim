@@ -64,6 +64,21 @@ pub struct Ha {
 impl Ha {
     pub async fn connect(url: &str, token: &str) -> Result<Ha, String> {
         let url = ws_url(url)?;
+        // « homeassistant.local » : résolu en mDNS par Heim (le résolveur système ne le sait pas).
+        let host = url
+            .trim_start_matches("ws://")
+            .split('/')
+            .next()
+            .unwrap_or("")
+            .to_string();
+        let (name, port) = host.rsplit_once(':').unwrap_or((host.as_str(), "8123"));
+        let ip = crate::mdns::resolve(name).await;
+        if crate::mdns::is_local_name(name) && ip == name {
+            return Err(format!(
+                "{name} introuvable sur le réseau : indiquez l'adresse IP de Home Assistant (ex. 192.168.1.10:8123)"
+            ));
+        }
+        let url = url.replacen(&host, &format!("{ip}:{port}"), 1);
         let (mut ws, _) = tokio::time::timeout(
             Duration::from_secs(10),
             tokio_tungstenite::connect_async(&url),
@@ -150,18 +165,32 @@ impl Ha {
     }
 
     /// La sauvegarde de Zigbee2MQTT, demandée par MQTT au travers de Home Assistant.
-    pub async fn z2m_backup(&mut self, base_topic: &str) -> Result<Vec<u8>, String> {
+    pub async fn z2m_backup(
+        &mut self,
+        base_topic: &str,
+        wait: Duration,
+    ) -> Result<Vec<u8>, String> {
         let sub = self
             .send(json!({ "type": "mqtt/subscribe", "topic": format!("{base_topic}/bridge/response/backup") }))
             .await?;
         // Le résultat de l'abonnement, puis la demande.
         let mut subscribed = false;
-        let mut asked = false;
-        let deadline = tokio::time::Instant::now() + Duration::from_secs(45);
+        // Zigbee2MQTT qui démarre ne lit pas encore ses demandes : on redemande toutes les 10 s.
+        let mut next_ask: Option<tokio::time::Instant> = None;
+        let deadline = tokio::time::Instant::now() + wait;
         loop {
-            let m = tokio::time::timeout_at(deadline, self.ws.next())
-                .await
-                .map_err(|_| "Zigbee2MQTT n'a pas envoyé sa sauvegarde : est-il démarré dans Home Assistant ?".to_string())?;
+            let until = next_ask.map_or(deadline, |n| n.min(deadline));
+            let m = match tokio::time::timeout_at(until, self.ws.next()).await {
+                Ok(m) => m,
+                Err(_) if tokio::time::Instant::now() >= deadline => {
+                    return Err("Zigbee2MQTT n'a pas envoyé sa sauvegarde : est-il démarré dans Home Assistant ?".into());
+                }
+                Err(_) => {
+                    next_ask = Some(tokio::time::Instant::now() + Duration::from_secs(10));
+                    self.ask_backup(base_topic).await?;
+                    continue;
+                }
+            };
             let Some(Ok(msg)) = m else {
                 return Err("connexion à Home Assistant coupée".into());
             };
@@ -184,15 +213,20 @@ impl Ha {
                 }
                 _ => {}
             }
-            if subscribed && !asked {
-                asked = true;
-                self.send(json!({
-                    "type": "call_service", "domain": "mqtt", "service": "publish",
-                    "service_data": { "topic": format!("{base_topic}/bridge/request/backup"), "payload": "{}" }
-                }))
-                .await?;
+            if subscribed && next_ask.is_none() {
+                next_ask = Some(tokio::time::Instant::now() + Duration::from_secs(10));
+                self.ask_backup(base_topic).await?;
             }
         }
+    }
+
+    async fn ask_backup(&mut self, base_topic: &str) -> Result<(), String> {
+        self.send(json!({
+            "type": "call_service", "domain": "mqtt", "service": "publish",
+            "service_data": { "topic": format!("{base_topic}/bridge/request/backup"), "payload": "{}" }
+        }))
+        .await
+        .map(|_| ())
     }
 
     /// Pièces de Home Assistant, par adresse IEEE des appareils de Zigbee2MQTT.
@@ -266,13 +300,22 @@ impl Ha {
     }
 
     pub async fn stop_addon(&mut self, slug: &str) -> Result<(), String> {
+        self.addon_verb(slug, "stop").await
+    }
+
+    /// Démarre le module (la reprise a besoin d'un Zigbee2MQTT qui tourne dans HA).
+    pub async fn start_addon(&mut self, slug: &str) -> Result<(), String> {
+        self.addon_verb(slug, "start").await
+    }
+
+    async fn addon_verb(&mut self, slug: &str, verb: &str) -> Result<(), String> {
         if !slug
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
         {
             return Err("module invalide".into());
         }
-        self.call(json!({ "type": "supervisor/api", "endpoint": format!("/addons/{slug}/stop"), "method": "post", "timeout": 60 }))
+        self.call(json!({ "type": "supervisor/api", "endpoint": format!("/addons/{slug}/{verb}"), "method": "post", "timeout": 60 }))
             .await
             .map(|_| ())
     }
@@ -307,7 +350,7 @@ pub async fn z2m_backup_mqtt(
     use rumqttc::{AsyncClient, Event, MqttOptions, Packet, QoS};
     let mut o = MqttOptions::new(
         format!("heim-migrate-{}", std::process::id()),
-        env.host.clone(),
+        crate::mdns::resolve(&env.host).await,
         env.port,
     );
     o.set_keep_alive(Duration::from_secs(20));

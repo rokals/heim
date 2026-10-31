@@ -14,7 +14,7 @@
     stopped: { text: tr("Désactivé"), tone: 'off' },
   };
   const st = $derived(
-    !item.configured ? { text: tr("À configurer"), tone: 'off' } : !item.enabled ? { text: tr("Désactivé"), tone: 'off' } : (STATUS[item.status] ?? { text: tr("Démarrage…"), tone: 'wait' }),
+    !item.configured ? { text: tr("À configurer"), tone: 'off' } : !item.enabled ? { text: tr("Désactivé"), tone: 'off' } : item.status === 'connected' && item.detail ? { text: tr("Incomplet"), tone: 'wait' } : (STATUS[item.status] ?? { text: tr("Démarrage…"), tone: 'wait' }),
   );
 </script>
 

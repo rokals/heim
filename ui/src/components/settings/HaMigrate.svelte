@@ -92,6 +92,7 @@
         {:else}
           <form onsubmit={check}>
             <input class="input" bind:value={url} placeholder="homeassistant.local:8123" autocomplete="off" aria-label={tr("Adresse de Home Assistant")} />
+            <span class="muted small">{tr("Le nom homeassistant.local ou son adresse IP (192.168.1.10:8123).")}</span>
             <input class="input" type="password" bind:value={token} placeholder={tr("Jeton d'accès longue durée")} autocomplete="off" aria-label={tr("Jeton d'accès longue durée")} />
             <span class="muted small">{tr("Dans Home Assistant : votre profil (en bas à gauche) › Sécurité › Jetons d'accès longue durée › Créer un jeton. Le compte doit être administrateur. Heim ne garde pas ce jeton.")}</span>
             <details class="adv">
@@ -108,7 +109,7 @@
         {#if result}
           <span class="muted"><Icon name="check" size={16} /> {tr("{n} appareil(s) repris, {r} pièce(s) ajoutée(s)", { n: result.imported?.devices ?? 0, r: result.rooms_added ?? 0 })}</span>
         {:else if ha}
-          <span class="muted small">{tr("Heim demande sa sauvegarde à Zigbee2MQTT (clé réseau, appareils) : il doit tourner dans Home Assistant à ce moment-là.")}</span>
+          <span class="muted small">{tr("Heim demande sa sauvegarde à Zigbee2MQTT (clé réseau, appareils). Avec une seule clé, laissez-la branchée sur Home Assistant pour l'instant : si Zigbee2MQTT y est arrêté, Heim le relance le temps de la sauvegarde.")}</span>
           <button class="btn" onclick={run} disabled={busy}>{busy === 'import' ? tr("Sauvegarde en cours…") : tr("Reprendre")}</button>
         {/if}
       </li>

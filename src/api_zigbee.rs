@@ -126,6 +126,12 @@ pub async fn local_status(core: &Core) -> Value {
     let state = z.state().await;
     let dongles = z.dongles();
     let broker = broker_settings(core);
+    // Zigbee2MQTT qui plante au démarrage n'écrit rien dans son fichier : le journal système
+    // (sortie console) a alors le vrai message.
+    let mut log = z.journal_tail(30).await;
+    if log.is_empty() {
+        log = z.log_tail(30);
+    }
     json!({
         "installed": z.installed(),
         "runner": match &z.runner { Runner::Systemd => "systemd", Runner::Child(_) => "child", Runner::Missing => "missing" },
@@ -141,7 +147,8 @@ pub async fn local_status(core: &Core) -> Value {
         "config": z.config_summary(),
         "broker": { "enabled": broker.enabled, "port": broker.port, "running": core.broker.running() },
         "bridge": bridge_online(core),
-        "log": z.log_tail(30),
+        "log": log,
+        "hint": zigbee_local::explain(&log, &dongles),
     })
 }
 
@@ -312,8 +319,12 @@ pub async fn import_local(
 
 /// Au démarrage de Heim : Zigbee2MQTT local, s'il est activé, avec une configuration à jour.
 pub fn spawn_at_start(core: Core) {
+    if !core.zigbee_local.installed() {
+        return;
+    }
+    spawn_hotplug(core.clone());
     let s = local_settings(&core);
-    if !s.enabled || !core.zigbee_local.installed() {
+    if !s.enabled {
         return;
     }
     tokio::spawn(async move {
@@ -335,6 +346,44 @@ pub fn spawn_at_start(core: Core) {
             && let Err(e) = core.zigbee_local.start().await
         {
             tracing::warn!("zigbee2mqtt local : {e}");
+        }
+    });
+}
+
+/// Clé branchée après coup : Zigbee2MQTT (activé, mais arrêté faute de clé) repart tout seul,
+/// avec la configuration réécrite sur le chemin de la clé qui vient d'apparaître.
+fn spawn_hotplug(core: Core) {
+    tokio::spawn(async move {
+        let paths = |core: &Core| -> Vec<String> {
+            core.zigbee_local
+                .dongles()
+                .into_iter()
+                .map(|d| d.path)
+                .collect()
+        };
+        let mut known = paths(&core);
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let now = paths(&core);
+            let arrived = now.iter().any(|p| !known.contains(p));
+            known = now;
+            if !arrived {
+                continue;
+            }
+            let s = local_settings(&core);
+            if !s.enabled {
+                continue;
+            }
+            let state = core.zigbee_local.state().await;
+            if state == "active" && bridge_online(&core) {
+                continue;
+            }
+            tracing::info!("zigbee2mqtt local : clé branchée, redémarrage");
+            // Laisser le système finir de préparer le port série.
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            if let Err(e) = start_local(&core, &s).await {
+                tracing::warn!("zigbee2mqtt local : {e}");
+            }
         }
     });
 }
@@ -433,9 +482,33 @@ pub async fn ha_import(
     let mut ha = crate::migrate::Ha::connect(&input.url, &input.token)
         .await
         .map_err(bad_request)?;
-    let zip = ha.z2m_backup(&topic).await.map_err(bad_request)?;
+    // Une seule clé : le module de HA a pu être arrêté. On le relance le temps de la sauvegarde
+    // (il lui faut la clé : elle doit encore être branchée sur la machine Home Assistant).
+    let mut addon = ha.z2m_addon().await;
+    let mut started = false;
+    if let Some((slug, _, state)) = &addon
+        && state != "started"
+    {
+        ha.start_addon(slug).await.map_err(bad_request)?;
+        started = true;
+    }
+    let wait = std::time::Duration::from_secs(if started { 120 } else { 45 });
+    let zip = match ha.z2m_backup(&topic, wait).await {
+        Ok(z) => z,
+        Err(_) if addon.is_some() => {
+            let state = ha.z2m_addon().await.map(|a| a.2).unwrap_or_default();
+            return Err(bad_request(if state == "started" {
+                "Zigbee2MQTT tourne dans Home Assistant mais ne répond pas : la clé Zigbee est-elle bien branchée sur la machine Home Assistant ? Avec une seule clé, laissez-la sur Home Assistant le temps de la reprise, puis déplacez-la sur la box."
+            } else {
+                "Zigbee2MQTT ne démarre pas dans Home Assistant : la clé Zigbee est-elle branchée sur la machine Home Assistant ? Avec une seule clé, rebranchez-la sur Home Assistant le temps de la reprise (une minute), puis déplacez-la sur la box."
+            }));
+        }
+        Err(e) => return Err(bad_request(e)),
+    };
     let (rooms, by_ieee) = ha.rooms().await.unwrap_or_default();
-    let addon = ha.z2m_addon().await;
+    if started {
+        addon = ha.z2m_addon().await;
+    }
     drop(ha);
     let summary = import_zip(core, &zip, "Home Assistant")
         .await

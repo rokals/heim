@@ -1059,6 +1059,18 @@ pub const EN: &[(&str, &str)] = &[
         "Home Assistant isn’t answering",
     ),
     (
+        "{} introuvable sur le réseau : indiquez l'adresse IP de Home Assistant (ex. 192.168.1.10:8123)",
+        "{} can’t be found on the network: enter Home Assistant’s IP address (e.g. 192.168.1.10:8123)",
+    ),
+    (
+        "Zigbee2MQTT tourne dans Home Assistant mais ne répond pas : la clé Zigbee est-elle bien branchée sur la machine Home Assistant ? Avec une seule clé, laissez-la sur Home Assistant le temps de la reprise, puis déplacez-la sur la box.",
+        "Zigbee2MQTT is running in Home Assistant but isn’t answering: is the Zigbee stick plugged into the Home Assistant machine? With a single stick, leave it on Home Assistant during the import, then move it to the box.",
+    ),
+    (
+        "Zigbee2MQTT ne démarre pas dans Home Assistant : la clé Zigbee est-elle branchée sur la machine Home Assistant ? Avec une seule clé, rebranchez-la sur Home Assistant le temps de la reprise (une minute), puis déplacez-la sur la box.",
+        "Zigbee2MQTT won’t start in Home Assistant: is the Zigbee stick plugged into the Home Assistant machine? With a single stick, plug it back into Home Assistant for the import (one minute), then move it to the box.",
+    ),
+    (
         "connexion à Home Assistant coupée",
         "connection to Home Assistant lost",
     ),

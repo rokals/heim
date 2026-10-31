@@ -696,7 +696,7 @@ impl Discovery {
 pub async fn run(env: MqttEnv, registry: RegistryHandle, bus: Bus) -> anyhow::Result<()> {
     let mut opts = MqttOptions::new(
         format!("heim-discovery-{}", std::process::id()),
-        env.host.clone(),
+        crate::mdns::resolve(&env.host).await,
         env.port,
     );
     opts.set_keep_alive(Duration::from_secs(30));

@@ -369,11 +369,17 @@ impl ZigbeeLocal {
         broker_port: u16,
     ) -> Result<Option<String>, String> {
         std::fs::create_dir_all(&self.data).map_err(|e| e.to_string())?;
+        let dongles = self.dongles();
+        // Un chemin enregistré mais absent (clé débranchée, autre clé) : la clé branchée prend
+        // le relais, sinon Zigbee2MQTT s'arrêterait sur « port introuvable ».
         let port = s
             .port
             .clone()
             .filter(|p| !p.trim().is_empty())
-            .or_else(|| self.dongles().first().map(|d| d.path.clone()));
+            .filter(|p| {
+                dongles.is_empty() || dongles.iter().any(|d| &d.path == p) || Path::new(p).exists()
+            })
+            .or_else(|| dongles.first().map(|d| d.path.clone()));
         let existing = std::fs::read_to_string(self.config_path()).ok();
         let mut wanted = s.clone();
         if wanted.adapter.is_none()
@@ -505,6 +511,38 @@ impl ZigbeeLocal {
             .collect()
     }
 
+    /// Les dernières lignes de Zigbee2MQTT dans le journal système (service de l'image SD).
+    /// Vide ailleurs, ou si Heim n'a pas le droit de lire le journal.
+    pub async fn journal_tail(&self, lines: usize) -> Vec<String> {
+        if self.runner != Runner::Systemd {
+            return Vec::new();
+        }
+        let out = tokio::time::timeout(
+            Duration::from_secs(3),
+            tokio::process::Command::new("journalctl")
+                .args([
+                    "-u",
+                    SERVICE,
+                    "-n",
+                    &lines.to_string(),
+                    "-o",
+                    "cat",
+                    "--no-pager",
+                    "-q",
+                ])
+                .output(),
+        )
+        .await;
+        match out {
+            Ok(Ok(o)) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .map(|l| strip_ansi(l).chars().take(400).collect())
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
     /// « active », « inactive », « failed », « activating »… ou « missing ».
     pub async fn state(&self) -> String {
         match &self.runner {
@@ -631,6 +669,67 @@ impl ZigbeeLocal {
             tokio::time::sleep(backoff).await;
             backoff = (backoff * 2).min(Duration::from_secs(60));
         }
+    }
+}
+
+/// Les couleurs de la console de Zigbee2MQTT, retirées.
+fn strip_ansi(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for c in chars.by_ref() {
+                    if c.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// Une explication en clair des pannes courantes, d'après le journal. Rien si on ne sait pas.
+pub fn explain(log: &[String], dongles: &[Dongle]) -> Option<&'static str> {
+    let text = log
+        .iter()
+        .rev()
+        .take(30)
+        .map(|l| l.to_ascii_lowercase())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let has = |k: &str| text.contains(k);
+    if has("not consistent with adapter") || has("configuration-adapter mismatch") {
+        Some(
+            "La clé porte un autre réseau Zigbee que celui de la configuration. Reprenez la sauvegarde de l'ancien Zigbee2MQTT (Reprendre les appareils de Home Assistant), elle remet le bon réseau sur la clé.",
+        )
+    } else if has("resource busy") || has("cannot lock port") || has("port is locked") {
+        Some("La clé est déjà utilisée par un autre programme.")
+    } else if has("permission denied") && (has("/dev/tty") || has("/dev/serial")) {
+        Some("Zigbee2MQTT n'a pas le droit d'ouvrir la clé (groupe dialout).")
+    } else if dongles.is_empty()
+        || has("no such file or directory, cannot open /dev")
+        || has("no valid usb adapter found")
+        || has("failed to find a suitable adapter")
+    {
+        Some(
+            "Aucune clé Zigbee trouvée : branchez-la. Zigbee2MQTT redémarre tout seul dès qu'elle apparaît.",
+        )
+    } else if has("failed to connect to the adapter")
+        || has("sreq '") && has("timeout")
+        || has("failed to start zigbee-herdsman")
+    {
+        Some(
+            "La clé ne répond pas. Débranchez-la, attendez 5 secondes, rebranchez-la (de préférence avec une rallonge USB, loin du Raspberry Pi).",
+        )
+    } else if has("connect econnrefused") && has("1883") {
+        Some("Le broker MQTT de la box ne répond pas : redémarrez Heim (Réglages › Système).")
+    } else {
+        None
     }
 }
 

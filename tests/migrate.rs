@@ -54,7 +54,10 @@ async fn home_assistant_websocket() {
         .unwrap();
     assert!(err.contains("jeton refusé"), "{err}");
 
-    let zip = ha.z2m_backup("zigbee2mqtt").await.expect("sauvegarde");
+    let zip = ha
+        .z2m_backup("zigbee2mqtt", std::time::Duration::from_secs(45))
+        .await
+        .expect("sauvegarde");
     let files = heim::migrate::unzip(&zip).unwrap();
     assert!(files.iter().any(|(n, _)| n == "database.db"));
 

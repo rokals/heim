@@ -30,6 +30,7 @@ pub mod groups;
 pub mod history;
 pub mod i18n;
 pub mod integrations;
+pub mod mdns;
 pub mod migrate;
 pub mod model;
 pub mod netsetup;

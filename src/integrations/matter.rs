@@ -458,9 +458,10 @@ type Ws =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 async fn connect(url: &str) -> Result<(Ws, Value), String> {
+    let target = crate::mdns::resolve_url(url).await;
     let (mut ws, _) = tokio::time::timeout(
         Duration::from_secs(8),
-        tokio_tungstenite::connect_async(url),
+        tokio_tungstenite::connect_async(target.as_str()),
     )
     .await
     .map_err(|_| format!("{url} ne répond pas"))?

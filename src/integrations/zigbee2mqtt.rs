@@ -713,7 +713,7 @@ pub async fn run(
 ) -> anyhow::Result<()> {
     let mut opts = MqttOptions::new(
         format!("heim-{}", std::process::id()),
-        cfg.host.clone(),
+        crate::mdns::resolve(&cfg.host).await,
         cfg.port,
     );
     opts.set_keep_alive(Duration::from_secs(30));

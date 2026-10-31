@@ -58,6 +58,8 @@
   const tone = $derived(
     !st ? 'off' : st.state === 'active' && st.bridge ? 'ok' : st.state === 'failed' ? 'bad' : st.state === 'inactive' ? 'off' : 'wait',
   );
+  // La dernière ligne d'erreur du journal, quand Heim ne sait pas l'expliquer.
+  const lastError = $derived([...(st?.log ?? [])].reverse().find((l) => /error|erreur|failed|exception/i.test(l)) ?? '');
   const label = (d) => d.model || d.name.replace(/^usb-/, '').replace(/-if\d+(-port\d+)?$/, '').replaceAll('_', ' ');
   const chosen = $derived(port || st?.dongles?.[0]?.path || '');
 
@@ -124,6 +126,13 @@
   </div>
 {:else}
   <p class="status {tone}"><span class="led"></span>{STATE[st.state] ?? st.state}{#if st.version}<small>Zigbee2MQTT {st.version}</small>{/if}</p>
+  {#if tone === 'bad'}
+    {#if st.hint}
+      <p class="why">{tr(st.hint)}</p>
+    {:else if lastError}
+      <p class="why"><code>{lastError}</code></p>
+    {/if}
+  {/if}
 
   <div class="field">
     <span>{tr("Clé Zigbee")}</span>
@@ -222,6 +231,17 @@
     gap: 8px;
     margin: 0 0 16px;
     font-weight: 600;
+  }
+
+  .why {
+    margin: -8px 0 16px;
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .why code {
+    white-space: pre-wrap;
+    word-break: break-word;
   }
 
   .status small {
