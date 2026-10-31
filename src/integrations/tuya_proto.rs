@@ -166,6 +166,15 @@ fn gcm_decrypt(
         .map_err(|_| "message illisible (mauvaise clé locale ?)".to_string())
 }
 
+/// Demande d'annonce, diffusée sur le port UDP 7000 (comme l'appli et tinytuya) : les
+/// appareils récents (3.5) ne s'annoncent pas tout seuls, ils répondent à cette demande.
+pub fn discovery_request(local_ip: &str) -> Vec<u8> {
+    let payload = json!({ "from": "app", "ip": local_ip }).to_string();
+    let mut iv = [0u8; 12];
+    let _ = getrandom::getrandom(&mut iv);
+    frame_6699(0, 0x25, payload.as_bytes(), &udp_key(), &iv)
+}
+
 /// Clé de découverte des annonces UDP : md5("yGAdlopoPVldABfn").
 pub fn udp_key() -> [u8; 16] {
     use md5::Digest;
@@ -573,6 +582,13 @@ pub fn decode_broadcast(packet: &[u8]) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn discovery_request_is_readable() {
+        let v = decode_broadcast(&discovery_request("192.168.1.20")).unwrap();
+        assert_eq!(v["from"], "app");
+        assert_eq!(v["ip"], "192.168.1.20");
+    }
 
     #[test]
     fn ecb_roundtrip_and_padding() {

@@ -517,10 +517,144 @@ async fn listen_udp(port: u16, tx: mpsc::Sender<Announce>) {
     }
 }
 
+/// L'adresse IPv4 de la box sur le réseau local (celle de la route par défaut).
+fn local_ipv4() -> Option<Ipv4Addr> {
+    let s = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    s.connect("192.0.2.1:9").ok()?; // Aucun paquet n'est envoyé : on lit juste l'adresse choisie.
+    match s.local_addr().ok()?.ip() {
+        std::net::IpAddr::V4(ip) if !ip.is_loopback() => Some(ip),
+        _ => None,
+    }
+}
+
+/// Port 7000 : demande d'annonce diffusée (appareils 3.5, qui ne s'annoncent pas d'eux-mêmes),
+/// répétée toutes les 30 s pendant 5 min, puis toutes les 5 min ; les réponses arrivent ici.
+async fn listen_app(tx: mpsc::Sender<Announce>) {
+    let socket = match tokio::net::UdpSocket::bind(("0.0.0.0", 7000)).await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!("tuya : écoute UDP 7000 impossible ({e})");
+            return;
+        }
+    };
+    let _ = socket.set_broadcast(true);
+    let started = tokio::time::Instant::now();
+    let mut buf = vec![0u8; 2048];
+    loop {
+        if let Some(ip) = local_ipv4() {
+            let req = proto::discovery_request(&ip.to_string());
+            let _ = socket.send_to(&req, ("255.255.255.255", 7000)).await;
+        }
+        let every = if started.elapsed() < Duration::from_secs(300) {
+            30
+        } else {
+            300
+        };
+        let until = tokio::time::Instant::now() + Duration::from_secs(every);
+        while let Ok(Ok((n, _))) = tokio::time::timeout_at(until, socket.recv_from(&mut buf)).await
+        {
+            if let Some(a) = proto::decode_broadcast(&buf[..n])
+                .as_ref()
+                .and_then(parse_announce)
+                && tx.send(a).await.is_err()
+            {
+                return;
+            }
+        }
+    }
+}
+
+/// Cet appareil répond-il à cette adresse, avec sa clé ? Renvoie la version qui marche.
+/// 3.4 et 3.5 : la négociation de session ne réussit qu'avec la bonne clé ; 3.3 : seule la
+/// bonne clé déchiffre la réponse à la demande d'état.
+async fn identify(ip: &str, d: &TuyaDevice) -> Option<Version> {
+    for version in [Version::V35, Version::V34, Version::V33] {
+        let attempt = async {
+            let mut c = Conn::open(ip, d, version).await?;
+            if version == Version::V33 {
+                let q = c.session.query(&[]);
+                c.send(&q).await?;
+                let f = c.next_frame().await?;
+                f.json().ok_or_else(|| "réponse illisible".to_string())?;
+            }
+            Ok::<_, String>(())
+        };
+        if let Ok(Ok(())) = tokio::time::timeout(Duration::from_secs(4), attempt).await {
+            return Some(version);
+        }
+    }
+    None
+}
+
+/// Dernier recours quand un appareil ne s'annonce pas : on cherche sur le réseau local (/24)
+/// les machines qui écoutent sur le port Tuya (6668), et on essaie la clé de chaque appareil
+/// sans adresse. Rien n'est envoyé aux adresses déjà attribuées.
+pub async fn locate(
+    pending: Vec<TuyaDevice>,
+    taken: std::collections::HashSet<String>,
+) -> Vec<Announce> {
+    let Some(me) = local_ipv4() else {
+        return Vec::new();
+    };
+    let [a, b, c, _] = me.octets();
+    let mut probes = tokio::task::JoinSet::new();
+    for host in 1..=254u8 {
+        let ip = Ipv4Addr::new(a, b, c, host);
+        if ip == me || taken.contains(&ip.to_string()) {
+            continue;
+        }
+        probes.spawn(async move {
+            let open =
+                tokio::time::timeout(Duration::from_millis(800), TcpStream::connect((ip, PORT)))
+                    .await
+                    .is_ok_and(|r| r.is_ok());
+            open.then_some(ip.to_string())
+        });
+    }
+    let mut hosts = Vec::new();
+    while let Some(r) = probes.join_next().await {
+        if let Ok(Some(ip)) = r {
+            hosts.push(ip);
+        }
+    }
+    hosts.sort();
+    tracing::info!(
+        "tuya : {} appareil(s) Tuya sur le réseau, recherche de {} clé(s)",
+        hosts.len(),
+        pending.len()
+    );
+    let mut found = Vec::new();
+    let mut left = pending;
+    for ip in hosts {
+        let mut hit = None;
+        for (i, d) in left.iter().enumerate() {
+            if let Some(v) = identify(&ip, d).await {
+                hit = Some((i, v));
+                break;
+            }
+        }
+        if let Some((i, v)) = hit {
+            let d = left.remove(i);
+            tracing::info!("tuya : {} trouvé en {ip} (v{})", d.name, v.as_str());
+            found.push(Announce {
+                id: d.id,
+                ip,
+                version: v.as_str().into(),
+                product_key: None,
+            });
+        }
+        if left.is_empty() {
+            break;
+        }
+    }
+    found
+}
+
 /// Écoute les annonces pendant quelques secondes (bouton « Chercher » de l'interface).
 pub async fn scan(seconds: u64) -> Vec<Announce> {
     let (tx, mut rx) = mpsc::channel(64);
     let a = tokio::spawn(listen_udp(6666, tx.clone()));
+    let c = tokio::spawn(listen_app(tx.clone()));
     let b = tokio::spawn(listen_udp(6667, tx));
     let mut found: BTreeMap<String, Announce> = BTreeMap::new();
     let deadline = tokio::time::sleep(Duration::from_secs(seconds));
@@ -533,6 +667,7 @@ pub async fn scan(seconds: u64) -> Vec<Announce> {
     }
     a.abort();
     b.abort();
+    c.abort();
     found.into_values().collect()
 }
 
@@ -1000,7 +1135,21 @@ pub async fn run(
     }
     let (atx, mut arx) = mpsc::channel(64);
     joins.push(tokio::spawn(listen_udp(6666, atx.clone())));
-    joins.push(tokio::spawn(listen_udp(6667, atx)));
+    joins.push(tokio::spawn(listen_udp(6667, atx.clone())));
+    joins.push(tokio::spawn(listen_app(atx.clone())));
+    // Les appareils dont on connaît l'adresse (réglée, ou entendue sur le réseau).
+    let mut located: HashMap<String, String> = settings
+        .devices
+        .iter()
+        .filter_map(|d| Some((d.id.clone(), d.ip.clone()?)))
+        .collect();
+    // Recherche active des appareils muets : 20 s après le démarrage, puis toutes les 10 min.
+    let mut sweep = tokio::time::interval_at(
+        tokio::time::Instant::now() + Duration::from_secs(20),
+        Duration::from_secs(600),
+    );
+    sweep.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut sweeping: Option<tokio::task::JoinHandle<()>> = None;
     bus.integration_status(
         INTEGRATION,
         IntegrationState::Connected,
@@ -1031,7 +1180,25 @@ pub async fn run(
                 Ok(_) | Err(RecvError::Lagged(_)) => {}
                 Err(RecvError::Closed) => return Ok(()),
             },
+            _ = sweep.tick() => {
+                let pending: Vec<TuyaDevice> = settings
+                    .devices
+                    .iter()
+                    .filter(|d| tasks.contains_key(&d.id) && !located.contains_key(&d.id))
+                    .cloned()
+                    .collect();
+                if !pending.is_empty() && sweeping.as_ref().is_none_or(|h| h.is_finished()) {
+                    let taken = located.values().cloned().collect();
+                    let tx = atx.clone();
+                    sweeping = Some(tokio::spawn(async move {
+                        for a in locate(pending, taken).await {
+                            let _ = tx.send(a).await;
+                        }
+                    }));
+                }
+            }
             a = arx.recv() => if let Some(a) = a {
+                located.insert(a.id.clone(), a.ip.clone());
                 seen.lock().unwrap_or_else(|e| e.into_inner()).insert(a.id.clone(), a.clone());
                 if let Some(tx) = tasks.get(&a.id) {
                     let _ = tx.send(DeviceMsg::Located(a.ip, a.version)).await;

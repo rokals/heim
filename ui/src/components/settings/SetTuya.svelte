@@ -26,8 +26,8 @@
   function deviceState(d) {
     const e = d.entities.map((id) => home.entities[id]).find(Boolean);
     if (!d.supported) return { text: tr("non pris en charge en local (caméra, sonnette ou appareil sur pile)"), bad: true };
-    if (!e?.state) return { text: d.ip ? 'connexion…' : tr("en attente de son annonce réseau (ou indiquez l'adresse IP)") };
-    return e.state.available ? { text: tr("connecté"), ok: true } : { text: 'injoignable', bad: true };
+    if (!e?.state) return { text: d.ip ? tr("connexion…") : tr("recherche sur le réseau… (ou indiquez l'adresse IP)") };
+    return e.state.available ? { text: tr("connecté"), ok: true } : { text: tr("injoignable"), bad: true };
   }
 
   async function save(devices, enabled = cfg.enabled) {
@@ -180,7 +180,7 @@
                 <option value="">{tr("Version : automatique")}</option>
                 <option value="3.3">3.3</option><option value="3.4">3.4</option><option value="3.5">3.5</option>
               </select>
-              <input class="input" bind:value={editing.key} placeholder={tr("Nouvelle clé locale (vide : garder l'actuelle)")} autocomplete="off" />
+              <input class="input" bind:value={editing.key} placeholder={tr("Clé enregistrée ✓ — saisir une nouvelle clé pour la remplacer")} autocomplete="off" />
               <div class="row">
                 <button class="btn" type="submit">{tr("Enregistrer")}</button>
                 <button class="btn quiet" type="button" onclick={() => (editing = null)}>{tr("Annuler")}</button>
