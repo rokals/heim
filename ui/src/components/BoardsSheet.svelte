@@ -5,7 +5,7 @@
   import { untrack } from 'svelte';
   import Sheet from './Sheet.svelte';
   import Icon from './Icon.svelte';
-  import { home, saveBoards, showBoard } from '../lib/store.svelte.js';
+  import { api, home, saveBoards, showBoard } from '../lib/store.svelte.js';
 
   let { onclose = null, inline = false } = $props();
 
@@ -23,6 +23,21 @@
       if (!saving && fresh && !dirty) list = $state.snapshot(fresh);
     });
   });
+
+  // Les modèles (Performance, Énergie, Sécurité…), remplis avec les appareils de la maison.
+  let templates = $state([]);
+  let showTemplates = $state(false);
+  $effect(() => {
+    api('/dashboards/templates')
+      .then((r) => (templates = r.templates ?? []))
+      .catch(() => (templates = []));
+  });
+  function addTemplate(t) {
+    const b = structuredClone($state.snapshot(t.board));
+    b.name = tr(b.name);
+    list.push(b);
+    showTemplates = false;
+  }
 
   function add(kind) {
     const n = list.filter((b) => b.name.startsWith('Tableau')).length + 1;
@@ -94,7 +109,26 @@
   <div class="adds">
     <button class="btn quiet" onclick={() => add('empty')}><Icon name="plus" size={16} /> {tr("Tableau vide")}</button>
     <button class="btn quiet" onclick={() => add('auto')}><Icon name="house" size={16} /> {tr("Rangé par pièce")}</button>
+    {#if templates.length}
+      <button class="btn quiet" class:on={showTemplates} onclick={() => (showTemplates = !showTemplates)}><Icon name="grid" size={16} /> {tr("Modèles")}</button>
+    {/if}
   </div>
+  {#if showTemplates}
+    <ul class="templates">
+      {#each templates as t (t.id)}
+        <li>
+          <button class="tpl" onclick={() => addTemplate(t)} disabled={!t.devices && t.id !== 'security' && t.id !== 'lights'}>
+            <span class="ic"><Icon name={t.icon} size={20} /></span>
+            <span class="txt">
+              <strong>{tr(t.name)}</strong>
+              <small>{tr(t.description)} · {t.devices ? tr("{n} appareil(s)", { n: t.devices }) : tr("aucun appareil pour l'instant")}</small>
+            </span>
+            <Icon name="plus" size={18} />
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
   <div class="actions">
     <button class="btn" onclick={save} disabled={saving || !dirty}>{saving ? tr("Enregistrement…") : tr("Enregistrer")}</button>
     {#if dirty}<button class="btn quiet" onclick={() => (list = $state.snapshot(home.boards?.boards ?? []))}>{tr("Annuler")}</button>{/if}
@@ -226,5 +260,33 @@
     flex-wrap: wrap;
     gap: 8px;
     margin-top: 8px;
+  }
+
+  .templates li {
+    padding: 0;
+  }
+
+  .tpl {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px;
+    text-align: left;
+    color: var(--ink);
+  }
+
+  .tpl:disabled {
+    opacity: 0.5;
+  }
+
+  .tpl .txt {
+    flex: 1;
+    display: grid;
+    gap: 2px;
+  }
+
+  .tpl small {
+    color: var(--muted);
   }
 </style>

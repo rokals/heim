@@ -98,31 +98,142 @@ pub fn load(settings: &Settings) -> Boards {
 }
 
 const BOX_FLAG: &str = "dashboards.box_added";
+const BOX_REMOVED: &str = "dashboards.box_removed";
 
-/// Un tableau « Box Heim » proposé une fois (processeur, mémoire, carte SD, température) :
-/// pour l'écran branché sur la box, ou pour qui veut surveiller son Pi. On peut le renommer,
-/// le cacher ou le supprimer : il ne revient pas.
-pub fn ensure_box_board(settings: &Settings) {
-    if settings.get_raw(BOX_FLAG).is_some() {
+/// La 0.19.2 ajoutait d'office un tableau « Box Heim » ; c'est désormais un modèle à choisir.
+/// On le retire une fois, seulement s'il est resté tel quel (sinon, il a été adopté).
+pub fn remove_auto_box_board(settings: &Settings) {
+    if settings.get_raw(BOX_FLAG).is_none() || settings.get_raw(BOX_REMOVED).is_some() {
         return;
     }
     let mut all = load(settings);
-    if !all.boards.iter().any(|b| b.id == "box") && all.boards.len() < MAX_BOARDS {
-        let card = |id: &str| json!({ "entity_id": id, "w": 2, "h": 2 });
-        all.boards.push(Board {
-            id: "box".into(),
-            name: "Box Heim".into(),
-            icon: Some("chip".into()),
-            hidden: false,
-            auto: false,
-            sections: vec![json!({ "title": "", "cards": [
-                card("sensor.heim_cpu"), card("sensor.heim_memory"),
-                card("sensor.heim_disk"), card("sensor.heim_temperature"),
-            ]})],
-        });
+    let untouched = |b: &Board| {
+        b.id == "box"
+            && b.name == "Box Heim"
+            && b.sections.len() == 1
+            && b.sections[0]["cards"]
+                .as_array()
+                .is_some_and(|c| c.len() == 4)
+    };
+    if all.boards.len() > 1 && all.boards.iter().any(untouched) {
+        all.boards.retain(|b| !untouched(b));
         let _ = settings.set(KEY, &all);
     }
-    let _ = settings.set(BOX_FLAG, &true);
+    let _ = settings.set(BOX_REMOVED, &true);
+}
+
+/// Les modèles proposés à la création d'un tableau, remplis avec les appareils de la maison.
+pub fn templates(entities: &[crate::model::EntityView]) -> Vec<Value> {
+    let unit = |e: &crate::model::EntityView| {
+        e.meta
+            .capabilities
+            .get("unit")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string()
+    };
+    let kind = |e: &crate::model::EntityView| {
+        e.meta
+            .capabilities
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string()
+    };
+    let visible: Vec<&crate::model::EntityView> =
+        entities.iter().filter(|e| !e.meta.hidden).collect();
+    let pick = |f: &dyn Fn(&crate::model::EntityView) -> bool, w: u8, h: u8| -> Vec<Value> {
+        visible
+            .iter()
+            .filter(|e| f(e))
+            .take(MAX_CARDS)
+            .map(|e| json!({ "entity_id": e.meta.entity_id, "w": w, "h": h }))
+            .collect()
+    };
+    let heim = |e: &crate::model::EntityView| e.meta.entity_id.starts_with("sensor.heim_");
+    let section = |title: &str, cards: Vec<Value>| json!({ "title": title, "cards": cards });
+    let house = |k: &str, w: u8| json!({ "type": "house", "kind": k, "w": w, "h": 1 });
+
+    let perf = pick(&|e| heim(e), 2, 2);
+    let energy = pick(
+        &|e| {
+            e.meta.entity_id.starts_with("sensor.")
+                && !heim(e)
+                && (["W", "kW", "kWh", "Wh", "VA", "kVA", "A", "mA", "V"]
+                    .contains(&unit(e).as_str())
+                    || ["power", "energy", "current", "voltage"].contains(&kind(e).as_str()))
+        },
+        2,
+        1,
+    );
+    let mut security = vec![house("alarm", 4)];
+    security.extend(pick(
+        &|e| {
+            e.meta.entity_id.starts_with("binary_sensor.") || e.meta.entity_id.starts_with("siren.")
+        },
+        2,
+        1,
+    ));
+    let mut lights = vec![house("lights", 4)];
+    lights.extend(pick(&|e| e.meta.entity_id.starts_with("light."), 2, 2));
+    let climate = pick(
+        &|e| {
+            e.meta.entity_id.starts_with("sensor.")
+                && !heim(e)
+                && ["°C", "°F"].contains(&unit(e).as_str())
+                || e.meta.entity_id.starts_with("sensor.") && kind(e) == "humidity"
+        },
+        2,
+        1,
+    );
+    let t = |id: &str, name: &str, icon: &str, desc: &str, cards: Vec<Value>| {
+        let found = cards
+            .iter()
+            .filter(|c| c.get("entity_id").is_some())
+            .count();
+        json!({
+            "id": id, "name": name, "icon": icon, "description": desc, "devices": found,
+            "board": { "id": "", "name": name, "icon": icon, "hidden": false, "auto": false,
+                       "sections": [section("", cards)] },
+        })
+    };
+    vec![
+        t(
+            "performance",
+            "Performance",
+            "chip",
+            "Processeur, mémoire, carte SD et température de la box",
+            perf,
+        ),
+        t(
+            "energy",
+            "Énergie",
+            "bolt",
+            "Compteur Linky, prises et mesures de consommation",
+            energy,
+        ),
+        t(
+            "security",
+            "Sécurité",
+            "shield",
+            "Alarme, capteurs d'ouverture et de mouvement, sirènes",
+            security,
+        ),
+        t(
+            "lights",
+            "Lumières",
+            "bulb",
+            "Toutes les lumières, avec « tout éteindre »",
+            lights,
+        ),
+        t(
+            "climate",
+            "Climat",
+            "thermo",
+            "Températures et humidité de chaque pièce",
+            climate,
+        ),
+    ]
 }
 
 fn check_sections(sections: &[Value]) -> Result<(), String> {
@@ -315,6 +426,17 @@ pub fn check_change(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn templates_are_valid_boards() {
+        let t = templates(&[]);
+        assert_eq!(t.len(), 5);
+        let boards: Vec<Board> = t
+            .iter()
+            .map(|x| serde_json::from_value(x["board"].clone()).unwrap())
+            .collect();
+        assert!(validate(Boards { boards }).is_ok());
+    }
+
     use super::*;
 
     fn sec(title: &str, cards: Value) -> Value {

@@ -256,3 +256,9 @@ pub async fn sun(State(app): State<AppState>) -> impl IntoResponse {
         .collect();
     Json(json!({ "days": days }))
 }
+
+/// Les modèles de tableaux (Performance, Énergie, Sécurité…), remplis avec les appareils.
+pub async fn get_templates(State(app): State<AppState>) -> impl IntoResponse {
+    let all = app.core().registry.snapshot().await;
+    Json(json!({ "templates": dashboards::templates(&all) }))
+}

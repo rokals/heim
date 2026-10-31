@@ -395,7 +395,7 @@ impl Core {
         core.spawn_update_checker();
         core.spawn_power_on_for_new();
         api_zigbee::spawn_at_start(core.clone());
-        dashboards::ensure_box_board(&core.settings);
+        dashboards::remove_auto_box_board(&core.settings);
         core.apply_screen();
         migrate::spawn_rooms(core.clone());
         if !config.demo {

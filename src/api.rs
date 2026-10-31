@@ -302,6 +302,7 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
             "/dashboards",
             get(boards::get_dashboards).put(boards::put_dashboards),
         )
+        .route("/dashboards/templates", get(boards::get_templates))
         .route("/dashboards/{id}", put(boards::put_board))
         .route("/screens", get(boards::list_screens))
         .route(
@@ -489,6 +490,8 @@ pub fn required_role(method: &axum::http::Method, path: &str) -> Option<Role> {
         ["history", _] if get => Some(Role::Guest),
         ["logbook"] | ["groups"] if get => Some(Role::Member),
         ["entities", _, "battery_reset"] if post => Some(Role::Member),
+        // Effets de Heim : les membres les lancent (les invités n'y ont pas droit).
+        ["entities", _, "effect"] => Some(Role::Member),
         ["dashboards"] | ["appearance"] | ["sun"] | ["screens", _, "config"] if get => {
             Some(Role::Guest)
         }
