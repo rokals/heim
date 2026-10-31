@@ -1,5 +1,19 @@
 <script>
   import { tr } from './lib/i18n.js';
+  // Les messages passent au-dessus de tout, fiches ouvertes comprises : une fiche est un
+  // <dialog> modal (couche supérieure du navigateur), seul un « popover » ouvert après elle
+  // peut la recouvrir. On le rouvre à chaque nouveau message.
+  let toastLayer = $state(null);
+  $effect(() => {
+    const n = home.toasts.length;
+    if (!toastLayer?.showPopover) return;
+    try {
+      if (toastLayer.matches(':popover-open')) toastLayer.hidePopover();
+      if (n) toastLayer.showPopover();
+    } catch {
+      /* navigateur sans popover : les messages restent sous les fiches */
+    }
+  });
   import Icon from './components/Icon.svelte';
   import Home from './components/Home.svelte';
   import Scenes from './components/Scenes.svelte';
@@ -205,7 +219,7 @@
   </div>
 {/if}
 
-<div class="toasts" aria-live="polite">
+<div class="toasts" aria-live="polite" popover="manual" bind:this={toastLayer}>
   {#each home.toasts as t (t.id)}
     <div class="toast" class:alert={t.kind === 'alert'}>{t.text}</div>
   {/each}
@@ -427,6 +441,13 @@
 
   .toasts {
     position: fixed;
+    inset: auto 16px auto 16px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+    color: inherit;
     left: 16px;
     right: 16px;
     bottom: calc(84px + env(safe-area-inset-bottom));

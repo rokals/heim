@@ -715,6 +715,8 @@ pub fn device_controls(d: &TuyaDevice) -> Vec<Value> {
         .map(|m| m.role)
         .find(|r| matches!(r, Role::Light(_)))
     {
+        out.push(json!({"key": "state", "name": "state", "kind": "binary", "label": "État", "group": "light",
+                        "value_on": "ON", "value_off": "OFF", "value_toggle": "TOGGLE"}));
         if lamp.bright.is_some() || lamp.colour.is_some() {
             out.push(json!({"key": "brightness", "name": "brightness", "kind": "numeric", "label": "Luminosité",
                             "group": "light", "min": 1, "max": 254}));
