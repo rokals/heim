@@ -118,6 +118,12 @@ pub async fn set_controls(
         return Err(bad_request("aucun réglage"));
     }
     check(&d, &input.values).map_err(bad_request)?;
+    // Une commande à la main arrête l'effet en cours sur la lampe.
+    for e in core.registry.snapshot().await {
+        if e.meta.device_id.as_deref() == Some(id.as_str()) {
+            core.effects.stop(&e.meta.entity_id);
+        }
+    }
     core.bus.publish(Event::DeviceSet {
         integration: d.integration.clone(),
         device_id: id,

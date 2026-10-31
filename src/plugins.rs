@@ -23,7 +23,13 @@ use serde_json::{Map, Value, json};
 
 pub const SETTINGS_KEY: &str = "plugins";
 /// Les connexions compilées dans Heim.
-pub const BUILTIN: &[&str] = &["zigbee2mqtt", "mqtt_discovery", "tuya", "matter"];
+pub const BUILTIN: &[&str] = &[
+    "zigbee2mqtt",
+    "mqtt_discovery",
+    "tuya",
+    "matter",
+    "screen35",
+];
 pub const CATEGORIES: &[&str] = &["connections", "display", "features", "network"];
 const EMBEDDED_STORE: &str = include_str!("../plugins/store.json");
 const MAX_BINARY: usize = 64 * 1024 * 1024;

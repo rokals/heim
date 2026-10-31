@@ -5,6 +5,7 @@
   import Sheet from '../Sheet.svelte';
   import Icon from '../Icon.svelte';
   import LookEditor from './LookEditor.svelte';
+  import BoxScreen from './BoxScreen.svelte';
   import { api, deviceId, home, toast } from '../../lib/store.svelte.js';
   import { cleanLook, effectiveLook } from '../../lib/theme.js';
   import { ago } from '../../lib/house.js';
@@ -89,6 +90,8 @@
     patch(s.id, { hidden_tabs: [...t] });
   }
 </script>
+
+<BoxScreen />
 
 <p class="muted">
   {tr("Chaque téléphone, tablette ou ordinateur qui ouvre Heim apparaît ici. Donnez-lui un nom, un tableau, bloquez la modification ou passez-le en tablette murale : il se met à jour aussitôt, sans y toucher.")}

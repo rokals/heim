@@ -3,6 +3,7 @@ Description=Heim : demande de mise à jour des fichiers système
 
 [Path]
 PathExists=/var/lib/heim/system.request
+PathExists=/var/lib/heim/display.request
 
 [Install]
 WantedBy=multi-user.target

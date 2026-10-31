@@ -716,3 +716,71 @@ pub async fn set_integration_enabled(
     }
     Ok(Json(json!({ "id": name, "enabled": input.enabled })))
 }
+
+// ---- Écran branché sur la box (plugin « Écran 3,5" ») ------------------------------------
+
+pub async fn get_screen_local(State(app): State<AppState>) -> impl IntoResponse {
+    let core = app.core();
+    let s: crate::screen::ScreenSettings = core
+        .settings
+        .get(crate::screen::SETTINGS_KEY)
+        .unwrap_or_default();
+    Json(crate::screen::status(&core.data_dir, &s))
+}
+
+#[derive(Deserialize)]
+pub struct ScreenInput {
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    rotate: Option<u16>,
+    #[serde(default)]
+    board: Option<String>,
+    #[serde(default)]
+    sleep_min: Option<u32>,
+    /// Refaire le réglage du tactile (les croix réapparaissent sur l'écran).
+    #[serde(default)]
+    recalibrate: bool,
+}
+
+pub async fn put_screen_local(
+    State(app): State<AppState>,
+    Json(input): Json<ScreenInput>,
+) -> ApiResult<impl IntoResponse> {
+    let core = app.core();
+    let mut s: crate::screen::ScreenSettings = core
+        .settings
+        .get(crate::screen::SETTINGS_KEY)
+        .unwrap_or_default();
+    let before = (s.model.clone(), s.rotate);
+    if let Some(m) = input.model {
+        if !crate::screen::MODELS.iter().any(|(id, _)| *id == m) {
+            return Err(bad_request("modèle d'écran inconnu"));
+        }
+        s.model = m;
+    }
+    if let Some(r) = input.rotate {
+        if ![0, 90, 180, 270].contains(&r) {
+            return Err(bad_request("rotation invalide"));
+        }
+        s.rotate = r;
+    }
+    if input.board.is_some() {
+        s.board = input.board.filter(|b| !b.is_empty());
+    }
+    if let Some(m) = input.sleep_min {
+        s.sleep_min = m.min(240);
+    }
+    if input.recalibrate || (s.model.clone(), s.rotate) != before {
+        // Une autre orientation change le sens du tactile : on le recalibre.
+        s.calib = None;
+    }
+    core.settings
+        .set(crate::screen::SETTINGS_KEY, &s)
+        .map_err(bad_request)?;
+    if s.enabled && (s.model.clone(), s.rotate) != before {
+        crate::screen::request_overlay(&core.data_dir, &s).map_err(bad_request)?;
+    }
+    core.apply_screen();
+    Ok(Json(crate::screen::status(&core.data_dir, &s)))
+}

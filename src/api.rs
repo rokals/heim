@@ -160,6 +160,10 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
                 .delete(more::delete_entity),
         )
         .route("/entities/{id}/command", post(command_entity))
+        .route(
+            "/entities/{id}/effect",
+            get(entity_effects).post(start_effect).delete(stop_effect),
+        )
         .route("/entities/{id}/turn_on_for", post(more::turn_on_for))
         .route(
             "/settings/{key}",
@@ -265,6 +269,10 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
         .route("/update/install", post(more::install_update))
         .route("/system/restart", post(more::restart))
         .route("/system/reboot", post(life::reboot))
+        .route(
+            "/screen/local",
+            get(more::get_screen_local).put(more::put_screen_local),
+        )
         .route("/system/poweroff", post(life::poweroff))
         .route("/automations/{id}/op", post(life::automation_op))
         .route("/logbook", get(life::logbook))
@@ -592,6 +600,61 @@ pub fn check_readonly(caller: &Caller, entity_id: &str) -> ApiResult<()> {
 pub fn may_command(role: Role, entity_id: &str) -> bool {
     role >= Role::Member
         || !(entity_id.starts_with("siren.") || entity_id.starts_with("automation."))
+}
+
+/// Les effets de Heim possibles pour une lampe, et celui en cours.
+async fn entity_effects(
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<impl IntoResponse> {
+    let e = app
+        .core
+        .registry
+        .get(&id)
+        .await
+        .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, format!("{id} introuvable")))?;
+    let running = app.core.effects.running().get(&id).cloned();
+    Ok(Json(
+        json!({ "effects": app.core.effects.available(&e), "running": running }),
+    ))
+}
+
+async fn start_effect(
+    axum::Extension(caller): axum::Extension<Caller>,
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+    Json(req): Json<crate::effects::Request>,
+) -> ApiResult<impl IntoResponse> {
+    if !may_command(caller.role, &id) {
+        return Err(ApiError(
+            StatusCode::FORBIDDEN,
+            "réservé aux membres".into(),
+        ));
+    }
+    check_readonly(&caller, &id)?;
+    let e = app
+        .core
+        .registry
+        .get(&id)
+        .await
+        .ok_or_else(|| ApiError(StatusCode::NOT_FOUND, format!("{id} introuvable")))?;
+    app.core.effects.start(&e, req).map_err(bad_request)?;
+    Ok(StatusCode::ACCEPTED)
+}
+
+async fn stop_effect(
+    axum::Extension(caller): axum::Extension<Caller>,
+    State(app): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<impl IntoResponse> {
+    if !may_command(caller.role, &id) {
+        return Err(ApiError(
+            StatusCode::FORBIDDEN,
+            "réservé aux membres".into(),
+        ));
+    }
+    app.core.effects.stop(&id);
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn command_entity(

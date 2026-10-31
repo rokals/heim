@@ -19,6 +19,7 @@ install -m 644 "$S/heim-journald.conf" /etc/systemd/journald.conf.d/heim.conf
 install -m 644 "$S/99-heim-zigbee.rules" /etc/udev/rules.d/99-heim-zigbee.rules
 systemctl daemon-reload
 systemctl enable heim-system.path >/dev/null 2>&1 || true
+# 0.19 : le chemin surveille aussi display.request (écran) ; relu au prochain démarrage.
 systemctl restart polkit 2>/dev/null || true
 
 # Zigbee2MQTT : mis à jour seulement s'il est installé (image SD, ou install.sh HEIM_ZIGBEE=1).

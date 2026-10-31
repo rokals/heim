@@ -7,8 +7,8 @@ Wants=network-online.target
 Type=simple
 User=heim
 Group=heim
-# Lire le journal de Zigbee2MQTT (sa vraie erreur quand il s'arrête au démarrage).
-SupplementaryGroups=systemd-journal dialout
+# Journal de Zigbee2MQTT, clé Zigbee (dialout), écran et tactile branchés sur la box.
+SupplementaryGroups=systemd-journal dialout video input
 # Avant chaque démarrage : retour à la version précédente si une mise à jour a raté 3 fois.
 ExecStartPre=/usr/local/lib/heim/heim-guard
 ExecStart=/opt/heim/heim

@@ -8,6 +8,35 @@ set -eu
 DATA=${HEIM_SYSTEM_DATA:-/var/lib/heim}
 REQ="$DATA/system.request"
 RES="$DATA/system.result"
+# Écran branché sur les broches (plugin « Écran 3,5" ») : Heim demande un modèle et une
+# rotation, pris dans une liste fermée ; le bloc « heim-ecran » de config.txt est réécrit.
+DREQ="$DATA/display.request"
+DRES="$DATA/display.result"
+if [ -f "$DREQ" ]; then
+  model=$(sed -n 's/^model=//p' "$DREQ" | head -n 1)
+  rotate=$(sed -n 's/^rotate=//p' "$DREQ" | head -n 1)
+  rm -f "$DREQ"
+  CFG=/boot/firmware/config.txt
+  [ -f "$CFG" ] || CFG=/boot/config.txt
+  case "$rotate" in 0|90|180|270) ;; *) rotate=90 ;; esac
+  case "$model" in
+    piscreen|none)
+      if [ -f "$CFG" ]; then
+        sed -i '/^# heim-ecran début$/,/^# heim-ecran fin$/d' "$CFG"
+        if [ "$model" != none ]; then
+          printf '# heim-ecran début\ndtparam=spi=on\ndtoverlay=%s,speed=16000000,rotate=%s\n# heim-ecran fin\n' "$model" "$rotate" >> "$CFG"
+        fi
+        printf 'status=ok\nmodel=%s\nrotate=%s\nat=%s\n' "$model" "$rotate" "$(date -Iseconds)" > "$DRES"
+      else
+        printf 'status=failed\nmessage=config.txt introuvable\n' > "$DRES"
+      fi
+      ;;
+    *) printf 'status=failed\nmessage=modèle inconnu\n' > "$DRES" ;;
+  esac
+  chown heim:heim "$DRES" 2>/dev/null || true
+  echo "heim-system : écran $model (rotation $rotate)"
+fi
+
 [ -f "$REQ" ] || exit 0
 version=$(sed -n 's/^version=//p' "$REQ" | head -n 1)
 rm -f "$REQ"

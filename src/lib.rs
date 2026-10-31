@@ -26,6 +26,7 @@ pub mod broker;
 pub mod bus;
 pub mod dashboards;
 pub mod devices;
+pub mod effects;
 pub mod groups;
 pub mod history;
 pub mod i18n;
@@ -40,6 +41,7 @@ pub mod presence;
 pub mod push;
 pub mod registry;
 pub mod scenes;
+pub mod screen;
 pub mod screens;
 pub mod security;
 pub mod settings;
@@ -208,6 +210,10 @@ pub struct Core {
     /// Les plugins (connexions à la carte) et la découverte MQTT dont ils se servent.
     pub plugins: Arc<plugins::Plugins>,
     discovery: Arc<std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    /// Les effets de Heim (respiration, arc-en-ciel…) en cours sur les lampes.
+    pub effects: effects::Effects,
+    /// L'écran SPI branché sur la box (plugin « Écran 3,5" »).
+    screen_task: Arc<std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 impl Core {
@@ -341,7 +347,10 @@ impl Core {
             }
         }
 
+        let effects = effects::Effects::new(bus.clone(), registry.clone(), controls.clone());
         let core = Core {
+            screen_task: Arc::new(std::sync::Mutex::new(None)),
+            effects,
             bus,
             registry,
             scenes,
@@ -386,6 +395,7 @@ impl Core {
         core.spawn_update_checker();
         core.spawn_power_on_for_new();
         api_zigbee::spawn_at_start(core.clone());
+        core.apply_screen();
         migrate::spawn_rooms(core.clone());
         if !config.demo {
             // Au démarrage, puis toutes les heures (premier démarrage sans Internet…).
@@ -433,6 +443,15 @@ impl Core {
         let wanted: broker::BrokerSettings =
             self.settings.get(broker::SETTINGS_KEY).unwrap_or_default();
         self.broker.apply(wanted).await
+    }
+
+    /// (Re)lance ou arrête l'écran branché sur la box, selon ses réglages.
+    pub fn apply_screen(&self) {
+        let mut slot = self.screen_task.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(previous) = slot.take() {
+            previous.abort();
+        }
+        *slot = screen::spawn(self.clone());
     }
 
     /// (Re)démarre ou arrête Zigbee2MQTT selon les réglages. Appelé au démarrage et à chaque

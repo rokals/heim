@@ -281,6 +281,18 @@ pub async fn install(
 /// Allume ou éteint une connexion intégrée (comme son interrupteur dans Connexions).
 fn enable_builtin(core: &Core, id: &str, on: bool) {
     match id {
+        crate::screen::PLUGIN_ID => {
+            let mut s: crate::screen::ScreenSettings = core
+                .settings
+                .get(crate::screen::SETTINGS_KEY)
+                .unwrap_or_default();
+            s.enabled = on;
+            let _ = core.settings.set(crate::screen::SETTINGS_KEY, &s);
+            if let Err(e) = crate::screen::request_overlay(&core.data_dir, &s) {
+                tracing::warn!("écran : {e}");
+            }
+            core.apply_screen();
+        }
         "zigbee2mqtt" => {
             if let Some(mut z) = core
                 .settings

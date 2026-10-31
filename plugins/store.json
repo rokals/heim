@@ -61,6 +61,24 @@
         "fr": "Plus le serveur Matter, à part (environ 80 Mo).",
         "en": "Plus the Matter server, separately (about 80 MB)."
       }
+    },
+    {
+      "id": "screen35",
+      "builtin": true,
+      "category": "display",
+      "name": "Écran 3,5\"",
+      "name_en": "3.5\" screen",
+      "icon": "grid",
+      "author": "Heim",
+      "description": {
+        "fr": "Petit écran tactile qui se fixe sur les broches du Raspberry Pi (3,5\" générique, Waveshare A, MPI3501) : les tuiles de votre tableau, sans navigateur. Demande un redémarrage.",
+        "en": "Small touch screen that plugs onto the Raspberry Pi pins (generic 3.5\", Waveshare A, MPI3501): your board's tiles, no browser. Needs a restart."
+      },
+      "memory_mb": 4,
+      "memory_note": {
+        "fr": "Dessiné par Heim lui-même : quelques Mo, pas de navigateur.",
+        "en": "Drawn by Heim itself: a few MB, no browser."
+      }
     }
   ]
 }

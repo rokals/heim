@@ -1,6 +1,6 @@
 [package]
 name = "heim"
-version = "0.18.4"
+version = "0.19.0"
 edition = "2024"
 license = "Apache-2.0"
 description = "Heim - noyau domotique léger en Rust (cible : Raspberry Pi Zero 2 W, 512 Mo)"
@@ -19,6 +19,8 @@ default = ["webhook"]
 webhook = ["dep:reqwest"]
 
 [dependencies]
+# Police de l'écran branché sur la box (rendu sans navigateur).
+fontdue = "0.9"
 anyhow = "1.0.104"
 axum = { version = "0.8.9", features = ["ws"] }
 chrono = { version = "0.4.45", default-features = false, features = ["serde", "clock", "std"] }

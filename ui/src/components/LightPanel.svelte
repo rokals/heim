@@ -76,6 +76,41 @@
   }
 
   const pct = $derived(Math.max(1, Math.round((shownBright / 255) * 100)));
+
+  // Les effets de Heim (joués par la box) et celui en cours.
+  let heimFx = $state([]);
+  let running = $state(null);
+  let fxTab = $state('heim');
+  const fxUrl = $derived(`/entities/${encodeURIComponent(entity.entity_id)}/effect`);
+  async function loadFx() {
+    if (!canSet) return;
+    try {
+      const r = await api(fxUrl);
+      heimFx = r.effects ?? [];
+      running = r.running ?? null;
+    } catch {
+      heimFx = [];
+    }
+  }
+  $effect(() => {
+    loadFx();
+  });
+  async function startFx(id) {
+    try {
+      await api(fxUrl, { method: 'POST', body: { effect: id } });
+      running = id;
+    } catch (e) {
+      toast(e.message, 'alert');
+    }
+  }
+  async function stopFx() {
+    try {
+      await api(fxUrl, { method: 'DELETE' });
+      running = null;
+    } catch (e) {
+      toast(e.message, 'alert');
+    }
+  }
 </script>
 
 <section class="panel" class:on style:--glow={currentColor && colorMode !== 'color_temp' ? currentColor : 'var(--ember)'}>
@@ -133,11 +168,24 @@
   </div>
 {/if}
 
-{#if effects.length}
+{#if heimFx.length || effects.length}
   <div class="block">
     <span class="lbl">{tr("Effet")}</span>
+    {#if heimFx.length && effects.length}
+      <div class="seg" role="tablist" aria-label={tr("Effet")}>
+        <button role="tab" aria-selected={fxTab === 'heim'} class:sel={fxTab === 'heim'} onclick={() => (fxTab = 'heim')}>{tr("Heim")}</button>
+        <button role="tab" aria-selected={fxTab === 'device'} class:sel={fxTab === 'device'} onclick={() => (fxTab = 'device')}>{tr("De l'appareil")}</button>
+      </div>
+    {/if}
     <div class="chips">
-      {#each effects as fx (fx)}<button class="chip" onclick={() => send({ effect: fx })}>{valueLabel(fx)}</button>{/each}
+      {#if fxTab === 'heim' && heimFx.length}
+        {#each heimFx as fx (fx.id)}
+          <button class="chip" class:on={running === fx.id} onclick={() => startFx(fx.id)}>{tr(fx.name)}</button>
+        {/each}
+        {#if running}<button class="chip stop" onclick={stopFx}>{tr("Arrêter l'effet")}</button>{/if}
+      {:else}
+        {#each effects as fx (fx)}<button class="chip" onclick={() => send({ effect: fx })}>{valueLabel(fx)}</button>{/each}
+      {/if}
     </div>
   </div>
 {/if}
@@ -317,5 +365,19 @@
     background: var(--surface);
     color: var(--ink);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  }
+
+  .chip.on {
+    background: var(--moss);
+    color: var(--surface);
+  }
+
+  .chip.stop {
+    border: 1px solid var(--alert);
+    color: var(--alert);
+  }
+
+  .seg + .chips {
+    margin-top: 8px;
   }
 </style>
