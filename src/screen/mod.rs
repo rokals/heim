@@ -128,9 +128,6 @@ pub struct ScreenSettings {
     /// 90 et 270 portrait. L'écran lui-même reste réglé en paysage (overlay `rotate=90`).
     #[serde(default)]
     pub rotate: u16,
-    /// Une page « Box » en tête : processeur, mémoire, carte SD, température.
-    #[serde(default = "d_true")]
-    pub perf_page: bool,
     /// Le tableau affiché (vide : le premier).
     #[serde(default)]
     pub board: Option<String>,
@@ -148,9 +145,6 @@ pub struct ScreenSettings {
 fn d_model() -> String {
     "piscreen".into()
 }
-fn d_true() -> bool {
-    true
-}
 fn d_sleep() -> u32 {
     5
 }
@@ -161,7 +155,6 @@ impl Default for ScreenSettings {
             enabled: false,
             model: d_model(),
             rotate: 0,
-            perf_page: true,
             soft_rotate: true,
             board: None,
             sleep_min: d_sleep(),

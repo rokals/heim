@@ -395,6 +395,7 @@ impl Core {
         core.spawn_update_checker();
         core.spawn_power_on_for_new();
         api_zigbee::spawn_at_start(core.clone());
+        dashboards::ensure_box_board(&core.settings);
         core.apply_screen();
         migrate::spawn_rooms(core.clone());
         if !config.demo {
@@ -464,7 +465,14 @@ impl Core {
         if s.enabled {
             let st = screen::status(&self.data_dir, &s);
             let rot = st["applied_rotate"].as_u64();
-            if rot.is_some() && rot != Some(screen::NATIVE_ROTATE as u64) && st["pending"] != true {
+            // Réglé avant la 0.19.2 : la console texte (curseur qui clignote) n'était pas
+            // encore retirée du petit écran.
+            let console_left = ["/boot/firmware/cmdline.txt", "/boot/cmdline.txt"]
+                .iter()
+                .find_map(|p| std::fs::read_to_string(p).ok())
+                .is_some_and(|c| !c.contains("vt.global_cursor_default=0"));
+            let stale = rot != Some(screen::NATIVE_ROTATE as u64) || console_left;
+            if rot.is_some() && stale && st["pending"] != true {
                 let _ = screen::request_overlay(&self.data_dir, &s);
             }
         }

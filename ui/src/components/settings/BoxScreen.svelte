@@ -102,10 +102,6 @@
         <option value="0">{tr("Jamais")}</option>
       </select>
     </label>
-    <label class="check">
-      <input type="checkbox" checked={st.settings.perf_page ?? true} disabled={busy} onchange={(e) => save({ perf_page: e.currentTarget.checked }, tr("Réglage enregistré"))} />
-      {tr("Page « Box » en premier : processeur, mémoire, carte SD, température")}
-    </label>
     <button class="btn quiet" disabled={busy || !st.framebuffer} onclick={() => save({ recalibrate: true }, tr("Touchez les croix sur l'écran"))}>
       {tr("Refaire le réglage du tactile")}
     </button>

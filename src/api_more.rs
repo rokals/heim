@@ -738,8 +738,6 @@ pub struct ScreenInput {
     board: Option<String>,
     #[serde(default)]
     sleep_min: Option<u32>,
-    #[serde(default)]
-    perf_page: Option<bool>,
     /// Refaire le réglage du tactile (les croix réapparaissent sur l'écran).
     #[serde(default)]
     recalibrate: bool,
@@ -772,9 +770,6 @@ pub async fn put_screen_local(
     }
     if let Some(m) = input.sleep_min {
         s.sleep_min = m.min(240);
-    }
-    if let Some(p) = input.perf_page {
-        s.perf_page = p;
     }
     // L'orientation est faite par Heim : ni redémarrage, ni nouveau réglage du tactile.
     if input.recalibrate || s.model != before {

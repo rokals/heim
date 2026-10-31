@@ -187,7 +187,7 @@ impl Screen {
                 self.down = Some((x, y));
                 false
             }
-            Touch::Up(..) => {
+            Touch::Up(ux, uy) => {
                 let Some((rx, ry)) = self.down.take() else {
                     return false;
                 };
@@ -224,6 +224,18 @@ impl Screen {
                         };
                         let (nx, ny) = cal.map(rx, ry);
                         let (x, y) = self.rot.to_logical(nx, ny);
+                        // Glisser à gauche ou à droite : page suivante ou précédente.
+                        let (ex, ey) = cal.map(ux, uy);
+                        let (x2, y2) = self.rot.to_logical(ex, ey);
+                        let (dx, dy) = (x2 - x, y2 - y);
+                        if dx.abs() > 60 && dx.abs() > dy.abs() * 2 && self.pages > 1 {
+                            self.page = if dx < 0 {
+                                (self.page + 1) % self.pages
+                            } else {
+                                (self.page + self.pages - 1) % self.pages
+                            };
+                            return true;
+                        }
                         self.tap(x, y).await
                     }
                 }
@@ -298,10 +310,8 @@ impl Screen {
 
     async fn draw_tiles(&mut self) {
         let s = self.settings();
-        let boards = self
-            .core
-            .settings
-            .get::<Value>(crate::dashboards::KEY)
+        // Les tableaux comme les voit l'interface (ceux par défaut si rien n'a été modifié).
+        let boards = serde_json::to_value(crate::dashboards::load(&self.core.settings))
             .unwrap_or(Value::Null);
         let (board_name, ids) = board_entities(&boards, s.board.as_deref());
         let all = self.core.registry.snapshot().await;
@@ -310,47 +320,22 @@ impl Screen {
             .filter_map(|id| all.iter().find(|e| &e.meta.entity_id == id))
             .collect();
         let per = (COLS * ROWS) as usize;
-        let extra = usize::from(s.perf_page);
-        self.pages = shown.len().div_ceil(per).max(1) + extra;
+        self.pages = shown.len().div_ceil(per).max(1);
         self.page = self.page.min(self.pages - 1);
         let now = chrono::Local::now().format("%H:%M").to_string();
-
-        if s.perf_page && self.page == 0 {
-            let perf: Vec<(String, String, f64, String)> = PERF
-                .iter()
-                .map(|(id, label, max)| {
-                    let v = all
-                        .iter()
-                        .find(|e| e.meta.entity_id == *id)
-                        .and_then(|e| e.state.as_ref())
-                        .and_then(|st| st.value.as_f64());
-                    let unit = if id.ends_with("temperature") {
-                        " °C"
-                    } else {
-                        " %"
-                    };
-                    let text = v
-                        .map(|v| format!("{v:.0}{unit}"))
-                        .unwrap_or_else(|| "—".into());
-                    (
-                        (*label).to_string(),
-                        text,
-                        v.unwrap_or(0.0) / max,
-                        (*id).to_string(),
-                    )
-                })
-                .collect();
-            self.zones = paint_perf(&mut self.c, &now, self.page, self.pages, &perf);
-            return;
-        }
-        let tile_page = self.page - extra;
-        let tiles: Vec<(String, String, bool, String)> = shown
+        let tiles: Vec<Tile> = shown
             .iter()
-            .skip(tile_page * per)
+            .skip(self.page * per)
             .take(per)
             .map(|e| {
                 let (text, on) = state_text(e);
-                (e.meta.name.clone(), text, on, e.meta.entity_id.clone())
+                Tile {
+                    name: e.meta.name.clone(),
+                    text,
+                    on,
+                    id: e.meta.entity_id.clone(),
+                    gauge: gauge(e),
+                }
             })
             .collect();
         self.zones = paint(
@@ -365,13 +350,25 @@ impl Screen {
     }
 }
 
-/// La page « Box » : entité, nom, maximum de la jauge.
-const PERF: &[(&str, &str, f64)] = &[
-    ("sensor.heim_cpu", "Processeur", 100.0),
-    ("sensor.heim_memory", "Mémoire", 100.0),
-    ("sensor.heim_disk", "Carte SD", 100.0),
-    ("sensor.heim_temperature", "Température", 85.0),
-];
+/// Une tuile à dessiner.
+pub struct Tile {
+    pub name: String,
+    pub text: String,
+    pub on: bool,
+    pub id: String,
+    /// Une jauge (0-1) pour les mesures en % ou en °C.
+    pub gauge: Option<f64>,
+}
+
+/// Jauge d'un capteur : pourcentages sur 100, températures sur 85 °C.
+fn gauge(e: &crate::model::EntityView) -> Option<f64> {
+    let v = e.state.as_ref().filter(|s| s.available)?.value.as_f64()?;
+    match e.meta.capabilities.get("unit").and_then(Value::as_str) {
+        Some("%") => Some(v / 100.0),
+        Some("°C") if e.meta.entity_id.contains("heim_temperature") => Some(v / 85.0),
+        _ => None,
+    }
+}
 
 /// La barre du haut : heure, titre, pages.
 fn header(c: &mut Canvas, now: &str, title: &str, page: usize, pages: usize) {
@@ -388,59 +385,9 @@ fn header(c: &mut Canvas, now: &str, title: &str, page: usize, pages: usize) {
     }
 }
 
+/// Colonnes et rangées : 3 × 2 en paysage, 2 × 3 en portrait.
 fn grid(c: &Canvas) -> (i32, i32) {
     if c.w < c.h { (2, 3) } else { (COLS, ROWS) }
-}
-
-/// Dessine la page « Box » (jauges) et renvoie ses zones (pour se redessiner quand elles
-/// changent).
-pub fn paint_perf(
-    c: &mut Canvas,
-    now: &str,
-    page: usize,
-    pages: usize,
-    perf: &[(String, String, f64, String)],
-) -> Vec<(i32, i32, i32, i32, String)> {
-    header(c, now, "Box Heim", page, pages);
-    let (w, h) = (c.w, c.h);
-    let (cols, rows) = if w < h { (1, 4) } else { (2, 2) };
-    let tw = (w - GAP * (cols + 1)) / cols;
-    let th = (h - TOP - GAP * (rows + 1)) / rows;
-    let mut zones = Vec::new();
-    for (i, (label, text, frac, id)) in perf.iter().enumerate() {
-        let x = GAP + (i as i32 % cols) * (tw + GAP);
-        let y = TOP + GAP + (i as i32 / cols) * (th + GAP);
-        c.round_rect(x, y, tw, th, 16, Rgb::hex(TILE));
-        let frac = frac.clamp(0.0, 1.0);
-        let colour = if frac > 0.9 {
-            "#e0677a"
-        } else if frac > 0.75 {
-            TILE_ON
-        } else {
-            "#86b38a"
-        };
-        c.text(x + 14, y + 28, label, 15, Rgb::hex(MUTED), tw - 28);
-        c.text(
-            x + 14,
-            y + th - 26,
-            text,
-            if rows > 2 { 22 } else { 30 },
-            Rgb::hex(INK),
-            tw - 28,
-        );
-        let bw = tw - 28;
-        c.round_rect(x + 14, y + th - 16, bw, 6, 3, Rgb::hex("#33424c"));
-        c.round_rect(
-            x + 14,
-            y + th - 16,
-            ((bw as f64 * frac) as i32).max(6),
-            6,
-            3,
-            Rgb::hex(colour),
-        );
-        zones.push((x, y, tw, th, id.clone()));
-    }
-    zones
 }
 
 /// Dessine la page de tuiles et renvoie les zones touchables.
@@ -450,7 +397,7 @@ pub fn paint(
     board_name: &str,
     page: usize,
     pages: usize,
-    tiles: &[(String, String, bool, String)],
+    tiles: &[Tile],
     empty: bool,
 ) -> Vec<(i32, i32, i32, i32, String)> {
     let (w, h) = (c.w, c.h);
@@ -470,12 +417,37 @@ pub fn paint(
         );
         return zones;
     }
-    for (i, (name, text, on, id)) in tiles.iter().enumerate() {
-        let col = i as i32 % cols;
-        let row = i as i32 / cols;
-        let x = GAP + col * (tw + GAP);
-        let y = TOP + GAP + row * (th + GAP);
-        let (bg, ink, sub) = if *on {
+    for (i, t) in tiles.iter().enumerate() {
+        let x = GAP + (i as i32 % cols) * (tw + GAP);
+        let y = TOP + GAP + (i as i32 / cols) * (th + GAP);
+        zones.push((x, y, tw, th, t.id.clone()));
+        if let Some(frac) = t.gauge {
+            // Une mesure : son nom, sa valeur en grand, une jauge qui rougit vers le haut.
+            let frac = frac.clamp(0.0, 1.0);
+            let colour = if frac > 0.9 {
+                "#e0677a"
+            } else if frac > 0.75 {
+                TILE_ON
+            } else {
+                "#86b38a"
+            };
+            c.round_rect(x, y, tw, th, 16, Rgb::hex(TILE));
+            let (l1, _) = c.wrap2(&t.name, 14, tw - 24);
+            c.text(x + 12, y + 26, &l1, 14, Rgb::hex(MUTED), tw - 24);
+            c.text(x + 12, y + th - 26, &t.text, 26, Rgb::hex(INK), tw - 24);
+            let bw = tw - 24;
+            c.round_rect(x + 12, y + th - 16, bw, 6, 3, Rgb::hex("#33424c"));
+            c.round_rect(
+                x + 12,
+                y + th - 16,
+                ((bw as f64 * frac) as i32).max(6),
+                6,
+                3,
+                Rgb::hex(colour),
+            );
+            continue;
+        }
+        let (bg, ink, sub) = if t.on {
             (Rgb::hex(TILE_ON), Rgb::hex(INK_ON), Rgb::hex(INK_ON))
         } else {
             (Rgb::hex(TILE), Rgb::hex(INK), Rgb::hex(MUTED))
@@ -486,21 +458,20 @@ pub fn paint(
             x + 22,
             y + 22,
             9,
-            if *on {
+            if t.on {
                 Rgb::hex(INK_ON)
             } else {
                 Rgb::hex("#33424c")
             },
         );
-        let (l1, l2) = c.wrap2(name, 17, tw - 20);
+        let (l1, l2) = c.wrap2(&t.name, 17, tw - 20);
         c.text(x + 12, y + th - 46, &l1, 17, ink, tw - 20);
         if let Some(l2) = l2 {
             c.text(x + 12, y + th - 46 + 20, &l2, 17, ink, tw - 20);
-            c.text(x + 12, y + th - 6, text, 13, sub, tw - 20);
+            c.text(x + 12, y + th - 6, &t.text, 13, sub, tw - 20);
         } else {
-            c.text(x + 12, y + th - 16, text, 14, sub, tw - 20);
+            c.text(x + 12, y + th - 16, &t.text, 14, sub, tw - 20);
         }
-        zones.push((x, y, tw, th, id.clone()));
     }
     zones
 }
@@ -514,34 +485,23 @@ mod tests {
     fn screen_preview() {
         let mut c = Canvas::new(480, 320);
         c.clear(Rgb::hex(BG));
-        let t =
-            |n: &str, s: &str, on: bool| (n.to_string(), s.to_string(), on, format!("light.{n}"));
+        let t = |n: &str, s: &str, on: bool, g: Option<f64>| Tile {
+            name: n.into(),
+            text: s.into(),
+            on,
+            id: format!("light.{n}"),
+            gauge: g,
+        };
         let tiles = vec![
-            t("Salon", "Allumé · 80 %", true),
-            t("Eurodomest Smart Wall Washer", "Éteint", false),
-            t("Prise café", "Allumé", true),
-            t("Température bureau", "21.5 °C", false),
-            t("Bandeau LED bibliothèque", "Injoignable", false),
-            t("Chambre", "Éteint", false),
+            t("Salon", "Allumé · 80 %", true, None),
+            t("Processeur", "12 %", false, Some(0.12)),
+            t("Prise café", "Allumé", true, None),
+            t("Température du processeur", "52 °C", false, Some(0.61)),
+            t("Carte SD", "81 %", false, Some(0.81)),
+            t("Chambre", "Éteint", false, None),
         ];
-        let zones = paint(&mut c, "15:42", "Accueil", 1, 3, &tiles, false);
+        let zones = paint(&mut c, "15:42", "Box Heim", 0, 2, &tiles, false);
         assert_eq!(zones.len(), 6);
-        if std::env::var("HEIM_SCREEN_PERF").is_ok() {
-            c.clear(Rgb::hex(BG));
-            let p = |l: &str, t: &str, f: f64| (l.to_string(), t.to_string(), f, String::new());
-            paint_perf(
-                &mut c,
-                "15:42",
-                0,
-                3,
-                &[
-                    p("Processeur", "12 %", 0.12),
-                    p("Mémoire", "64 %", 0.64),
-                    p("Carte SD", "81 %", 0.81),
-                    p("Température", "52 °C", 0.61),
-                ],
-            );
-        }
         if let Ok(path) = std::env::var("HEIM_SCREEN_PREVIEW") {
             let mut out = format!("P6 {} {} 255\n", c.w, c.h).into_bytes();
             for p in &c.px {

@@ -97,6 +97,34 @@ pub fn load(settings: &Settings) -> Boards {
     }
 }
 
+const BOX_FLAG: &str = "dashboards.box_added";
+
+/// Un tableau « Box Heim » proposé une fois (processeur, mémoire, carte SD, température) :
+/// pour l'écran branché sur la box, ou pour qui veut surveiller son Pi. On peut le renommer,
+/// le cacher ou le supprimer : il ne revient pas.
+pub fn ensure_box_board(settings: &Settings) {
+    if settings.get_raw(BOX_FLAG).is_some() {
+        return;
+    }
+    let mut all = load(settings);
+    if !all.boards.iter().any(|b| b.id == "box") && all.boards.len() < MAX_BOARDS {
+        let card = |id: &str| json!({ "entity_id": id, "w": 2, "h": 2 });
+        all.boards.push(Board {
+            id: "box".into(),
+            name: "Box Heim".into(),
+            icon: Some("chip".into()),
+            hidden: false,
+            auto: false,
+            sections: vec![json!({ "title": "", "cards": [
+                card("sensor.heim_cpu"), card("sensor.heim_memory"),
+                card("sensor.heim_disk"), card("sensor.heim_temperature"),
+            ]})],
+        });
+        let _ = settings.set(KEY, &all);
+    }
+    let _ = settings.set(BOX_FLAG, &true);
+}
+
 fn check_sections(sections: &[Value]) -> Result<(), String> {
     if sections.len() > MAX_SECTIONS {
         return Err(format!("{MAX_SECTIONS} sections au plus par tableau"));

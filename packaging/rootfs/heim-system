@@ -32,6 +32,11 @@ if [ -f "$DREQ" ]; then
           sed -i 's/ fbcon=map:0//; s/ vt.global_cursor_default=0//' "$CMD"
           [ "$model" != none ] && sed -i '1 s/$/ fbcon=map:0 vt.global_cursor_default=0/' "$CMD"
         fi
+        # Et tout de suite, sans attendre le redémarrage : plus de curseur qui clignote.
+        if [ "$model" != none ]; then
+          echo 0 > /sys/class/graphics/fbcon/cursor_blink 2>/dev/null || true
+          printf '\033[?25l' > /dev/tty1 2>/dev/null || true
+        fi
         printf 'status=ok\nmodel=%s\nrotate=%s\nat=%s\n' "$model" "$rotate" "$(date -Iseconds)" > "$DRES"
       else
         printf 'status=failed\nmessage=config.txt introuvable\n' > "$DRES"
