@@ -1,5 +1,6 @@
 <script>
   import { tr } from '../../lib/i18n.js';
+  import { copyText } from '../../lib/clipboard.js';
   // Accès à distance avec Tailscale : une adresse https://… valable à la maison comme dehors,
   // sans ouvrir de port sur la box. C'est aussi ce qui permet les notifications sur iPhone.
   import { onMount } from 'svelte';
@@ -21,7 +22,7 @@
 
   async function copy(text) {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       toast(tr("Copié"));
     } catch {
       toast(tr("Copie impossible : sélectionnez le texte"), 'alert');

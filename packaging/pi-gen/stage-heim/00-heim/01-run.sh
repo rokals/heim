@@ -21,6 +21,8 @@ install -m 644 files/heim-captive.conf "${ROOTFS_DIR}/etc/NetworkManager/dnsmasq
 
 install -d "${ROOTFS_DIR}/etc/systemd/journald.conf.d"
 install -m 644 files/heim-journald.conf "${ROOTFS_DIR}/etc/systemd/journald.conf.d/heim.conf"
+install -d "${ROOTFS_DIR}/etc/udev/rules.d"
+install -m 644 files/99-heim-zigbee.rules "${ROOTFS_DIR}/etc/udev/rules.d/99-heim-zigbee.rules"
 
 on_chroot << CHROOT
 id -u heim >/dev/null 2>&1 || useradd --system --home-dir /var/lib/heim --shell /usr/sbin/nologin heim
@@ -29,4 +31,6 @@ systemctl enable heim.service
 systemctl enable heim-system.path
 systemctl enable NetworkManager.service
 systemctl enable avahi-daemon.service
+# Pas de modem sur la box : ModemManager perturberait la clé Zigbee.
+systemctl mask ModemManager.service >/dev/null 2>&1 || true
 CHROOT

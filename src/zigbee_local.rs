@@ -700,6 +700,16 @@ fn strip_ansi(line: &str) -> String {
     out
 }
 
+/// ModemManager tourne (il envoie des commandes de modem aux ports série USB, clés Zigbee
+/// comprises). Coupé par la mise à jour système à partir de la 0.17.4.
+pub async fn modem_manager_active() -> bool {
+    tokio::process::Command::new("systemctl")
+        .args(["is-active", "--quiet", "ModemManager.service"])
+        .status()
+        .await
+        .is_ok_and(|s| s.success())
+}
+
 /// Le message de l'erreur qui a arrêté Zigbee2MQTT : la ligne « Error: … » d'avant la pile
 /// d'appels (les lignes « at … »), sinon la dernière ligne d'erreur de son journal.
 pub fn error_line(log: &[String]) -> Option<String> {
@@ -724,7 +734,7 @@ pub fn error_line(log: &[String]) -> Option<String> {
 }
 
 /// Une explication en clair des pannes courantes, d'après le journal. Rien si on ne sait pas.
-pub fn explain(log: &[String], dongles: &[Dongle]) -> Option<&'static str> {
+pub fn explain(log: &[String], dongles: &[Dongle], modem_manager: bool) -> Option<&'static str> {
     let text = log
         .iter()
         .rev()
@@ -748,6 +758,10 @@ pub fn explain(log: &[String], dongles: &[Dongle]) -> Option<&'static str> {
     {
         Some(
             "Aucune clé Zigbee trouvée : branchez-la. Zigbee2MQTT redémarre tout seul dès qu'elle apparaît.",
+        )
+    } else if modem_manager && (has("failed to connect to the adapter") || has("sys - ping")) {
+        Some(
+            "ModemManager tourne sur la box et perturbe la clé. Mettez à jour Heim (la mise à jour système le coupe), puis débranchez et rebranchez la clé.",
         )
     } else if has("failed to connect to the adapter")
         || has("sreq '") && has("timeout")

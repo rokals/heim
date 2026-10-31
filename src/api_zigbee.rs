@@ -148,7 +148,7 @@ pub async fn local_status(core: &Core) -> Value {
         "broker": { "enabled": broker.enabled, "port": broker.port, "running": core.broker.running() },
         "bridge": bridge_online(core),
         "log": log,
-        "hint": zigbee_local::explain(&log, &dongles),
+        "hint": zigbee_local::explain(&log, &dongles, state == "failed" && zigbee_local::modem_manager_active().await),
         "error": if state == "failed" { zigbee_local::error_line(&log) } else { None },
         "network_known": z.network_known(),
     })

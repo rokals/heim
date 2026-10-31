@@ -1,5 +1,6 @@
 <script>
   import { tr } from '../../lib/i18n.js';
+  import { copyText } from '../../lib/clipboard.js';
   // Le broker MQTT intégré : qui est branché, ouverture au réseau, comptes des appareils.
   import { onDestroy, onMount } from 'svelte';
   import Icon from '../Icon.svelte';
@@ -67,7 +68,7 @@
 
   async function copy(text) {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       toast(tr("Copié"));
     } catch {
       /* pas de presse-papiers (http) : le texte reste affiché */

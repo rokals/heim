@@ -1,5 +1,6 @@
 <script>
   import { tr } from '../../lib/i18n.js';
+  import { copyText } from '../../lib/clipboard.js';
   // Zigbee2MQTT sur la box : la clé USB, démarrer / arrêter, reprendre un Zigbee2MQTT
   // existant (Home Assistant), l'interface web de Zigbee2MQTT et son journal.
   // compact : seulement la clé et le bouton (assistant, accueil vide).
@@ -86,7 +87,7 @@
 
   async function copyLog() {
     try {
-      await navigator.clipboard.writeText(st.log.join('\n'));
+      await copyText(st.log.join('\n'));
       toast(tr("Journal copié"));
     } catch {
       toast(tr("Copie impossible"), 'alert');

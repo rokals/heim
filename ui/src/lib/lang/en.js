@@ -1539,6 +1539,7 @@ export default {
   "Copie impossible": "Couldn’t copy",
   "Cette clé servait-elle à Home Assistant ? Alors annulez et faites d'abord « Reprendre les appareils de Home Assistant » : démarrer maintenant créerait un nouveau réseau sur la clé et il faudrait réappairer tous les appareils. Démarrer avec un nouveau réseau ?": "Was this stick used by Home Assistant? Then cancel and first do “Take over Home Assistant devices”: starting now would create a new network on the stick and every device would need re-pairing. Start with a new network?",
   "configuration.yaml, database.db, coordinator_backup.json": "configuration.yaml, database.db, coordinator_backup.json",
+  "ModemManager tourne sur la box et perturbe la clé. Mettez à jour Heim (la mise à jour système le coupe), puis débranchez et rebranchez la clé.": "ModemManager is running on the box and disturbs the stick. Update Heim (the system update turns it off), then unplug and replug the stick.",
   "Zigbee2MQTT s'est arrêté sur une erreur": "Zigbee2MQTT stopped with an error",
   "Arrêté": "Stopped",
   "Pas installé sur cette box": "Not installed on this box",

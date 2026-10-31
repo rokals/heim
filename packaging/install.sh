@@ -92,6 +92,10 @@ if [ "${HEIM_ZIGBEE:-0}" = "1" ]; then
   install -d /opt/zigbee2mqtt
   (cd /opt/zigbee2mqtt && npm install --omit=dev --no-audit --no-fund --no-update-notifier "zigbee2mqtt@${Z2M_VERSION:-2.14.2}" >/dev/null)
   usermod -aG dialout heim
+  # ModemManager envoie des commandes de modem aux clés Zigbee : elles ne répondent plus.
+  [ -f "$TMP/99-heim-zigbee.rules" ] && install -m 644 "$TMP/99-heim-zigbee.rules" /etc/udev/rules.d/99-heim-zigbee.rules
+  systemctl disable --now ModemManager.service >/dev/null 2>&1 || true
+  systemctl mask ModemManager.service >/dev/null 2>&1 || true
   install -d -m 700 -o heim -g heim /var/lib/heim/zigbee2mqtt
   install -m 644 "$TMP/zigbee2mqtt.service" /etc/systemd/system/zigbee2mqtt.service
   systemctl enable zigbee2mqtt.service >/dev/null 2>&1
