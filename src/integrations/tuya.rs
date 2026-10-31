@@ -434,7 +434,7 @@ pub fn dps_for(
     role: &Role,
     target: &Target,
     last: &Map<String, Value>,
-    json_colour: bool,
+    seen: Option<light::Format>,
 ) -> Option<Map<String, Value>> {
     match role {
         Role::Switch { dp } => {
@@ -449,7 +449,7 @@ pub fn dps_for(
                 color_temp: target.color_temp,
                 ..Default::default()
             };
-            Some(lamp.dps(&intent, last, json_colour))
+            Some(lamp.dps(&intent, last, seen))
         }
         Role::Sensor { .. } => None,
     }
@@ -908,8 +908,8 @@ struct DeviceTask {
     scales: HashMap<String, f64>,
     /// Le dernier état de chaque point de données reçu.
     last: Map<String, Value>,
-    /// L'appareil envoie sa couleur en JSON : on lui répond pareil.
-    json_colour: bool,
+    /// Le format de couleur que l'appareil envoie lui-même : on lui répond pareil.
+    colour_fmt: Option<light::Format>,
 }
 
 impl DeviceTask {
@@ -927,7 +927,7 @@ impl DeviceTask {
         let intent = Intent::take_from(&mut rest);
         let mut out = self.raw_dps(&rest);
         if let (Some(i), Some(lamp)) = (intent, self.lamp()) {
-            out.extend(lamp.dps(&i, &self.last, self.json_colour));
+            out.extend(lamp.dps(&i, &self.last, self.colour_fmt));
         }
         out
     }
@@ -957,14 +957,15 @@ impl DeviceTask {
         for (k, v) in dps {
             self.last.insert(k.clone(), v.clone());
         }
-        let seen_json = self
+        let seen = self
             .lamp()
             .and_then(|l| l.colour.as_ref())
             .and_then(|(dp, _)| dps.get(dp))
-            .and_then(Value::as_str)
-            .map(|v| v.trim_start().starts_with('{'));
-        if let Some(j) = seen_json {
-            self.json_colour = j;
+            .and_then(light::decode)
+            .map(|(_, f)| f);
+        if seen.is_some() && seen != self.colour_fmt {
+            tracing::info!("tuya : {} : couleur au format {:?}", self.dev.name, seen);
+            self.colour_fmt = seen;
         }
         let lamp_values = self.lamp().map(|l| l.values(&self.last));
         if let Some(d) =
@@ -1115,13 +1116,18 @@ impl DeviceTask {
                 msg = rx.recv() => match msg {
                     Some(DeviceMsg::Command(entity_id, target)) => {
                         let role = self.mapped.iter().find(|m| m.meta.entity_id == entity_id).map(|m| m.role.clone());
-                        if let Some(dps) = role.as_ref().and_then(|r| dps_for(r, &target, &self.last, self.json_colour)) {
+                        if let Some(dps) = role.as_ref().and_then(|r| dps_for(r, &target, &self.last, self.colour_fmt)) {
                             let c = conn.session.control(&dps);
                             conn.send(&c).await?;
                         }
                     }
                     Some(DeviceMsg::Set(values)) => {
                         let dps = self.set_dps(&values);
+                        tracing::info!("tuya : {} ← {}", self.dev.name, serde_json::to_string(&dps).unwrap_or_default());
+                        // Ce qui est parti, visible dans Infos (pour comprendre une lampe qui ne suit pas).
+                        if let Some(d) = crate::devices::lock(&self.controls).get_mut(&format!("tuya:{}", self.dev.id)) {
+                            d.values.insert("last_sent".into(), serde_json::json!(dps));
+                        }
                         let c = conn.session.control(&dps);
                         conn.send(&c).await?;
                     }
@@ -1209,7 +1215,7 @@ pub async fn run(
                 .and_then(Version::parse)
                 .unwrap_or(Version::V33),
             last: Map::new(),
-            json_colour: false,
+            colour_fmt: None,
         };
         joins.push(tokio::spawn(task.run(rx)));
     }
@@ -1342,7 +1348,7 @@ mod tests {
             brightness: Some(255),
             color_temp: Some(153),
         };
-        let out = dps_for(&bulb[0].role, &t, &Map::new(), false).unwrap();
+        let out = dps_for(&bulb[0].role, &t, &Map::new(), None).unwrap();
         assert_eq!(out["20"], json!(true));
         assert_eq!(out["22"], json!(1000));
         assert_eq!(out["23"], json!(1000));

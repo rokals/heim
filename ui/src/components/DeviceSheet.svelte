@@ -44,6 +44,14 @@
   const groups = $derived(groupControls(ctl?.controls ?? []));
   const settings = $derived([...groups.settings].sort((a, b) => Number(isPowerOn(b)) - Number(isPowerOn(a))));
   const update = $derived(ctl?.values?.update);
+  // Tuya : les points de données bruts (numéros), pour comprendre un appareil qui ne suit pas.
+  const rawDps = $derived(
+    ctl?.integration === 'tuya'
+      ? Object.entries(ctl.values ?? {})
+          .filter(([k]) => /^\d+$/.test(k))
+          .sort((a, b) => Number(a[0]) - Number(b[0]))
+      : [],
+  );
   const zigbee = $derived(ctl?.integration === 'zigbee2mqtt');
 
   async function loadControls() {
@@ -348,6 +356,18 @@
       </dl>
     {/if}
 
+    {#if rawDps.length || ctl?.values?.last_sent}
+      <details class="raw">
+        <summary>{tr("Points de données Tuya")}</summary>
+        <dl class="info">
+          {#each rawDps as [k, v] (k)}<dt>{k}</dt><dd><code>{JSON.stringify(v)}</code></dd>{/each}
+        </dl>
+        {#if ctl?.values?.last_sent}
+          <p class="muted small">{tr("Dernier envoi :")} <code>{JSON.stringify(ctl.values.last_sent)}</code></p>
+        {/if}
+      </details>
+    {/if}
+
     {#if isAdmin()}
       <div class="row danger-zone">
         {#if zigbee}
@@ -535,6 +555,26 @@
 
   .readings strong {
     text-align: right;
+  }
+
+  .raw {
+    margin: 12px 0;
+  }
+
+  .raw summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-weight: 600;
+    min-height: 36px;
+  }
+
+  .raw code {
+    font-size: 12px;
+    word-break: break-all;
+  }
+
+  .raw .small {
+    font-size: 13px;
   }
 
   .info {

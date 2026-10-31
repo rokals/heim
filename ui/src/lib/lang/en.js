@@ -1551,6 +1551,8 @@ export default {
   "La clé répond, mais ni en EmberZNet ni en Z-Stack : elle porte sans doute un firmware Thread ou multiprotocole. Pour Zigbee2MQTT, il faut la reflasher en Zigbee seul.": "The stick answers, but neither in EmberZNet nor in Z-Stack: it probably runs Thread or multiprotocol firmware. For Zigbee2MQTT, reflash it with Zigbee-only firmware.",
   "La clé ne répond pas (ni EmberZNet, ni Z-Stack). Débranchez-la quelques secondes et réessayez ; sinon, son firmware est peut-être abîmé.": "The stick doesn’t answer (neither EmberZNet nor Z-Stack). Unplug it for a few seconds and try again; otherwise its firmware may be damaged.",
   "Impossible d'ouvrir la clé : est-elle utilisée par un autre programme, ou Heim n'a-t-il pas encore le droit de l'ouvrir (mise à jour système) ?": "Can’t open the stick: is another program using it, or doesn’t Heim have permission yet (system update)?",
+  "Points de données Tuya": "Tuya data points",
+  "Dernier envoi :": "Last sent:",
   "Zigbee2MQTT s'est arrêté sur une erreur": "Zigbee2MQTT stopped with an error",
   "Arrêté": "Stopped",
   "Pas installé sur cette box": "Not installed on this box",

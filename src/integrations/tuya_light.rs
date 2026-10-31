@@ -238,13 +238,14 @@ impl Lamp {
         decode(last.get(dp)?).map(|(c, _)| c)
     }
 
-    /// Les points de données à envoyer. `json_colour` : l'appareil a déjà envoyé sa couleur en
+    /// Les points de données à envoyer. `seen` : le format de couleur que l'appareil utilise
+    /// vraiment (lu dans ses messages), qui l'emporte sur celui annoncé par le cloud ; était :
     /// JSON, on lui répond pareil.
     pub fn dps(
         &self,
         i: &Intent,
         last: &Map<String, Value>,
-        json_colour: bool,
+        seen: Option<Format>,
     ) -> Map<String, Value> {
         let mut out = Map::new();
         if let Some(on) = i.on {
@@ -277,7 +278,7 @@ impl Lamp {
                 .brightness
                 .map(|b| b as f64 / 255.0)
                 .unwrap_or(if now.v > 0.0 { now.v } else { 1.0 });
-            let f = if json_colour { Format::Json } else { *f };
+            let f = seen.unwrap_or(*f);
             out.insert(dp.clone(), encode(Colour { h, s, v }, f));
             set_mode(&mut out, "colour");
             return out;
@@ -405,7 +406,7 @@ mod tests {
         v.insert("102".into(), json!(5));
         let i = Intent::take_from(&mut v).unwrap();
         assert_eq!(v.len(), 1, "le point de données brut reste");
-        let out = l.dps(&i, &Map::new(), false);
+        let out = l.dps(&i, &Map::new(), None);
         assert_eq!(out["20"], json!(true));
         assert_eq!(out["21"], json!("colour"));
         assert_eq!(out["24"], json!("00f003e803e8"));
@@ -418,7 +419,7 @@ mod tests {
             brightness: Some(128),
             ..Default::default()
         };
-        let out = l.dps(&dim, &last, false);
+        let out = l.dps(&dim, &last, None);
         assert_eq!(out["24"], json!("00f003e801f6"));
         assert!(!out.contains_key("22"));
         assert_eq!(
@@ -432,7 +433,7 @@ mod tests {
             color_temp: Some(500),
             ..Default::default()
         };
-        let out = l.dps(&warm, &last, false);
+        let out = l.dps(&warm, &last, None);
         assert_eq!(out["23"], json!(0));
         assert_eq!(out["21"], json!("white"));
     }
