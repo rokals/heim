@@ -81,9 +81,24 @@ def join_later(c):
     c.publish(f"{BASE}/Sirene garage/availability", json.dumps({"state": "online"}), retain=True)
     c.publish(f"{BASE}/Sirene garage", json.dumps({"battery": 100}))
 
+def backup_zip():
+    """Comme le vrai : le dossier de données, sans les journaux, en zip et en base64."""
+    import base64, io, zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("configuration.yaml", "homeassistant:\n  enabled: true\nmqtt:\n  server: mqtt://core-mosquitto:1883\n  user: addons\nserial:\n  port: /dev/ttyUSB0\n  adapter: ember\nadvanced:\n  network_key: '!secret network_key'\n  channel: 15\n")
+        z.writestr("secret.yaml", "network_key: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]\n")
+        z.writestr("database.db", "\n".join(json.dumps({"id": i, "type": d["type"], "ieeeAddr": d["ieee_address"]}) for i, d in enumerate(DEVICES, 1)) + "\n")
+        z.writestr("coordinator_backup.json", json.dumps({"metadata": {"format": "zigpy/open-coordinator-backup", "version": 1}}))
+        z.writestr("log/2026-10-31.10-00-00/log.log", "journal")
+    return base64.b64encode(buf.getvalue()).decode()
+
 def on_message(c, _u, msg):
     if msg.topic.startswith(f"{BASE}/bridge/request/"):
         log.write(f"recu {msg.topic} {msg.payload.decode()}\n")
+        if msg.topic.endswith("/backup"):
+            c.publish(f"{BASE}/bridge/response/backup", json.dumps({"status": "ok", "data": {"zip": backup_zip()}}))
+            return
         if msg.topic.endswith("permit_join"):
             t = json.loads(msg.payload).get("time", 0)
             info = {"version": "2.1.0", "permit_join": t > 0}

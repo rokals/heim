@@ -356,6 +356,10 @@ function handle(ev) {
       home.pairing.until = ev.until;
       if (ev.version) home.pairing.version = ev.version;
       break;
+    case 'zigbee_bridge_online':
+      home.pairing.online = ev.online;
+      if (!ev.online) home.pairing.open = false;
+      break;
     case 'zigbee_device':
       home.pairing.events = [
         { at: new Date().toISOString(), event: ev.event, friendly_name: ev.friendly_name, detail: ev.detail },

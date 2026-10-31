@@ -222,6 +222,10 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
         )
         .route("/zigbee/local", get(zb::get_local).put(zb::put_local))
         .route("/zigbee/local/restart", post(zb::restart_local))
+        .route("/migrate/ha/check", post(zb::ha_check))
+        .route("/migrate/ha/import", post(zb::ha_import))
+        .route("/migrate/ha/stop_addon", post(zb::ha_stop_addon))
+        .route("/migrate/mqtt/import", post(zb::mqtt_import))
         .route(
             "/zigbee/local/import",
             post(zb::import_local).layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024)),
@@ -249,6 +253,8 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
         .route("/tuya", get(dev::get_tuya).put(dev::put_tuya))
         .route("/tuya/import", post(dev::import_tuya))
         .route("/tuya/scan", post(dev::scan_tuya))
+        .route("/tuya/cloud/qr", post(dev::tuya_qr))
+        .route("/tuya/cloud/poll", post(dev::tuya_qr_poll))
         .route("/matter", get(dev::get_matter).put(dev::put_matter))
         .route("/matter/commission", post(dev::commission))
         .route("/matter/remove", post(dev::remove_node))

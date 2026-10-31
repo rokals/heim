@@ -7,6 +7,7 @@
 pub mod matter;
 pub mod mqtt_discovery;
 pub mod tuya;
+pub mod tuya_cloud;
 pub mod tuya_proto;
 pub mod virtual_dev;
 pub mod zigbee2mqtt;

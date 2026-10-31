@@ -338,3 +338,169 @@ pub fn spawn_at_start(core: Core) {
         }
     });
 }
+
+// ---------------------------------------------------------------------------------------------
+// Reprise d'une maison Home Assistant (voir `migrate`).
+
+#[derive(Deserialize)]
+pub struct HaInput {
+    pub url: String,
+    pub token: String,
+    #[serde(default)]
+    pub base_topic: Option<String>,
+    #[serde(default)]
+    pub slug: Option<String>,
+}
+
+fn topic_of(t: &Option<String>) -> Result<String, String> {
+    let t = t
+        .as_deref()
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .unwrap_or("zigbee2mqtt");
+    if t.contains(['#', '+']) || t.starts_with('/') || t.len() > 80 {
+        return Err("sujet de base invalide".into());
+    }
+    Ok(t.to_string())
+}
+
+/// Vérifie l'accès à Home Assistant et cherche son module Zigbee2MQTT.
+pub async fn ha_check(Json(input): Json<HaInput>) -> ApiResult<impl IntoResponse> {
+    let mut ha = crate::migrate::Ha::connect(&input.url, &input.token)
+        .await
+        .map_err(bad_request)?;
+    let addon = ha.z2m_addon().await;
+    let (rooms, by_ieee) = ha.rooms().await.unwrap_or_default();
+    Ok(Json(json!({
+        "version": ha.version,
+        "addon": addon.map(|(slug, name, state)| json!({ "slug": slug, "name": name, "state": state })),
+        "rooms": rooms,
+        "zigbee_devices_with_room": by_ieee.len(),
+    })))
+}
+
+/// Les fichiers d'une sauvegarde de Zigbee2MQTT, posés pour le Zigbee2MQTT de la box.
+async fn import_zip(core: &Core, zip: &[u8], origin: &str) -> Result<Value, String> {
+    let files = crate::migrate::unzip(zip)?;
+    let get = |n: &str| {
+        files
+            .iter()
+            .find(|(f, _)| f == n)
+            .map(|(_, d)| d.as_slice())
+    };
+    let configuration =
+        String::from_utf8_lossy(get("configuration.yaml").unwrap_or_default()).to_string();
+    let backup = get("coordinator_backup.json").map(|b| String::from_utf8_lossy(b).to_string());
+    let s = local_settings(core);
+    let running = s.enabled && core.zigbee_local.installed();
+    if running {
+        let _ = core.zigbee_local.stop().await;
+    }
+    let summary =
+        core.zigbee_local
+            .import(&configuration, get("database.db"), backup.as_deref())?;
+    core.zigbee_local.import_extra(&files)?;
+    let mut s = s;
+    if s.adapter.is_none() {
+        s.adapter = summary
+            .get("adapter")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let _ = core.settings.set(zigbee_local::SETTINGS_KEY, &s);
+    }
+    if running {
+        start_local(core, &s).await?;
+    }
+    core.bus.publish(crate::bus::Event::Log {
+        kind: "system".into(),
+        message: format!(
+            "Zigbee2MQTT repris de {origin} ({} appareil(s))",
+            summary["devices"].as_u64().unwrap_or(0)
+        ),
+        entity_id: None,
+        actor: None,
+    });
+    Ok(summary)
+}
+
+/// Reprend Zigbee2MQTT et les pièces depuis Home Assistant.
+pub async fn ha_import(
+    State(app): State<AppState>,
+    Json(input): Json<HaInput>,
+) -> ApiResult<impl IntoResponse> {
+    let core = app.core();
+    let topic = topic_of(&input.base_topic).map_err(bad_request)?;
+    let mut ha = crate::migrate::Ha::connect(&input.url, &input.token)
+        .await
+        .map_err(bad_request)?;
+    let zip = ha.z2m_backup(&topic).await.map_err(bad_request)?;
+    let (rooms, by_ieee) = ha.rooms().await.unwrap_or_default();
+    let addon = ha.z2m_addon().await;
+    drop(ha);
+    let summary = import_zip(core, &zip, "Home Assistant")
+        .await
+        .map_err(bad_request)?;
+    let placed = by_ieee.len();
+    let added = crate::migrate::remember_rooms(core, &rooms, by_ieee).map_err(bad_request)?;
+    Ok(Json(json!({
+        "imported": summary,
+        "rooms_added": added,
+        "devices_with_room": placed,
+        "addon": addon.map(|(slug, name, state)| json!({ "slug": slug, "name": name, "state": state })),
+        "status": local_status(core).await,
+    })))
+}
+
+/// Arrête le module Zigbee2MQTT de Home Assistant (la clé ne doit servir qu'à un seul).
+pub async fn ha_stop_addon(Json(input): Json<HaInput>) -> ApiResult<impl IntoResponse> {
+    let slug = input
+        .slug
+        .clone()
+        .ok_or_else(|| bad_request("module manquant"))?;
+    let mut ha = crate::migrate::Ha::connect(&input.url, &input.token)
+        .await
+        .map_err(bad_request)?;
+    ha.stop_addon(&slug).await.map_err(bad_request)?;
+    Ok(Json(json!({ "stopped": slug })))
+}
+
+#[derive(Deserialize)]
+pub struct MqttImportInput {
+    pub host: String,
+    #[serde(default)]
+    pub port: Option<u16>,
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub password: Option<String>,
+    #[serde(default)]
+    pub base_topic: Option<String>,
+}
+
+/// Même reprise, par le broker MQTT de l'autre installation.
+pub async fn mqtt_import(
+    State(app): State<AppState>,
+    Json(input): Json<MqttImportInput>,
+) -> ApiResult<impl IntoResponse> {
+    let core = app.core();
+    let topic = topic_of(&input.base_topic).map_err(bad_request)?;
+    let host = input.host.trim().to_string();
+    if host.is_empty() || host.contains(['/', ' ']) {
+        return Err(bad_request("adresse du broker invalide"));
+    }
+    let env = crate::plugins::MqttEnv {
+        host,
+        port: input.port.unwrap_or(1883),
+        username: input.username.filter(|u| !u.is_empty()),
+        password: input.password.filter(|p| !p.is_empty()),
+    };
+    let zip = crate::migrate::z2m_backup_mqtt(&env, &topic)
+        .await
+        .map_err(bad_request)?;
+    let summary = import_zip(core, &zip, "un broker MQTT")
+        .await
+        .map_err(bad_request)?;
+    Ok(Json(
+        json!({ "imported": summary, "status": local_status(core).await }),
+    ))
+}

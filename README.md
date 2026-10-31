@@ -45,13 +45,16 @@ Plug a Zigbee stick into the box and that's it: Zigbee2MQTT and an MQTT broker c
 ### Devices and connections
 - **Zigbee** through Zigbee2MQTT (Sonoff ZBDongle-E or similar), **on the box itself**: the SD
   image installs it, Heim finds the USB stick, writes its configuration and starts it. Pairing
-  from the app, live. An existing Zigbee2MQTT (Home Assistant's) can be taken over without
-  pairing anything again, or Heim can still read one running on another machine.
+  from the app, live. **Moving from Home Assistant**: with a long-lived access token, Heim asks
+  Home Assistant's Zigbee2MQTT for its backup, takes over the network and the rooms, stops the
+  add-on; move the stick and nothing needs pairing again. Heim can also still read a
+  Zigbee2MQTT running on another machine.
 - **Built-in MQTT broker**: Zigbee2MQTT connects straight to Heim, no Mosquitto needed. It can
   be opened to the home network for Tasmota, Shelly or ESPHome devices, each with its own
   account.
 - **Tuya Wi-Fi** plugs, bulbs and switches (LSC, Lidl…), controlled locally, without the cloud
-  (protocols 3.3, 3.4 and 3.5).
+  (protocols 3.3, 3.4 and 3.5). Local keys are fetched once by scanning a QR code with the
+  Smart Life app (no developer account), or imported from tinytuya.
 - **Matter** through a Matter server (Home Assistant's, or python-matter-server).
 - Every setting a device offers (colour, white, effects, fades, power-on behaviour, child
   lock…), firmware updates, battery and signal at a glance.

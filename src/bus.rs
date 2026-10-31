@@ -91,6 +91,16 @@ pub enum Event {
         until: Option<chrono::DateTime<chrono::Utc>>,
         version: Option<String>,
     },
+    /// Zigbee2MQTT en ligne ou arrêté (son message `bridge/state`).
+    ZigbeeBridgeOnline {
+        online: bool,
+    },
+    /// Réponse de Zigbee2MQTT à une demande (`bridge/response/<demande>`).
+    ZigbeeResponse {
+        request: String,
+        ok: bool,
+        error: Option<String>,
+    },
     /// Un appareil rejoint le réseau, est interrogé, quitte le réseau...
     ZigbeeDevice {
         event: String,

@@ -142,15 +142,22 @@ pub async fn import_tuya(
     State(app): State<AppState>,
     body: String,
 ) -> ApiResult<impl IntoResponse> {
-    let core = app.core();
     let imported = tuya::import_tinytuya(&body).map_err(bad_request)?;
+    Ok(Json(merge_tuya(app.core(), imported).map_err(bad_request)?))
+}
+
+fn merge_tuya(core: &crate::Core, imported: Vec<tuya::TuyaDevice>) -> Result<Value, String> {
     let mut s: tuya::TuyaSettings = core.settings.get(tuya::SETTINGS_KEY).unwrap_or_default();
     let mut added = 0;
+    let mut updated = 0;
     for d in imported {
         match s.devices.iter_mut().find(|o| o.id == d.id) {
             Some(o) => {
+                updated += 1;
                 o.key = d.key;
-                o.mapping = d.mapping;
+                if !d.mapping.is_empty() {
+                    o.mapping = d.mapping;
+                }
                 o.category = d.category.or(o.category.take());
                 o.product_name = d.product_name.or(o.product_name.take());
                 if d.ip.is_some() {
@@ -169,10 +176,58 @@ pub async fn import_tuya(
     s.enabled = true;
     core.settings
         .set(tuya::SETTINGS_KEY, &s)
-        .map_err(bad_request)?;
+        .map_err(|e| e.to_string())?;
     core.apply_tuya_settings();
     let mut out = public_tuya(&s);
     out["added"] = json!(added);
+    out["updated"] = json!(updated);
+    Ok(out)
+}
+
+#[derive(Deserialize)]
+pub struct TuyaQrInput {
+    pub user_code: String,
+    #[serde(default)]
+    pub qrcode: Option<String>,
+}
+
+/// Connexion Smart Life, étape 1 : le QR code à scanner.
+pub async fn tuya_qr(Json(input): Json<TuyaQrInput>) -> ApiResult<impl IntoResponse> {
+    use crate::integrations::tuya_cloud as cloud;
+    let code = cloud::check_user_code(&input.user_code).map_err(bad_request)?;
+    let qr = cloud::Cloud::default()
+        .qr_start(&code)
+        .await
+        .map_err(bad_request)?;
+    let svg = cloud::qr_svg(&cloud::qr_payload(&qr)).map_err(bad_request)?;
+    Ok(Json(json!({ "qrcode": qr, "svg": svg })))
+}
+
+/// Étape 2 : l'appli a-t-elle validé ? Si oui, les clés de tous les appareils sont reprises.
+pub async fn tuya_qr_poll(
+    State(app): State<AppState>,
+    Json(input): Json<TuyaQrInput>,
+) -> ApiResult<impl IntoResponse> {
+    use crate::integrations::tuya_cloud as cloud;
+    let code = cloud::check_user_code(&input.user_code).map_err(bad_request)?;
+    let qr = input
+        .qrcode
+        .ok_or_else(|| bad_request("QR code manquant"))?;
+    let c = cloud::Cloud::default();
+    let Some(token) = c.qr_result(&qr, &code).await.map_err(bad_request)? else {
+        return Ok(Json(json!({ "pending": true })));
+    };
+    let list = c.devices(&token).await.map_err(bad_request)?;
+    let total = list.len();
+    let devices = tuya::import_tinytuya(&Value::Array(list).to_string()).unwrap_or_default();
+    let skipped = total - devices.len();
+    let mut out = if devices.is_empty() {
+        json!({ "added": 0, "updated": 0 })
+    } else {
+        merge_tuya(app.core(), devices).map_err(bad_request)?
+    };
+    out["cloud_devices"] = json!(total);
+    out["skipped"] = json!(skipped);
     Ok(Json(out))
 }
 

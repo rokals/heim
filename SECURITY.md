@@ -45,6 +45,11 @@ possible, and the fix ships in a version published through the releases.
 - **Zigbee2MQTT on the box** runs as the `heim` user, with its own systemd service. Heim may only
   start, stop and restart that service (polkit). Its web interface is off by default; when on,
   it asks for a token.
+- **Moving from Home Assistant**: the long-lived access token is only used during the takeover
+  and is never stored; revoke it in Home Assistant afterwards. The Zigbee2MQTT backup it brings
+  contains the Zigbee network key.
+- **Tuya through Smart Life**: Heim uses the same public client id as Home Assistant's Tuya
+  integration to read the local keys once; the cloud tokens are dropped right after.
 - **Backups**: a backup file contains everything, including Tuya keys and the MQTT password.
   Keep it to yourself (never in a public repository).
 - **Pi console account** (`heim-admin`): SSH is off. Set the `PI_PASSWORD` secret in the

@@ -217,14 +217,20 @@ pub async fn power(what: Power) -> Result<(), String> {
         Power::Reboot => "reboot",
         Power::PowerOff => "poweroff",
     };
+    // Un « verrou » posé par un autre programme ne doit pas bloquer l'arrêt demandé ici.
     let out = tokio::process::Command::new("systemctl")
-        .arg(verb)
+        .args([verb, "--no-ask-password", "--check-inhibitors=no"])
         .output()
         .await
         .map_err(|e| format!("commande impossible : {e}"))?;
     if out.status.success() {
+        tracing::info!("systemctl {verb} : accepté, la machine s'arrête");
         Ok(())
     } else {
+        tracing::warn!(
+            "systemctl {verb} refusé : {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
         Err(format!(
             "refusé par le système : {}",
             String::from_utf8_lossy(&out.stderr).trim()

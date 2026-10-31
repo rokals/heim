@@ -221,6 +221,24 @@ pub async fn permit_join(
         ));
     }
     let seconds = input.seconds.min(254);
+    let online = core
+        .pairing
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .online;
+    match online {
+        Some(false) => {
+            return Err(bad_request(
+                "Zigbee2MQTT est arrêté : voyez Réglages › Connexions › Zigbee (état et journal)",
+            ));
+        }
+        None => {
+            return Err(bad_request(
+                "Zigbee2MQTT ne répond pas : le broker est joint, mais pas Zigbee2MQTT. Voyez Réglages › Connexions › Zigbee (état et journal)",
+            ));
+        }
+        Some(true) => {}
+    }
     if seconds > 0 {
         // Nouvel appairage : on repart d'une liste vide.
         core.pairing
@@ -229,6 +247,39 @@ pub async fn permit_join(
             .events
             .clear();
     }
+    let asked = chrono::Utc::now();
     core.bus.publish(Event::ZigbeePermitJoin { seconds });
-    Ok((StatusCode::ACCEPTED, Json(json!({ "seconds": seconds }))))
+    // On attend que Zigbee2MQTT confirme (réponse, ou nouvel état de l'appairage).
+    for _ in 0..40 {
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        let p = core
+            .pairing
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        if let Some((req, ok, err, at)) = &p.last_response
+            && req == "permit_join"
+            && *at >= asked
+        {
+            if *ok {
+                return Ok((
+                    StatusCode::ACCEPTED,
+                    Json(json!({ "seconds": seconds, "confirmed": true })),
+                ));
+            }
+            return Err(bad_request(format!(
+                "Zigbee2MQTT refuse : {}",
+                err.clone().unwrap_or_default()
+            )));
+        }
+        if p.open == (seconds > 0) && seconds > 0 && p.until.is_some_and(|u| u > asked) {
+            return Ok((
+                StatusCode::ACCEPTED,
+                Json(json!({ "seconds": seconds, "confirmed": true })),
+            ));
+        }
+    }
+    Err(bad_request(
+        "Zigbee2MQTT n'a pas répondu dans les 10 secondes : voyez Réglages › Connexions › Zigbee (journal)",
+    ))
 }

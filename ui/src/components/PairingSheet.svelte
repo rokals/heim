@@ -28,7 +28,8 @@
     busy = true;
     try {
       await api('/zigbee/permit_join', { method: 'POST', body: { seconds } });
-      if (seconds === 0) toast(tr("Appairage arrêté"));
+      await loadPairing();
+      toast(seconds === 0 ? tr("Appairage arrêté") : tr("Réseau Zigbee ouvert : mettez l'appareil en mode appairage"));
     } catch (e) {
       toast(e.message, 'alert');
     } finally {
@@ -81,8 +82,15 @@
     </ol>
     <button class="btn quiet" disabled={busy} onclick={() => start(0)}>{tr("Arrêter l'appairage")}</button>
   {:else}
+    {#if p.online !== true}
+      <div class="warn" role="alert">
+        <strong>{p.online === false ? tr("Zigbee2MQTT est arrêté") : tr("Zigbee2MQTT ne répond pas")}</strong>
+        <span>{tr("Sans lui, le réseau Zigbee ne peut pas s'ouvrir. Son état et son journal sont dans les réglages Zigbee.")}</span>
+        <a class="btn quiet small" href="#reglages/integrations/zigbee2mqtt" onclick={onclose}>{tr("Ouvrir les réglages Zigbee")}</a>
+      </div>
+    {/if}
     <p>{tr("Heim va ouvrir votre réseau Zigbee pendant 4 minutes. Pendant ce temps, n'importe quel appareil Zigbee en mode appairage peut le rejoindre.")}</p>
-    <button class="btn" disabled={busy} onclick={() => start(DURATION)}><Icon name="plus" size={18} /> {tr("Lancer l'appairage")}</button>
+    <button class="btn" disabled={busy} onclick={() => start(DURATION)}><Icon name="plus" size={18} /> {busy ? tr("Ouverture…") : tr("Lancer l'appairage")}</button>
     {#if p.version}<p class="muted">{tr("Zigbee2MQTT {version}", { version: p.version })}</p>{/if}
   {/if}
 
@@ -109,6 +117,24 @@
 {/if}
 
 <style>
+  .warn {
+    display: grid;
+    gap: 6px;
+    justify-items: start;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--alert) 12%, var(--surface));
+  }
+
+  .warn strong {
+    color: var(--alert);
+  }
+
+  .warn span {
+    font-size: 14px;
+  }
+
   p {
     margin: 0 0 16px;
   }

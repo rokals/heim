@@ -1034,6 +1034,119 @@ pub const EN: &[(&str, &str)] = &[
         "the downloaded file isn’t a Linux program",
     ),
     ("écriture impossible : {}", "can’t write: {}"),
+    (
+        "indiquez l'adresse de Home Assistant",
+        "enter the Home Assistant address",
+    ),
+    (
+        "adresse https non prise en charge : utilisez l'adresse locale de Home Assistant (http://…:8123)",
+        "https addresses aren’t supported: use Home Assistant’s local address (http://…:8123)",
+    ),
+    (
+        "adresse de Home Assistant invalide",
+        "invalid Home Assistant address",
+    ),
+    (
+        "Home Assistant ne répond pas (adresse, port 8123 ?)",
+        "Home Assistant isn’t answering (address, port 8123?)",
+    ),
+    (
+        "Home Assistant injoignable : {}",
+        "can’t reach Home Assistant: {}",
+    ),
+    (
+        "Home Assistant ne répond pas",
+        "Home Assistant isn’t answering",
+    ),
+    (
+        "connexion à Home Assistant coupée",
+        "connection to Home Assistant lost",
+    ),
+    (
+        "jeton refusé par Home Assistant : recréez un jeton d'accès longue durée",
+        "token refused by Home Assistant: create a new long-lived access token",
+    ),
+    (
+        "Home Assistant n'a pas répondu à temps",
+        "Home Assistant didn’t answer in time",
+    ),
+    ("Home Assistant : {}", "Home Assistant: {}"),
+    (
+        "Zigbee2MQTT n'a pas envoyé sa sauvegarde : est-il démarré dans Home Assistant ?",
+        "Zigbee2MQTT didn’t send its backup: is it running in Home Assistant?",
+    ),
+    (
+        "Home Assistant refuse l'abonnement MQTT : l'intégration MQTT est-elle installée, et le jeton est-il celui d'un administrateur ?",
+        "Home Assistant refuses the MQTT subscription: is the MQTT integration set up, and does the token belong to an administrator?",
+    ),
+    ("module invalide", "invalid add-on"),
+    ("module manquant", "missing add-on"),
+    (
+        "réponse de Zigbee2MQTT illisible",
+        "unreadable Zigbee2MQTT response",
+    ),
+    (
+        "Zigbee2MQTT refuse sa sauvegarde : {}",
+        "Zigbee2MQTT refuses its backup: {}",
+    ),
+    ("sauvegarde vide", "empty backup"),
+    ("sauvegarde abîmée", "damaged backup"),
+    ("sauvegarde trop grosse", "backup too large"),
+    (
+        "Zigbee2MQTT n'a pas envoyé sa sauvegarde : est-il démarré ?",
+        "Zigbee2MQTT didn’t send its backup: is it running?",
+    ),
+    (
+        "broker MQTT injoignable : {}",
+        "can’t reach the MQTT broker: {}",
+    ),
+    ("zip illisible : {}", "unreadable zip: {}"),
+    ("{} : trop gros", "{}: too large"),
+    (
+        "pas de configuration.yaml dans la sauvegarde",
+        "no configuration.yaml in the backup",
+    ),
+    ("sujet de base invalide", "invalid base topic"),
+    ("adresse du broker invalide", "invalid broker address"),
+    (
+        "Zigbee2MQTT repris de {} ({} appareil(s))",
+        "Zigbee2MQTT taken over from {} ({} device(s))",
+    ),
+    ("Home Assistant", "Home Assistant"),
+    ("un broker MQTT", "an MQTT broker"),
+    (
+        "code utilisateur Smart Life invalide",
+        "invalid Smart Life user code",
+    ),
+    ("serveur Tuya inattendu", "unexpected Tuya server"),
+    ("réponse Tuya illisible", "unreadable Tuya response"),
+    ("réponse Tuya trop courte", "Tuya response too short"),
+    (
+        "réponse Tuya indéchiffrable",
+        "Tuya response can’t be decrypted",
+    ),
+    ("Tuya : {}", "Tuya: {}"),
+    ("Tuya injoignable : {}", "can’t reach Tuya: {}"),
+    ("Tuya n'a pas donné de QR code", "Tuya gave no QR code"),
+    ("QR code invalide", "invalid QR code"),
+    ("QR code manquant", "missing QR code"),
+    (
+        "connexion Smart Life absente de ce binaire",
+        "Smart Life login isn’t built into this binary",
+    ),
+    (
+        "Zigbee2MQTT est arrêté : voyez Réglages › Connexions › Zigbee (état et journal)",
+        "Zigbee2MQTT is stopped: see Settings › Connections › Zigbee (status and log)",
+    ),
+    (
+        "Zigbee2MQTT ne répond pas : le broker est joint, mais pas Zigbee2MQTT. Voyez Réglages › Connexions › Zigbee (état et journal)",
+        "Zigbee2MQTT isn’t answering: the broker is reachable, but not Zigbee2MQTT. See Settings › Connections › Zigbee (status and log)",
+    ),
+    ("Zigbee2MQTT refuse : {}", "Zigbee2MQTT refuses: {}"),
+    (
+        "Zigbee2MQTT n'a pas répondu dans les 10 secondes : voyez Réglages › Connexions › Zigbee (journal)",
+        "Zigbee2MQTT didn’t answer within 10 seconds: see Settings › Connections › Zigbee (log)",
+    ),
 ];
 
 #[cfg(test)]

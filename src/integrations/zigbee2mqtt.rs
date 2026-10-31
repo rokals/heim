@@ -763,7 +763,19 @@ pub async fn run(
                     if p.topic.ends_with("/bridge/state") || p.topic.ends_with("/bridge/devices") {
                         waiting_bridge = None;
                     }
+                    if let Some(request) = p.topic.strip_prefix(&format!("{}/bridge/response/", bridge.cfg.base_topic)) {
+                        let v: Value = serde_json::from_slice(&p.payload).unwrap_or_default();
+                        let ok = v.get("status").and_then(Value::as_str) == Some("ok");
+                        let error = v.get("error").and_then(Value::as_str).map(str::to_string);
+                        if !ok {
+                            tracing::warn!("zigbee2mqtt : {request} refusé : {}", error.clone().unwrap_or_default());
+                        }
+                        bus.publish(Event::ZigbeeResponse { request: request.to_string(), ok, error });
+                    }
                     if p.topic == format!("{}/bridge/state", bridge.cfg.base_topic) {
+                        if let Some(online) = parse_online(&p.payload) {
+                            bus.publish(Event::ZigbeeBridgeOnline { online });
+                        }
                         match parse_online(&p.payload) {
                             Some(true) => bus.integration_status(INTEGRATION, IntegrationState::Connected, None),
                             Some(false) => bus.integration_status(

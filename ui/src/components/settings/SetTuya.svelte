@@ -90,6 +90,58 @@
   }
 
   const known = (id) => cfg?.devices.some((d) => d.id === id);
+
+  // Connexion Smart Life : un QR code à scanner dans l'appli, et les clés arrivent toutes seules.
+  let userCode = $state('');
+  try {
+    userCode = localStorage.getItem('heim_tuya_usercode') || '';
+  } catch {}
+  let qr = $state(null);
+  let qrBusy = $state(false);
+  let qrResult = $state(null);
+  let pollTimer = null;
+
+  async function startQr(e) {
+    e?.preventDefault();
+    qrBusy = true;
+    qrResult = null;
+    try {
+      try {
+        localStorage.setItem('heim_tuya_usercode', userCode.trim());
+      } catch {}
+      qr = await api('/tuya/cloud/qr', { method: 'POST', body: { user_code: userCode.trim() } });
+      poll(Date.now());
+    } catch (err) {
+      toast(err.message, 'alert');
+    }
+    qrBusy = false;
+  }
+
+  function poll(started) {
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(async () => {
+      if (!qr) return;
+      if (Date.now() - started > 3 * 60 * 1000) {
+        qr = null;
+        toast(tr("QR code expiré : recommencez"), 'alert');
+        return;
+      }
+      try {
+        const r = await api('/tuya/cloud/poll', { method: 'POST', body: { user_code: userCode.trim(), qrcode: qr.qrcode } });
+        if (r.pending) return poll(started);
+        qr = null;
+        qrResult = r;
+        if (r.devices) cfg = r;
+        toast(tr("{n} appareil(s) Tuya repris", { n: (r.added ?? 0) + (r.updated ?? 0) }));
+        scan();
+      } catch (err) {
+        qr = null;
+        toast(err.message, 'alert');
+      }
+    }, 3000);
+  }
+
+  onMount(() => () => clearTimeout(pollTimer));
 </script>
 
 <p class="muted">{tr("Prises, ampoules et interrupteurs Wi-Fi Tuya (LSC Action, Lidl, Silvercrest…), pilotés directement sur le réseau, sans le cloud. Il faut une fois la « clé locale » de chaque appareil.")}</p>
@@ -180,7 +232,32 @@
     {/if}
   {/if}
 
+  <h2>{tr("Reprendre les appareils de Smart Life")}</h2>
+  <p class="muted">{tr("Le plus simple : Heim lit une fois vos appareils et leurs clés locales dans votre compte Smart Life (ou Tuya Smart), puis les pilote en local. Les jetons du cloud ne sont pas gardés.")}</p>
+  {#if qr}
+    <div class="qr">
+      <div class="qrimg">{@html qr.svg}</div>
+      <ol class="steps">
+        <li>{tr("Ouvrez Smart Life sur votre téléphone, touchez le bouton de scan (en haut à droite de l'accueil).")}</li>
+        <li>{tr("Scannez ce QR code, puis confirmez la connexion dans l'appli.")}</li>
+        <li>{tr("Heim attend la confirmation et reprend les appareils tout seul.")}</li>
+      </ol>
+      <button class="btn quiet" onclick={() => (qr = null)}>{tr("Annuler")}</button>
+    </div>
+  {:else}
+    <form class="manual" onsubmit={startQr}>
+      <label for="tuya-code">{tr("Code utilisateur Smart Life")}</label>
+      <input id="tuya-code" class="input" bind:value={userCode} placeholder={tr("ex. a1B2c3")} autocomplete="off" />
+      <span class="muted small">{tr("Dans l'appli : Moi › Réglages (roue dentée) › Compte et sécurité › Code utilisateur.")}</span>
+      <button class="btn" type="submit" disabled={qrBusy || !userCode.trim()}>{qrBusy ? tr("Connexion…") : tr("Afficher le QR code")}</button>
+    </form>
+  {/if}
+  {#if qrResult}
+    <p class="muted">{tr("{total} appareil(s) dans le compte : {added} ajouté(s), {updated} mis à jour, {skipped} ignoré(s) (sous-appareils de passerelle, caméras…).", { total: qrResult.cloud_devices ?? 0, added: qrResult.added ?? 0, updated: qrResult.updated ?? 0, skipped: qrResult.skipped ?? 0 })}</p>
+  {/if}
+
   <h2>{tr("Obtenir les clés locales")}</h2>
+  <p class="muted small">{tr("Autre méthode, avec un compte développeur Tuya :")}</p>
   <ol class="steps">
     <li>{tr("Créez un compte gratuit sur")} <strong>{tr("platform.tuya.com")}</strong>{tr(", puis un « Cloud Project » (région Europe centrale).")}</li>
     <li>{tr("Dans le projet :")} <em>{tr("Devices")}</em> &gt; <em>{tr("Link App Account")}</em>{tr(", et scannez le QR code avec l'application Smart Life ou LSC Smart Connect. Vos appareils apparaissent.")}</li>
@@ -302,5 +379,25 @@
 
   .small {
     font-size: 14px;
+  }
+
+  .qr {
+    display: grid;
+    gap: 12px;
+    justify-items: start;
+    margin: 10px 0;
+  }
+
+  .qrimg {
+    background: #fff;
+    padding: 10px;
+    border-radius: 12px;
+    width: 240px;
+  }
+
+  .qrimg :global(svg) {
+    display: block;
+    width: 100%;
+    height: auto;
   }
 </style>

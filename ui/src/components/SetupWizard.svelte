@@ -11,6 +11,7 @@
   import { ROOM_PRESETS } from '../lib/rooms.js';
   import { cleanLook } from '../lib/theme.js';
   import ZigbeeLocal from './settings/ZigbeeLocal.svelte';
+  import HaMigrate from './settings/HaMigrate.svelte';
 
   const STEPS = [
     { id: 'language', label: tr('Langue'), icon: 'globe' },
@@ -267,6 +268,7 @@
 
   // ---- 6. Connexions : le broker MQTT (rien à régler) et Zigbee sur la box ----
   let zigbeeOn = $state(false);
+  let fromHa = $state(false);
   let zigbeeInstalled = $state(null);
   let broker = $state(null);
 
@@ -549,9 +551,17 @@
       {#if zigbeeInstalled === false}
         <p class="muted">{tr('Zigbee2MQTT n’est pas installé sur cette machine. Vous pourrez brancher Heim sur un Zigbee2MQTT existant dans Réglages, Connexions.')}</p>
       {:else if zigbeeInstalled}
-        <p class="muted">{tr('Branchez la clé Zigbee sur la box : Zigbee2MQTT tourne ici, avec le broker MQTT de Heim. Rien d’autre à installer.')}</p>
+        <div class="tabs" role="tablist" aria-label={tr('Vos appareils Zigbee')}>
+          <button role="tab" aria-selected={!fromHa} class:on={!fromHa} onclick={() => (fromHa = false)}>{tr('Nouvelle installation')}</button>
+          <button role="tab" aria-selected={fromHa} class:on={fromHa} onclick={() => (fromHa = true)}>{tr('Reprendre Home Assistant')}</button>
+        </div>
+        {#if fromHa}
+          <p class="muted">{tr('Vos appareils Zigbee, leur réseau et vos pièces passent de Home Assistant à Heim, sans rien réappairer.')}</p>
+          <HaMigrate where="below" />
+        {:else}
+          <p class="muted">{tr('Branchez la clé Zigbee sur la box : Zigbee2MQTT tourne ici, avec le broker MQTT de Heim. Rien d’autre à installer.')}</p>
+        {/if}
         <ZigbeeLocal compact onstarted={() => (zigbeeOn = true)} />
-        <p class="muted small">{tr('Vos appareils sont déjà dans un Zigbee2MQTT (Home Assistant) ? Passez cette étape : Réglages, Connexions, Zigbee permet de le reprendre sans rien réappairer.')}</p>
       {/if}
     {:else}
       <h1>{tr('Tout est prêt')}</h1>
@@ -1193,5 +1203,28 @@
       background: var(--bg);
       border-top: 1px solid var(--line);
     }
+  }
+
+  .tabs {
+    display: flex;
+    padding: 3px;
+    border-radius: 14px;
+    background: var(--surface-2);
+    margin: 8px 0 12px;
+  }
+
+  .tabs button {
+    flex: 1;
+    min-height: 40px;
+    border-radius: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    padding: 0 6px;
+  }
+
+  .tabs button.on {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow);
   }
 </style>

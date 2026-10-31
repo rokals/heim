@@ -209,7 +209,7 @@
     <div>
       <Icon name="power" size={34} />
       <strong>{tr("Le Raspberry Pi s'éteint")}</strong>
-      <span>{tr("Attendez une dizaine de secondes que son voyant vert ne clignote plus, puis vous pouvez le débrancher. Pour le rallumer, rebranchez-le.")}</span>
+      <span>{tr("Attendez une vingtaine de secondes que son voyant vert s'éteigne : il est alors arrêté et vous pouvez le débrancher. Le voyant rouge reste allumé tant que le câble est branché, c'est normal : un Raspberry Pi ne coupe jamais lui-même son alimentation. Pour le rallumer, débranchez et rebranchez-le.")}</span>
     </div>
   </div>
 {/if}

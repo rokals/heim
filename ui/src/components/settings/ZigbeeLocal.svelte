@@ -5,6 +5,7 @@
   // compact : seulement la clé et le bouton (assistant, accueil vide).
   import { onDestroy, onMount } from 'svelte';
   import Icon from '../Icon.svelte';
+  import HaMigrate from './HaMigrate.svelte';
   import { api, toast } from '../../lib/store.svelte.js';
 
   let { compact = false, onstarted = null } = $props();
@@ -178,8 +179,13 @@
   </div>
 
   {#if !compact}
+    <details class="import" open={!st.config?.devices}>
+      <summary>{tr("Reprendre les appareils de Home Assistant")}</summary>
+      <HaMigrate where="above" ondone={() => load()} />
+    </details>
+
     <details class="import">
-      <summary>{tr("Reprendre un Zigbee2MQTT existant (Home Assistant…)")}</summary>
+      <summary>{tr("Reprendre un Zigbee2MQTT existant à partir de ses fichiers")}</summary>
       <p class="muted">
         {tr("Pour garder vos appareils sans les réappairer : récupérez les fichiers du dossier zigbee2mqtt de l'ancienne installation (dans Home Assistant : /config/zigbee2mqtt ou /homeassistant/zigbee2mqtt), arrêtez-y Zigbee2MQTT, puis branchez la même clé sur la box.")}
       </p>

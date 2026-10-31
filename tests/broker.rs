@@ -286,6 +286,14 @@ async fn heim_reads_zigbee2mqtt_through_its_own_broker() {
         .unwrap();
     core.apply_zigbee_settings();
 
+    // Pièces reprises de Home Assistant : posées dès que les entités arrivent.
+    heim::migrate::remember_rooms(
+        &core,
+        &["Salon".to_string()],
+        [("0x01".to_string(), "salon".to_string())].into(),
+    )
+    .unwrap();
+
     let mut fake = tokio::process::Command::new("python3")
         .arg(&script)
         .arg(port.to_string())
@@ -307,6 +315,25 @@ async fn heim_reads_zigbee2mqtt_through_its_own_broker() {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     let lamp = found.expect("la lampe de Zigbee2MQTT doit apparaître");
+    let mut room = None;
+    for _ in 0..30 {
+        room = core
+            .registry
+            .snapshot()
+            .await
+            .into_iter()
+            .find(|e| e.meta.device_id.as_deref() == Some("0x01"))
+            .and_then(|e| e.meta.room);
+        if room.is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert_eq!(
+        room.as_deref(),
+        Some("Salon"),
+        "pièce reprise de Home Assistant"
+    );
 
     // Une commande part vers Zigbee2MQTT, qui répond par son nouvel état.
     core.registry
@@ -332,7 +359,26 @@ async fn heim_reads_zigbee2mqtt_through_its_own_broker() {
         }
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
-    let _ = fake.kill().await;
     assert!(on, "la lampe doit passer à « on »");
+
+    // Appairage : Zigbee2MQTT est en ligne, il confirme l'ouverture du réseau.
+    assert_eq!(core.pairing.lock().unwrap().online, Some(true));
+    core.bus
+        .publish(heim::bus::Event::ZigbeePermitJoin { seconds: 60 });
+    let mut confirmed = false;
+    for _ in 0..50 {
+        let p = core.pairing.lock().unwrap().clone();
+        if p.last_response
+            .as_ref()
+            .is_some_and(|r| r.0 == "permit_join" && r.1)
+            && p.open
+        {
+            confirmed = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let _ = fake.kill().await;
+    assert!(confirmed, "Zigbee2MQTT doit confirmer l'appairage");
     let _ = std::fs::remove_dir_all(dir);
 }

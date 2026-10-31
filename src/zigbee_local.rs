@@ -439,13 +439,58 @@ impl ZigbeeLocal {
             std::fs::write(self.data.join("coordinator_backup.json"), b)
                 .map_err(|e| e.to_string())?;
         }
-        Ok(peek(configuration))
+        Ok(self.config_summary())
+    }
+
+    /// Les autres fichiers d'une sauvegarde (secret.yaml, state.json…), à côté de la configuration.
+    pub fn import_extra(&self, files: &[(String, Vec<u8>)]) -> Result<usize, String> {
+        let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let mut n = 0;
+        for (name, data) in files {
+            let plain = name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'));
+            let kind = [".yaml", ".yml", ".json", ".db"]
+                .iter()
+                .any(|x| name.ends_with(x));
+            if !plain
+                || !kind
+                || name.starts_with('.')
+                || matches!(
+                    name.as_str(),
+                    "configuration.yaml" | "database.db" | "coordinator_backup.json"
+                )
+            {
+                continue;
+            }
+            let p = self.data.join(name);
+            if p.exists() && name != "state.json" {
+                let _ = std::fs::rename(&p, self.data.join(format!("{name}.avant-{stamp}")));
+            }
+            std::fs::write(&p, data).map_err(|e| e.to_string())?;
+            n += 1;
+        }
+        Ok(n)
     }
 
     pub fn config_summary(&self) -> Value {
-        std::fs::read_to_string(self.config_path())
-            .map(|t| peek(&t))
-            .unwrap_or(Value::Null)
+        let Ok(text) = std::fs::read_to_string(self.config_path()) else {
+            return Value::Null;
+        };
+        let mut summary = peek(&text);
+        // Les appareils sans nom donné n'ont pas d'entrée dans la configuration : on compte
+        // aussi ceux de la base (hors coordinateur).
+        if let Ok(db) = std::fs::read(self.data.join("database.db")) {
+            let n = String::from_utf8_lossy(&db)
+                .lines()
+                .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+                .filter(|d| d.get("type").and_then(Value::as_str) != Some("Coordinator"))
+                .count() as u64;
+            if n > summary["devices"].as_u64().unwrap_or(0) {
+                summary["devices"] = n.into();
+            }
+        }
+        summary
     }
 
     /// Les dernières lignes du journal de Zigbee2MQTT.

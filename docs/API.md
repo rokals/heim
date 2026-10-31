@@ -75,6 +75,10 @@ GET    /api/zigbee/local                 Zigbee2MQTT on the box: installed, stat
 PUT    /api/zigbee/local                 {"enabled": true, "port": "/dev/serial/by-id/...", "adapter": "ember", "frontend": false}
 POST   /api/zigbee/local/restart
 POST   /api/zigbee/local/import          {"configuration": "<configuration.yaml>", "database": "<database.db>", "coordinator_backup": "<json>"}
+POST   /api/migrate/ha/check             {"url": "homeassistant.local:8123", "token": "<long-lived token>"}   version, rooms, Zigbee2MQTT add-on
+POST   /api/migrate/ha/import            same + "base_topic": Zigbee2MQTT backup (through HA's MQTT), rooms; the token isn't stored
+POST   /api/migrate/ha/stop_addon        same + "slug": stops HA's Zigbee2MQTT add-on
+POST   /api/migrate/mqtt/import          {"host", "port", "username", "password", "base_topic"}: the same backup straight from a broker
 
 GET    /api/plugins                      installed (with run state, memory, settings schema), store, categories
 POST   /api/plugins/preview              {"source": "alex/heim-wled"}   reads the manifest, installs nothing
@@ -112,6 +116,8 @@ POST   /api/system/restart | /api/system/reboot
 GET    /api/tuya | PUT /api/tuya         {"enabled": true, "devices": [{"id", "name", "key", "ip", "version"}]}
 POST   /api/tuya/import                  contents of a tinytuya devices.json
 POST   /api/tuya/scan                    devices announcing themselves on the network
+POST   /api/tuya/cloud/qr                {"user_code": "..."}   Smart Life login: {"qrcode", "svg"} to scan in the app
+POST   /api/tuya/cloud/poll              {"user_code", "qrcode"}   {"pending": true}, then the devices and local keys, imported
 GET    /api/matter | PUT /api/matter     {"enabled": true, "url": "192.168.1.50:5580"}
 POST   /api/matter/commission            {"code": "MT:..."}
 POST   /api/matter/remove                {"node_id": 4}

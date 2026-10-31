@@ -30,6 +30,7 @@ pub mod groups;
 pub mod history;
 pub mod i18n;
 pub mod integrations;
+pub mod migrate;
 pub mod model;
 pub mod netsetup;
 pub mod notify;
@@ -375,6 +376,7 @@ impl Core {
         core.spawn_update_checker();
         core.spawn_power_on_for_new();
         api_zigbee::spawn_at_start(core.clone());
+        migrate::spawn_rooms(core.clone());
         if !config.demo {
             // Au démarrage, puis toutes les heures (premier démarrage sans Internet…).
             let data = config.data_dir.clone();
@@ -792,6 +794,11 @@ pub struct Pairing {
     pub version: Option<String>,
     /// Derniers événements, du plus récent au plus ancien.
     pub events: Vec<PairingEvent>,
+    /// Zigbee2MQTT répond-il ? (`None` : pas encore entendu.)
+    pub online: Option<bool>,
+    /// Dernière réponse de Zigbee2MQTT à une demande : (demande, réussie, erreur, quand).
+    #[serde(skip)]
+    pub last_response: Option<(String, bool, Option<String>, chrono::DateTime<chrono::Utc>)>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -818,6 +825,20 @@ fn spawn_pairing_tracker(bus: &Bus, pairing: Arc<std::sync::Mutex<Pairing>>) {
                     if version.is_some() {
                         p.version = version;
                     }
+                }
+                Ok(bus::Event::ZigbeeBridgeOnline { online }) => {
+                    let mut p = pairing.lock().unwrap_or_else(|e| e.into_inner());
+                    p.online = Some(online);
+                    if !online {
+                        p.open = false;
+                        p.until = None;
+                    }
+                }
+                Ok(bus::Event::ZigbeeResponse { request, ok, error }) => {
+                    pairing
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .last_response = Some((request, ok, error, chrono::Utc::now()));
                 }
                 Ok(bus::Event::ZigbeeDevice {
                     event,

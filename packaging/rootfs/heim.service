@@ -21,6 +21,8 @@ Environment=RUST_LOG=heim=info,warn
 # Réglages en plus (HEIM_TOKEN pour des scripts...) : /etc/heim.env, chmod 600
 EnvironmentFile=-/etc/heim.env
 Restart=always
+# À l'arrêt de la machine : pas plus de 20 s d'attente.
+TimeoutStopSec=20
 RestartSec=3
 # Chien de garde : Heim donne signe de vie toutes les 30 s ; figé, il est relancé.
 WatchdogSec=90

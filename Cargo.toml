@@ -1,6 +1,6 @@
 [package]
 name = "heim"
-version = "0.17.0"
+version = "0.17.1"
 edition = "2024"
 license = "Apache-2.0"
 description = "Heim - noyau domotique léger en Rust (cible : Raspberry Pi Zero 2 W, 512 Mo)"
@@ -29,6 +29,10 @@ rumqttc = { version = "0.25.1", default-features = false }
 bytes = "1"
 # La configuration de Zigbee2MQTT (configuration.yaml).
 yaml_serde = "0.10"
+# Sauvegarde de Zigbee2MQTT (zip) reprise depuis Home Assistant ou un autre broker.
+zip = { version = "9", default-features = false, features = ["deflate"] }
+# QR code de connexion Tuya (application Smart Life).
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 
 rusqlite = { version = "0.41.0", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive", "rc"] }

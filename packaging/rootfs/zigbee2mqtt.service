@@ -22,6 +22,8 @@ Environment=Z2M_ONBOARD_NO_SERVER=1
 Environment=NODE_OPTIONS=--max-old-space-size=192
 ExecStart=/usr/bin/node /opt/zigbee2mqtt/node_modules/zigbee2mqtt/index.js
 Restart=on-failure
+# À l'arrêt de la machine : pas plus de 20 s d'attente.
+TimeoutStopSec=20
 RestartSec=10
 UMask=0077
 NoNewPrivileges=true

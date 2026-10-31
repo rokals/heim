@@ -46,13 +46,16 @@ Une clé Zigbee branchée sur la box, et c'est tout : Zigbee2MQTT et un broker M
 ### Appareils et connexions
 - **Zigbee** par Zigbee2MQTT (clé Sonoff ZBDongle-E ou autre), **sur la box elle-même** :
   l'image SD l'installe, Heim trouve la clé USB, écrit sa configuration et le démarre.
-  Appairage depuis l'appli, en direct. Un Zigbee2MQTT existant (celui de Home Assistant) se
-  reprend sans rien réappairer, et Heim sait toujours lire un Zigbee2MQTT installé ailleurs.
+  Appairage depuis l'appli, en direct. **Quitter Home Assistant** : avec un jeton d'accès longue
+  durée, Heim demande sa sauvegarde au Zigbee2MQTT de Home Assistant, reprend le réseau et les
+  pièces, arrête le module ; on déplace la clé, rien à réappairer. Heim sait aussi toujours lire
+  un Zigbee2MQTT installé ailleurs.
 - **Broker MQTT intégré** : Zigbee2MQTT se branche directement sur Heim, sans Mosquitto. On peut
   l'ouvrir au réseau de la maison pour des appareils Tasmota, Shelly ou ESPHome, chacun avec
   son compte.
 - **Tuya Wi-Fi** : prises, ampoules et interrupteurs (LSC, Lidl…), pilotés en local, sans cloud
-  (protocoles 3.3, 3.4 et 3.5).
+  (protocoles 3.3, 3.4 et 3.5). Les clés locales se récupèrent une fois en scannant un QR code
+  avec l'appli Smart Life (sans compte développeur), ou par un fichier de tinytuya.
 - **Matter** par un serveur Matter (celui de Home Assistant, ou python-matter-server).
 - Tous les réglages qu'un appareil propose (couleur, blanc, effets, fondus, état après coupure,
   verrouillage enfant…), mises à jour du logiciel interne, pile et signal d'un coup d'œil.

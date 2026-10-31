@@ -47,6 +47,12 @@ donnée dès que possible, et la correction sort dans une version publiée par l
 - **Zigbee2MQTT sur la box** tourne sous l'utilisateur `heim`, avec son propre service systemd.
   Heim peut seulement démarrer, arrêter et relancer ce service (polkit). Son interface web est
   coupée par défaut ; allumée, elle demande un jeton.
+- **Quitter Home Assistant** : le jeton d'accès longue durée ne sert que pendant la reprise et
+  n'est jamais enregistré ; supprimez-le ensuite dans Home Assistant. La sauvegarde de
+  Zigbee2MQTT qu'il rapporte contient la clé du réseau Zigbee.
+- **Tuya par Smart Life** : Heim utilise le même identifiant client public que l'intégration Tuya
+  de Home Assistant pour lire une fois les clés locales ; les jetons du cloud sont oubliés
+  aussitôt.
 - **Sauvegardes** : un fichier de sauvegarde contient tout, y compris les clés Tuya et le mot de
   passe MQTT. Gardez-le pour vous (jamais dans un dépôt public).
 - **Compte console du Pi** (`heim-admin`) : SSH est coupé. Définissez le secret `PI_PASSWORD`
