@@ -43,6 +43,10 @@ pub struct UpdateSettings {
     /// Proposer aussi les versions d'essai (« pre-release »).
     #[serde(default)]
     pub prereleases: bool,
+    /// Après une mise à jour, redémarrer toute la box (Zigbee2MQTT, broker, plugins repartent
+    /// dans l'ordre) plutôt que Heim seul.
+    #[serde(default = "d_true")]
+    pub reboot_after: bool,
 }
 
 impl Default for UpdateSettings {
@@ -51,6 +55,7 @@ impl Default for UpdateSettings {
             repo: None,
             auto_check: true,
             prereleases: false,
+            reboot_after: true,
         }
     }
 }
@@ -484,6 +489,45 @@ impl Updater {
     pub async fn install(&self, _store: crate::store::StoreHandle) -> Result<String, String> {
         Err("Heim compilé sans accès HTTP".into())
     }
+}
+
+const REBOOTED_FOR: &str = "update.rebooted-for";
+
+/// Première mise en route d'une nouvelle version : une fois qu'elle est confirmée (90 s sans
+/// plantage) et que ses fichiers système sont posés, la box redémarre en entier, une seule
+/// fois par version. Zigbee2MQTT, le broker et les plugins repartent ainsi proprement.
+pub fn spawn_reboot_after_update(
+    data_dir: std::path::PathBuf,
+    wanted: bool,
+    store: crate::store::StoreHandle,
+) {
+    let fresh = data_dir.join(MARKER).exists();
+    let done = std::fs::read_to_string(data_dir.join(REBOOTED_FOR)).unwrap_or_default();
+    if !wanted || !fresh || done.trim() == CURRENT || !supervised() {
+        return;
+    }
+    tokio::spawn(async move {
+        // La version doit d'abord être adoptée (sinon le retour arrière s'en mêlerait).
+        tokio::time::sleep(Duration::from_secs(100)).await;
+        if data_dir.join(MARKER).exists() {
+            return;
+        }
+        // Puis on laisse jusqu'à 5 min aux fichiers système de cette version.
+        for _ in 0..30 {
+            let st = crate::sysfiles::status(&data_dir);
+            let ok = st["version"] == CURRENT && st["status"] == "ok";
+            if ok || st["managed"] != true {
+                break;
+            }
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        }
+        let _ = std::fs::write(data_dir.join(REBOOTED_FOR), CURRENT);
+        let _ = tokio::task::spawn_blocking(move || store.flush_blocking()).await;
+        tracing::warn!("mise à jour vers {CURRENT} : redémarrage de la box");
+        if let Err(e) = crate::system::power(crate::system::Power::Reboot).await {
+            tracing::warn!("redémarrage après mise à jour impossible : {e}");
+        }
+    });
 }
 
 /// Arrête Heim proprement : systemd le relance aussitôt.

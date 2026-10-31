@@ -306,6 +306,14 @@ impl Core {
         let netsetup = netsetup::NetSetup::new();
         netsetup.spawn_watchdog();
         let updater = update::Updater::new(config.data_dir.clone());
+        {
+            let s: update::UpdateSettings = settings.get(update::SETTINGS_KEY).unwrap_or_default();
+            update::spawn_reboot_after_update(
+                config.data_dir.clone(),
+                s.reboot_after,
+                store.clone(),
+            );
+        }
         updater.confirm_after_start();
         let pairing = Arc::new(std::sync::Mutex::new(Pairing::default()));
         spawn_pairing_tracker(&bus, pairing.clone());

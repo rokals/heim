@@ -164,6 +164,7 @@
         <button class="btn quiet" type="submit">{tr("Enregistrer")}</button>
       </form>
       <label class="check"><input type="checkbox" checked={up.settings.auto_check} onchange={(e) => saveSettings({ auto_check: e.currentTarget.checked })} /> {tr("Vérifier toute seule deux fois par jour et prévenir les admins")}</label>
+      <label class="check"><input type="checkbox" checked={up.settings.reboot_after ?? true} onchange={(e) => saveSettings({ reboot_after: e.currentTarget.checked })} /> {tr("Redémarrer toute la box après une mise à jour (Zigbee, broker et plugins repartent proprement)")}</label>
       <label class="check"><input type="checkbox" checked={up.settings.prereleases} onchange={(e) => saveSettings({ prereleases: e.currentTarget.checked })} /> {tr("Proposer aussi les versions d'essai")}</label>
     </details>
     {#if up.system?.managed}

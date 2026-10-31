@@ -1553,6 +1553,7 @@ export default {
   "Impossible d'ouvrir la clé : est-elle utilisée par un autre programme, ou Heim n'a-t-il pas encore le droit de l'ouvrir (mise à jour système) ?": "Can’t open the stick: is another program using it, or doesn’t Heim have permission yet (system update)?",
   "Points de données Tuya": "Tuya data points",
   "Dernier envoi :": "Last sent:",
+  "Redémarrer toute la box après une mise à jour (Zigbee, broker et plugins repartent proprement)": "Restart the whole box after an update (Zigbee, broker and plugins come back cleanly)",
   "Zigbee2MQTT s'est arrêté sur une erreur": "Zigbee2MQTT stopped with an error",
   "Arrêté": "Stopped",
   "Pas installé sur cette box": "Not installed on this box",
