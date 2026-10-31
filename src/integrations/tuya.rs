@@ -28,6 +28,8 @@ use crate::model::{Attributes, Category, Domain, EntityMeta, Target, slugify};
 use crate::registry::RegistryHandle;
 
 pub const INTEGRATION: &str = "tuya";
+/// Un pas de fondu fait par Heim (environ 4 commandes par seconde : ce que les lampes suivent).
+const FADE_STEP: Duration = Duration::from_millis(250);
 pub const SETTINGS_KEY: &str = "tuya";
 const PORT: u16 = 6668;
 
@@ -926,6 +928,7 @@ impl DeviceTask {
     /// blanc, mode) convertis, les autres tels quels (échelle remise).
     fn set_dps(&self, values: &Map<String, Value>) -> Map<String, Value> {
         let mut rest = values.clone();
+        rest.remove("transition");
         let intent = Intent::take_from(&mut rest);
         let mut out = self.raw_dps(&rest);
         if let (Some(i), Some(lamp)) = (intent, self.lamp()) {
@@ -1090,8 +1093,18 @@ impl DeviceTask {
         let mut heartbeat = tokio::time::interval(Duration::from_secs(10));
         heartbeat.tick().await;
         let mut last_rx = tokio::time::Instant::now();
+        // Fondu en cours : étapes restantes, envoyées toutes les 250 ms.
+        let mut fade: std::collections::VecDeque<Map<String, Value>> = Default::default();
+        let mut fade_tick = tokio::time::interval(FADE_STEP);
+        fade_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             tokio::select! {
+                _ = fade_tick.tick(), if !fade.is_empty() => {
+                    if let Some(step) = fade.pop_front() {
+                        let c = conn.session.control(&step);
+                        conn.send(&c).await?;
+                    }
+                }
                 frame = conn.next_frame() => {
                     let frame = frame?;
                     last_rx = tokio::time::Instant::now();
@@ -1117,6 +1130,7 @@ impl DeviceTask {
                 }
                 msg = rx.recv() => match msg {
                     Some(DeviceMsg::Command(entity_id, target)) => {
+                        fade.clear();
                         let role = self.mapped.iter().find(|m| m.meta.entity_id == entity_id).map(|m| m.role.clone());
                         if let Some(dps) = role.as_ref().and_then(|r| dps_for(r, &target, &self.last, self.colour_fmt)) {
                             let c = conn.session.control(&dps);
@@ -1125,6 +1139,21 @@ impl DeviceTask {
                     }
                     Some(DeviceMsg::Set(values)) => {
                         let dps = self.set_dps(&values);
+                        // Une nouvelle commande remplace le fondu en cours.
+                        fade.clear();
+                        let secs = values.get("transition").and_then(Value::as_f64).unwrap_or(0.0);
+                        let on = self.lamp().and_then(|l| self.last.get(&l.switch)).and_then(Value::as_bool) == Some(true);
+                        let turning_off = self.lamp().and_then(|l| dps.get(&l.switch)).and_then(Value::as_bool) == Some(false);
+                        if secs > 0.0 && on && !turning_off && self.lamp().is_some() {
+                            let n = ((secs * 1000.0) / FADE_STEP.as_millis() as f64).round().clamp(2.0, 40.0) as usize;
+                            fade.extend(light::fade_steps(&dps, &self.last, n));
+                            fade_tick.reset_immediately();
+                            tracing::info!("tuya : {} ← fondu de {secs} s en {n} étapes vers {}", self.dev.name, serde_json::to_string(&dps).unwrap_or_default());
+                            if let Some(d) = crate::devices::lock(&self.controls).get_mut(&format!("tuya:{}", self.dev.id)) {
+                                d.values.insert("last_sent".into(), serde_json::json!(dps));
+                            }
+                            continue;
+                        }
                         tracing::info!("tuya : {} ← {}", self.dev.name, serde_json::to_string(&dps).unwrap_or_default());
                         // Ce qui est parti, visible dans Infos (pour comprendre une lampe qui ne suit pas).
                         if let Some(d) = crate::devices::lock(&self.controls).get_mut(&format!("tuya:{}", self.dev.id)) {

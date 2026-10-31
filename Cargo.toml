@@ -1,6 +1,6 @@
 [package]
 name = "heim"
-version = "0.18.2"
+version = "0.18.3"
 edition = "2024"
 license = "Apache-2.0"
 description = "Heim - noyau domotique léger en Rust (cible : Raspberry Pi Zero 2 W, 512 Mo)"

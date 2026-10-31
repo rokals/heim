@@ -208,7 +208,6 @@ impl Intent {
             any = true;
             i.effect = v.as_str().map(str::to_string);
         }
-        values.remove("transition");
         any.then_some(i)
     }
 }
@@ -356,6 +355,55 @@ impl Lamp {
     }
 }
 
+/// Un fondu fait par Heim (le protocole local Tuya n'en a pas) : les étapes intermédiaires
+/// entre l'état actuel et `target`, la dernière étant `target` lui-même. Les nombres
+/// (luminosité, blanc) et la couleur (teinte par le plus court chemin) glissent ; le reste
+/// (allumage, mode) part dès la première étape.
+pub fn fade_steps(
+    target: &Map<String, Value>,
+    last: &Map<String, Value>,
+    steps: usize,
+) -> Vec<Map<String, Value>> {
+    let steps = steps.max(1);
+    let mut out: Vec<Map<String, Value>> = vec![Map::new(); steps];
+    for (dp, to) in target {
+        let from = last.get(dp);
+        let numeric = from.and_then(Value::as_f64).zip(to.as_f64());
+        let colours = from
+            .and_then(decode)
+            .zip(decode(to))
+            .filter(|((_, f1), (_, f2))| f1 == f2);
+        for (k, step) in out.iter_mut().enumerate() {
+            let t = (k + 1) as f64 / steps as f64;
+            let v = if let Some((a, b)) = numeric {
+                json!((a + (b - a) * t).round() as i64)
+            } else if let Some(((a, _), (b, f))) = colours {
+                let mut dh = b.h - a.h;
+                if dh > 180.0 {
+                    dh -= 360.0;
+                } else if dh < -180.0 {
+                    dh += 360.0;
+                }
+                encode(
+                    Colour {
+                        h: (a.h + dh * t).rem_euclid(360.0),
+                        s: a.s + (b.s - a.s) * t,
+                        v: a.v + (b.v - a.v) * t,
+                    },
+                    f,
+                )
+            } else if k == 0 || k + 1 == steps {
+                to.clone()
+            } else {
+                continue;
+            };
+            step.insert(dp.clone(), v);
+        }
+    }
+    out.retain(|m| !m.is_empty());
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -368,6 +416,25 @@ mod tests {
             mode: Some("21".into()),
             colour: Some(("24".into(), Format::V2)),
         }
+    }
+
+    #[test]
+    fn fades_slide_numbers_and_colours() {
+        let mut last = Map::new();
+        last.insert("22".into(), json!(100));
+        last.insert("24".into(), json!("015e03e803e8")); // 350°
+        let mut target = Map::new();
+        target.insert("20".into(), json!(true));
+        target.insert("22".into(), json!(500));
+        target.insert("24".into(), json!("000a03e803e8")); // 10°
+        let steps = fade_steps(&target, &last, 4);
+        assert_eq!(steps.len(), 4);
+        assert_eq!(steps[0]["22"], json!(200));
+        assert_eq!(steps[0]["20"], json!(true));
+        assert_eq!(steps[3], target);
+        // La teinte passe par 0°, pas par 180°.
+        let (c, _) = decode(&steps[1]["24"]).unwrap();
+        assert!(c.h < 1.0 || c.h > 359.0, "{}", c.h);
     }
 
     #[test]
@@ -405,7 +472,8 @@ mod tests {
         v.insert("transition".into(), json!(2));
         v.insert("102".into(), json!(5));
         let i = Intent::take_from(&mut v).unwrap();
-        assert_eq!(v.len(), 1, "le point de données brut reste");
+        assert!(v.contains_key("102"), "le point de données brut reste");
+        assert!(v.contains_key("transition"), "le fondu est géré à part");
         let out = l.dps(&i, &Map::new(), None);
         assert_eq!(out["20"], json!(true));
         assert_eq!(out["21"], json!("colour"));
