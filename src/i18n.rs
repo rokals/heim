@@ -1059,6 +1059,10 @@ pub const EN: &[(&str, &str)] = &[
         "Home Assistant isn’t answering",
     ),
     (
+        "Zigbee2MQTT : la clé ne répond pas avec le pilote {}, essai avec {}",
+        "Zigbee2MQTT: the stick doesn’t answer with the {} driver, trying {}",
+    ),
+    (
         "{} introuvable sur le réseau : indiquez l'adresse IP de Home Assistant (ex. 192.168.1.10:8123)",
         "{} can’t be found on the network: enter Home Assistant’s IP address (e.g. 192.168.1.10:8123)",
     ),

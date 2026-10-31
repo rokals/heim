@@ -47,6 +47,9 @@ pub struct Dongle {
     /// Le pilote que Zigbee2MQTT doit utiliser, quand on le reconnaît au nom.
     pub adapter: Option<&'static str>,
     pub model: Option<&'static str>,
+    /// L'autre pilote possible quand le nom ne suffit pas (clé reflashée…). Heim l'essaie
+    /// tout seul si le premier ne répond pas.
+    pub alternate: Option<&'static str>,
 }
 
 /// Reconnaît les clés courantes à leur nom USB (`/dev/serial/by-id/…`).
@@ -60,7 +63,9 @@ pub fn guess(name: &str) -> (Option<&'static str>, Option<&'static str>) {
         return (Some("ember"), Some("Sonoff Dongle (EFR32MG24)"));
     }
     if has("sonoff_zigbee_3.0_usb_dongle_plus") || has("zbdongle-p") {
-        return (Some("zstack"), Some("Sonoff ZBDongle-P"));
+        // Ce nom USB est aussi porté par des clés à puce Silicon Labs ou reflashées en
+        // EmberZNet : zstack d'abord, ember en second essai (voir `alternate`).
+        return (Some("zstack"), Some("Sonoff Zigbee 3.0 Dongle Plus"));
     }
     if has("skyconnect") || has("zbt-1") || has("connect_zbt") {
         return (Some("ember"), Some("Home Assistant Connect ZBT-1"));
@@ -83,6 +88,15 @@ pub fn guess(name: &str) -> (Option<&'static str>, Option<&'static str>) {
     (None, None)
 }
 
+/// Le pilote à essayer si celui deviné au nom ne répond pas.
+pub fn alternate(name: &str) -> Option<&'static str> {
+    let n = name.to_lowercase();
+    match guess(name).0 {
+        Some("zstack") if n.contains("sonoff") || n.contains("itead") => Some("ember"),
+        _ => None,
+    }
+}
+
 /// Les clés série branchées. Sous Linux, `/dev/serial/by-id` donne des noms parlants.
 pub fn scan(by_id: &Path) -> Vec<Dongle> {
     let mut out = Vec::new();
@@ -90,11 +104,13 @@ pub fn scan(by_id: &Path) -> Vec<Dongle> {
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().to_string();
             let (adapter, model) = guess(&name);
+            let alternate = alternate(&name);
             out.push(Dongle {
                 path: e.path().to_string_lossy().to_string(),
                 name,
                 adapter,
                 model,
+                alternate,
             });
         }
     }
@@ -109,6 +125,7 @@ pub fn scan(by_id: &Path) -> Vec<Dongle> {
                     name,
                     adapter: None,
                     model: None,
+                    alternate: None,
                 });
             }
         }
@@ -287,6 +304,8 @@ pub struct ZigbeeLocal {
     install: Option<PathBuf>,
     child: Mutex<ChildState>,
     by_id: PathBuf,
+    /// Pilotes déjà essayés sans succès, par clé (pour ne pas boucler).
+    tried: Mutex<std::collections::HashSet<(String, String)>>,
 }
 
 impl ZigbeeLocal {
@@ -329,7 +348,23 @@ impl ZigbeeLocal {
                 last_exit: None,
             }),
             by_id: PathBuf::from("/dev/serial/by-id"),
+            tried: Mutex::new(Default::default()),
         })
+    }
+
+    /// Note qu'un pilote n'a pas marché sur cette clé.
+    pub fn mark_tried(&self, port: &str, adapter: &str) {
+        self.tried
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert((port.to_string(), adapter.to_string()));
+    }
+
+    pub fn was_tried(&self, port: &str, adapter: &str) -> bool {
+        self.tried
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(&(port.to_string(), adapter.to_string()))
     }
 
     pub fn installed(&self) -> bool {
@@ -382,6 +417,19 @@ impl ZigbeeLocal {
             .or_else(|| dongles.first().map(|d| d.path.clone()));
         let existing = std::fs::read_to_string(self.config_path()).ok();
         let mut wanted = s.clone();
+        // Le pilote : celui choisi, sinon celui déjà dans la configuration (reprise d'une
+        // sauvegarde, essai précédent qui a marché), sinon celui deviné au nom de la clé.
+        if wanted.adapter.is_none() {
+            wanted.adapter = existing
+                .as_deref()
+                .and_then(|t| {
+                    peek(t)
+                        .get("adapter")
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+                .filter(|a| ADAPTERS.contains(&a.as_str()));
+        }
         if wanted.adapter.is_none()
             && let Some(p) = &port
         {
@@ -763,9 +811,12 @@ pub fn explain(log: &[String], dongles: &[Dongle], modem_manager: bool) -> Optio
         Some(
             "ModemManager tourne sur la box et perturbe la clé. Mettez à jour Heim (la mise à jour système le coupe), puis débranchez et rebranchez la clé.",
         )
+    } else if has("sys - ping") {
+        Some(
+            "La clé ne répond pas en Z-Stack (Texas Instruments). Si elle a un firmware EmberZNet (Sonoff E, clé reflashée), choisissez le pilote « ember » dans Réglages avancés. Heim l'essaie tout seul quand aucun pilote n'est choisi.",
+        )
     } else if has("failed to connect to the adapter")
         || has("sreq '") && has("timeout")
-        || has("sys - ping")
         || has("failed to start zigbee-herdsman")
     {
         Some(
@@ -935,5 +986,42 @@ devices:
         assert_eq!(r["port"], json!("/dev/ttyUSB0"));
         assert!(dir.join("database.db").exists());
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_driver_in_the_configuration_wins_over_the_guess() {
+        // Une Sonoff « Dongle Plus » reflashée en EmberZNet : la sauvegarde dit ember, le nom
+        // de la clé ferait deviner zstack. La configuration doit garder ember.
+        let base = std::env::temp_dir().join(format!("heim-z2m-ember-{}", std::process::id()));
+        let serial = base.join("by-id");
+        std::fs::create_dir_all(&serial).unwrap();
+        let name = "usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_7490-if00-port0";
+        std::fs::write(serial.join(name), b"").unwrap();
+        let data = base.join("data");
+        let mut z = ZigbeeLocal::with(data.clone(), Runner::Missing, None);
+        Arc::get_mut(&mut z).unwrap().by_id = serial.clone();
+        z.import(
+            "serial: {adapter: ember}\nmqtt: {base_topic: zigbee2mqtt}\n",
+            None,
+            None,
+        )
+        .unwrap();
+        z.write_config(&LocalSettings::default(), 1883).unwrap();
+        assert_eq!(z.config_summary()["adapter"], json!("ember"));
+        // Sans rien dans la configuration : le nom fait deviner zstack, ember en second essai.
+        assert_eq!(guess(name).0, Some("zstack"));
+        assert_eq!(alternate(name), Some("ember"));
+        assert_eq!(
+            alternate("usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_V2-if00"),
+            None
+        );
+        // Un choix explicite passe devant tout.
+        let chosen = LocalSettings {
+            adapter: Some("zstack".into()),
+            ..Default::default()
+        };
+        z.write_config(&chosen, 1883).unwrap();
+        assert_eq!(z.config_summary()["adapter"], json!("zstack"));
+        let _ = std::fs::remove_dir_all(base);
     }
 }

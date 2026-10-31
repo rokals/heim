@@ -294,12 +294,10 @@ pub async fn import_local(
         )
         .map_err(bad_request)?;
     // La clé d'avant n'est plus forcément au même endroit : on garde le pilote, pas le port.
+    // Le pilote de la sauvegarde fait foi : c'est celui avec lequel la clé marchait.
     let mut s = s;
-    if s.adapter.is_none() {
-        s.adapter = summary
-            .get("adapter")
-            .and_then(Value::as_str)
-            .map(str::to_string);
+    if let Some(a) = summary.get("adapter").and_then(Value::as_str) {
+        s.adapter = Some(a.to_string());
         let _ = core.settings.set(zigbee_local::SETTINGS_KEY, &s);
     }
     if was_running {
@@ -366,6 +364,7 @@ fn spawn_hotplug(core: Core) {
         let mut known = paths(&core);
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            auto_adapter(&core).await;
             let now = paths(&core);
             let arrived = now.iter().any(|p| !known.contains(p));
             known = now;
@@ -389,6 +388,85 @@ fn spawn_hotplug(core: Core) {
                 tracing::warn!("zigbee2mqtt local : {e}");
             }
         }
+    });
+}
+
+/// Pilote deviné au nom de la clé, mais la clé ne répond pas : on essaie l'autre pilote
+/// possible (une Sonoff « Dongle Plus » peut être en Z-Stack ou en EmberZNet), une fois.
+/// Dès que Zigbee2MQTT répond, le pilote qui marche est enregistré.
+async fn auto_adapter(core: &Core) {
+    let z = &core.zigbee_local;
+    let mut s = local_settings(core);
+    if !s.enabled || s.adapter.is_some() {
+        return;
+    }
+    let config = z.config_summary();
+    let current = config
+        .get("adapter")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let state = z.state().await;
+    if state == "active" && bridge_online(core) {
+        if let Some(a) = current {
+            s.adapter = Some(a.clone());
+            let _ = core.settings.set(zigbee_local::SETTINGS_KEY, &s);
+            tracing::info!("zigbee2mqtt local : la clé répond avec le pilote {a}, enregistré");
+        }
+        return;
+    }
+    if state != "failed" {
+        return;
+    }
+    // Jamais sur un réseau inconnu : un essai qui réussit créerait un nouveau réseau sur la clé.
+    if !z.network_known() && config.get("devices").and_then(Value::as_u64).unwrap_or(0) == 0 {
+        return;
+    }
+    let Some(current) = current else { return };
+    let dongles = z.dongles();
+    let port = config.get("port").and_then(Value::as_str).unwrap_or("");
+    let Some(dongle) = dongles.iter().find(|d| d.path == port).or(dongles.first()) else {
+        return;
+    };
+    let Some(alt) = dongle.alternate else {
+        return;
+    };
+    let candidate = if current == alt {
+        dongle.adapter.unwrap_or("zstack")
+    } else {
+        alt
+    };
+    // La dernière erreur doit être un silence de la clé, pas une autre panne.
+    let log = z.journal_tail(40).await;
+    let mute = zigbee_local::error_line(&log).is_some_and(|e| {
+        let e = e.to_ascii_lowercase();
+        e.contains("failed to connect to the adapter")
+            || e.contains("sys - ping")
+            || e.contains("ezsp")
+            || e.contains("ash")
+    });
+    if !mute || z.was_tried(&dongle.path, candidate) {
+        return;
+    }
+    z.mark_tried(&dongle.path, &current);
+    z.mark_tried(&dongle.path, candidate);
+    tracing::info!("zigbee2mqtt local : pas de réponse avec {current}, essai avec {candidate}");
+    let mut trial = s.clone();
+    trial.adapter = Some(candidate.to_string());
+    let b = broker_settings(core);
+    if let Err(e) = z.write_config(&trial, b.port) {
+        tracing::warn!("zigbee2mqtt local : {e}");
+        return;
+    }
+    if let Err(e) = z.start().await {
+        tracing::warn!("zigbee2mqtt local : {e}");
+    }
+    core.bus.publish(crate::bus::Event::Log {
+        kind: "system".into(),
+        message: format!(
+            "Zigbee2MQTT : la clé ne répond pas avec le pilote {current}, essai avec {candidate}"
+        ),
+        entity_id: None,
+        actor: None,
     });
 }
 
@@ -453,12 +531,10 @@ async fn import_zip(core: &Core, zip: &[u8], origin: &str) -> Result<Value, Stri
         core.zigbee_local
             .import(&configuration, get("database.db"), backup.as_deref())?;
     core.zigbee_local.import_extra(&files)?;
+    // Le pilote de la sauvegarde fait foi : c'est celui avec lequel la clé marchait.
     let mut s = s;
-    if s.adapter.is_none() {
-        s.adapter = summary
-            .get("adapter")
-            .and_then(Value::as_str)
-            .map(str::to_string);
+    if let Some(a) = summary.get("adapter").and_then(Value::as_str) {
+        s.adapter = Some(a.to_string());
         let _ = core.settings.set(zigbee_local::SETTINGS_KEY, &s);
     }
     if running {

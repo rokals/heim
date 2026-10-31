@@ -23,7 +23,7 @@
   const ADAPTERS = [
     ['', tr("Automatique")],
     ['ember', 'ember (Sonoff ZBDongle-E, SkyConnect, EFR32)'],
-    ['zstack', 'zstack (Sonoff ZBDongle-P, CC2652)'],
+    ['zstack', 'zstack (Texas Instruments : Sonoff ZBDongle-P, CC2652)'],
     ['deconz', 'deconz (ConBee, RaspBee)'],
     ['zigate', 'zigate (ZiGate)'],
     ['zboss', 'zboss (nRF52840)'],
@@ -62,6 +62,8 @@
   );
   // La dernière ligne d'erreur du journal, quand Heim ne sait pas l'expliquer.
   const lastError = $derived([...(st?.log ?? [])].reverse().find((l) => /error|erreur|failed|exception/i.test(l)) ?? '');
+  // Le pilote vraiment utilisé (choisi, ou dans la configuration), sinon celui deviné au nom.
+  const driverOf = (d) => (d.path === chosen ? adapter || st?.config?.adapter || d.adapter : d.adapter);
   const label = (d) => d.model || d.name.replace(/^usb-/, '').replace(/-if\d+(-port\d+)?$/, '').replaceAll('_', ' ');
   const chosen = $derived(port || st?.dongles?.[0]?.path || '');
 
@@ -160,7 +162,7 @@
         {#each st.dongles as d (d.path)}
           <button role="radio" aria-checked={chosen === d.path} class:sel={chosen === d.path} onclick={() => (port = d.path)} disabled={busy}>
             <Icon name="link" size={18} />
-            <span class="txt"><strong>{label(d)}</strong><small>{d.adapter ? tr("pilote {v}", { v: d.adapter }) : tr("pilote à choisir")}</small></span>
+            <span class="txt"><strong>{label(d)}</strong><small>{driverOf(d) ? tr("pilote {v}", { v: driverOf(d) }) : tr("pilote à choisir")}</small></span>
             {#if chosen === d.path}<Icon name="check" size={18} />{/if}
           </button>
         {/each}
