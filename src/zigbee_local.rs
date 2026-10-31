@@ -511,6 +511,13 @@ impl ZigbeeLocal {
             .collect()
     }
 
+    /// Le réseau Zigbee de la clé est connu : Zigbee2MQTT a déjà tourné ici (il écrit alors
+    /// `coordinator_backup.json`) ou une sauvegarde a été reprise. Sans lui, démarrer créerait un
+    /// nouveau réseau sur une clé qui en porte peut-être déjà un (celui de Home Assistant).
+    pub fn network_known(&self) -> bool {
+        self.data.join("coordinator_backup.json").exists()
+    }
+
     /// Les dernières lignes de Zigbee2MQTT dans le journal système (service de l'image SD).
     /// Vide ailleurs, ou si Heim n'a pas le droit de lire le journal.
     pub async fn journal_tail(&self, lines: usize) -> Vec<String> {
@@ -693,12 +700,35 @@ fn strip_ansi(line: &str) -> String {
     out
 }
 
+/// Le message de l'erreur qui a arrêté Zigbee2MQTT : la ligne « Error: … » d'avant la pile
+/// d'appels (les lignes « at … »), sinon la dernière ligne d'erreur de son journal.
+pub fn error_line(log: &[String]) -> Option<String> {
+    let thrown = log.iter().rev().find(|l| {
+        let t = l.trim_start();
+        !t.starts_with("at ")
+            && t.split_once(": ").is_some_and(|(head, _)| {
+                head.ends_with("Error") && !head.contains(' ') && !head.contains('[')
+            })
+    });
+    let line = thrown.or_else(|| {
+        log.iter().rev().find(|l| {
+            let t = l.to_ascii_lowercase();
+            t.contains("error:")
+                && !t.contains("error while starting zigbee-herdsman")
+                && !t.contains("failed to start zigbee-herdsman")
+                && !t.contains("exiting")
+                && !t.contains("check https://")
+        })
+    })?;
+    Some(line.trim().chars().take(300).collect())
+}
+
 /// Une explication en clair des pannes courantes, d'après le journal. Rien si on ne sait pas.
 pub fn explain(log: &[String], dongles: &[Dongle]) -> Option<&'static str> {
     let text = log
         .iter()
         .rev()
-        .take(30)
+        .take(60)
         .map(|l| l.to_ascii_lowercase())
         .collect::<Vec<_>>()
         .join("\n");
@@ -721,6 +751,7 @@ pub fn explain(log: &[String], dongles: &[Dongle]) -> Option<&'static str> {
         )
     } else if has("failed to connect to the adapter")
         || has("sreq '") && has("timeout")
+        || has("sys - ping")
         || has("failed to start zigbee-herdsman")
     {
         Some(
@@ -758,6 +789,28 @@ pub fn generate_token() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_the_real_error() {
+        let log: Vec<String> = [
+            "[2026-10-31 11:36:20] error: \tz2m: Error while starting zigbee-herdsman",
+            "[2026-10-31 11:36:20] error: \tz2m: Failed to start zigbee-herdsman",
+            "[2026-10-31 11:36:20] error: \tz2m: Check https://www.zigbee2mqtt.io/guide/installation/20_zigbee2mqtt-fails-to-start_crashes-runtime.html for possible solutions",
+            "[2026-10-31 11:36:20] error: \tz2m: Exiting...",
+            "Error: SRSP - SYS - ping after 6000ms",
+            "    at Timeout._onTimeout (/opt/zigbee2mqtt/node_modules/zigbee-herdsman/src/utils/waitress.ts:64:35)",
+            "zigbee2mqtt.service: Failed with result 'exit-code'.",
+        ]
+        .map(String::from)
+        .to_vec();
+        assert_eq!(
+            error_line(&log).as_deref(),
+            Some("Error: SRSP - SYS - ping after 6000ms")
+        );
+        let short =
+            vec!["[x] error: \tz2m: MQTT error: connect ECONNREFUSED 127.0.0.1:1883".to_string()];
+        assert!(error_line(&short).is_some());
+    }
 
     #[test]
     fn dongles_are_recognised() {

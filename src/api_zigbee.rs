@@ -128,9 +128,9 @@ pub async fn local_status(core: &Core) -> Value {
     let broker = broker_settings(core);
     // Zigbee2MQTT qui plante au démarrage n'écrit rien dans son fichier : le journal système
     // (sortie console) a alors le vrai message.
-    let mut log = z.journal_tail(30).await;
+    let mut log = z.journal_tail(60).await;
     if log.is_empty() {
-        log = z.log_tail(30);
+        log = z.log_tail(60);
     }
     json!({
         "installed": z.installed(),
@@ -149,6 +149,8 @@ pub async fn local_status(core: &Core) -> Value {
         "bridge": bridge_online(core),
         "log": log,
         "hint": zigbee_local::explain(&log, &dongles),
+        "error": if state == "failed" { zigbee_local::error_line(&log) } else { None },
+        "network_known": z.network_known(),
     })
 }
 
@@ -371,7 +373,9 @@ fn spawn_hotplug(core: Core) {
                 continue;
             }
             let s = local_settings(&core);
-            if !s.enabled {
+            // Jamais de démarrage tout seul sur un réseau inconnu : la clé qu'on vient de
+            // brancher porte peut-être celui de Home Assistant, pas encore repris.
+            if !s.enabled || !core.zigbee_local.network_known() {
                 continue;
             }
             let state = core.zigbee_local.state().await;

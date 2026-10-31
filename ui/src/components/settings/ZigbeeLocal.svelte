@@ -6,6 +6,7 @@
   import { onDestroy, onMount } from 'svelte';
   import Icon from '../Icon.svelte';
   import HaMigrate from './HaMigrate.svelte';
+  import Fold from '../Fold.svelte';
   import { api, toast } from '../../lib/store.svelte.js';
 
   let { compact = false, onstarted = null } = $props();
@@ -76,7 +77,23 @@
     }
   }
 
-  const start = () => send({ enabled: true, port: chosen || null, adapter: adapter || null, frontend: !!st?.frontend }, tr("Zigbee2MQTT démarre sur la box"));
+  function start() {
+    // Clé jamais utilisée par ce Zigbee2MQTT : si elle vient de Home Assistant, démarrer
+    // maintenant lui ferait un nouveau réseau (appareils à réappairer). On prévient d'abord.
+    if (!st?.network_known && !st?.config?.devices && !confirm(tr("Cette clé servait-elle à Home Assistant ? Alors annulez et faites d'abord « Reprendre les appareils de Home Assistant » : démarrer maintenant créerait un nouveau réseau sur la clé et il faudrait réappairer tous les appareils. Démarrer avec un nouveau réseau ?"))) return;
+    return startNow();
+  }
+
+  async function copyLog() {
+    try {
+      await navigator.clipboard.writeText(st.log.join('\n'));
+      toast(tr("Journal copié"));
+    } catch {
+      toast(tr("Copie impossible"), 'alert');
+    }
+  }
+
+  const startNow = () => send({ enabled: true, port: chosen || null, adapter: adapter || null, frontend: !!st?.frontend }, tr("Zigbee2MQTT démarre sur la box"));
   const stop = () => send({ enabled: false, port: port || null, adapter: adapter || null, frontend: !!st?.frontend }, tr("Zigbee2MQTT arrêté"));
   const setFrontend = (on) => send({ enabled: st.enabled, port: port || null, adapter: adapter || null, frontend: on });
 
@@ -129,8 +146,9 @@
   {#if tone === 'bad'}
     {#if st.hint}
       <p class="why">{tr(st.hint)}</p>
-    {:else if lastError}
-      <p class="why"><code>{lastError}</code></p>
+    {/if}
+    {#if st.error || lastError}
+      <p class="why"><code>{st.error || lastError}</code></p>
     {/if}
   {/if}
 
@@ -153,8 +171,7 @@
   </div>
 
   {#if !compact}
-    <details>
-      <summary>{tr("Réglages avancés")}</summary>
+    <Fold icon="sliders" title={tr("Réglages avancés")} sub={tr("Pilote, chemin de la clé, interface web")}>
       <label class="field">
         <span>{tr("Pilote de la clé")}</span>
         <select class="input" bind:value={adapter} disabled={busy}>
@@ -174,7 +191,7 @@
           <a href={frontendUrl} target="_blank" rel="noopener">{frontendUrl}</a> · {tr("jeton :")} <code>{st.frontend_token}</code>
         </p>
       {/if}
-    </details>
+    </Fold>
   {/if}
 
   <div class="actions">
@@ -188,13 +205,11 @@
   </div>
 
   {#if !compact}
-    <details class="import" open={!st.config?.devices}>
-      <summary>{tr("Reprendre les appareils de Home Assistant")}</summary>
+    <Fold icon="house" title={tr("Reprendre les appareils de Home Assistant")} sub={st.network_known ? tr("Réseau Zigbee en place") : tr("À faire avant de démarrer, si la clé vient de Home Assistant")} shown={!st.network_known}>
       <HaMigrate where="above" ondone={() => load()} />
-    </details>
+    </Fold>
 
-    <details class="import">
-      <summary>{tr("Reprendre un Zigbee2MQTT existant à partir de ses fichiers")}</summary>
+    <Fold icon="copy" title={tr("Reprendre à partir des fichiers")} sub={tr("configuration.yaml, database.db, coordinator_backup.json")}>
       <p class="muted">
         {tr("Pour garder vos appareils sans les réappairer : récupérez les fichiers du dossier zigbee2mqtt de l'ancienne installation (dans Home Assistant : /config/zigbee2mqtt ou /homeassistant/zigbee2mqtt), arrêtez-y Zigbee2MQTT, puis branchez la même clé sur la box.")}
       </p>
@@ -212,13 +227,13 @@
       </label>
       <button class="btn" onclick={doImport} disabled={importing || !files.configuration}>{tr("Reprendre ces fichiers")}</button>
       {#if st.config?.devices}<p class="muted small">{tr("Configuration actuelle : {n} appareil(s), canal {c}.", { n: st.config.devices, c: st.config.channel ?? 11 })}</p>{/if}
-    </details>
+    </Fold>
 
     {#if st.log?.length}
-      <details class="log" open={st.state === 'failed'}>
-        <summary>{tr("Journal de Zigbee2MQTT")}</summary>
+      <Fold icon="history" title={tr("Journal de Zigbee2MQTT")} sub={tr("{n} dernières lignes", { n: st.log.length })} tone={st.state === 'failed' ? 'bad' : ''}>
         <pre>{st.log.join('\n')}</pre>
-      </details>
+        <button class="btn quiet" onclick={copyLog}><Icon name="copy" size={18} /> {tr("Copier le journal")}</button>
+      </Fold>
     {/if}
   {/if}
 {/if}
@@ -307,18 +322,6 @@
     margin: 16px 0;
   }
 
-  details {
-    margin: 12px 0;
-  }
-
-  summary {
-    cursor: pointer;
-    color: var(--muted);
-    font-weight: 600;
-    min-height: 36px;
-    display: flex;
-    align-items: center;
-  }
 
   .check {
     display: flex;
