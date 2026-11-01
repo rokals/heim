@@ -208,10 +208,17 @@ pub enum Power {
     PowerOff,
 }
 
+/// Où poser la marque « redémarrage voulu » (le dossier de données), réglé au démarrage.
+pub static DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
 /// `systemctl reboot` / `poweroff`, autorisés à l'utilisateur heim par la règle polkit.
 pub async fn power(what: Power) -> Result<(), String> {
     if !cfg!(target_os = "linux") {
         return Err("seulement sur Raspberry Pi / Linux".into());
+    }
+    // Au prochain démarrage, Heim saura que ce n'était pas une coupure de courant.
+    if let Some(dir) = DATA_DIR.get() {
+        let _ = std::fs::write(dir.join(crate::power_cut::PLANNED), "");
     }
     let verb = match what {
         Power::Reboot => "reboot",

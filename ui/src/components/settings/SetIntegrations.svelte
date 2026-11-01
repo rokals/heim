@@ -125,6 +125,13 @@
         <input type="checkbox" checked={power.settings.apply_new} disabled={!power.settings.behavior} onchange={(e) => savePower({ apply_new: e.currentTarget.checked })} />
         {tr("Régler aussi les nouveaux appareils Zigbee dès leur ajout")}
       </label>
+      <label class="check">
+        <input type="checkbox" checked={power.settings.rejoin ?? true} disabled={applying} onchange={(e) => savePower({ rejoin: e.currentTarget.checked })} />
+        <span>
+          {tr("Au retour du courant, ouvrir l'appairage Zigbee 4 minutes")}
+          <small class="muted">{tr("Les ampoules réinitialisées par la coupure reviennent seules, avec leur nom, leur pièce et leurs automatismes. Heim vous dit lesquelles.")}</small>
+        </span>
+      </label>
       {#if supported.length}
         <details>
           <summary>{tr("Voir les appareils concernés")}</summary>
@@ -259,7 +266,17 @@
     gap: 10px;
   }
 
+  .check span {
+    display: grid;
+    gap: 2px;
+  }
+
+  .check small {
+    font-size: 13px;
+  }
+
   .check input {
+    flex: none;
     width: 20px;
     height: 20px;
     accent-color: var(--ink);

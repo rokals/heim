@@ -37,6 +37,7 @@ pub mod model;
 pub mod netsetup;
 pub mod notify;
 pub mod plugins;
+pub mod power_cut;
 pub mod presence;
 pub mod push;
 pub mod registry;
@@ -277,6 +278,13 @@ impl Core {
         groups::spawn(registry.clone(), &bus, settings.clone());
         system::spawn_watchdog(registry.clone());
         system::spawn_nightly_backup(store.clone(), config.data_dir.clone(), bus.clone());
+        let _ = system::DATA_DIR.set(config.data_dir.clone());
+        power_cut::spawn(
+            &config.data_dir,
+            bus.clone(),
+            settings.clone(),
+            notify.clone(),
+        );
         bus.publish(bus::Event::Log {
             kind: "system".into(),
             message: format!("Heim {} démarré", env!("CARGO_PKG_VERSION")),

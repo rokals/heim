@@ -1923,4 +1923,6 @@ export default {
   "Pas lancé": "Not started",
   "En cours": "Running",
   "Essayer cet « Alors »": "Try this “Then”",
+  "Au retour du courant, ouvrir l'appairage Zigbee 4 minutes": "When power comes back, open Zigbee pairing for 4 minutes",
+  "Les ampoules réinitialisées par la coupure reviennent seules, avec leur nom, leur pièce et leurs automatismes. Heim vous dit lesquelles.": "Bulbs reset by the power cut come back on their own, with their name, room and automations. Heim tells you which ones.",
 };

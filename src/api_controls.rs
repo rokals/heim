@@ -13,7 +13,7 @@ use crate::devices::{self, DeviceControls};
 
 pub const POWER_ON_KEY: &str = "power_on";
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PowerOnSettings {
     /// « previous », « on », « off » ; vide : chaque appareil garde le sien.
     #[serde(default)]
@@ -21,6 +21,20 @@ pub struct PowerOnSettings {
     /// Régler aussi les appareils ajoutés ensuite.
     #[serde(default)]
     pub apply_new: bool,
+    /// Au retour du courant, ouvrir l'appairage Zigbee quelques minutes (les ampoules
+    /// réinitialisées par la coupure reviennent seules). Voir `power_cut`.
+    #[serde(default = "crate::power_cut::yes")]
+    pub rejoin: bool,
+}
+
+impl Default for PowerOnSettings {
+    fn default() -> Self {
+        PowerOnSettings {
+            behavior: None,
+            apply_new: false,
+            rejoin: true,
+        }
+    }
 }
 
 pub async fn get_controls(
