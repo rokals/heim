@@ -74,6 +74,8 @@ pub fn spawn(registry: RegistryHandle, notify: Arc<Notifier>, settings: Arc<Sett
                 to: Vec::new(),
                 except: Vec::new(),
                 action: None,
+                kind: Some(crate::center::Kind::Device),
+                ..Default::default()
             });
         };
         loop {

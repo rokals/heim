@@ -2494,6 +2494,8 @@ impl Runner {
                         to: to.clone(),
                         except: except.clone(),
                         action: None,
+                        kind: Some(crate::center::Kind::Automation),
+                        ..Default::default()
                     })
                     .map(|_| Some(message))
                     .map_err(|e| {

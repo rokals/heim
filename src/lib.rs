@@ -13,6 +13,7 @@ pub mod alerts;
 pub mod api;
 pub mod api_accounts;
 pub mod api_boards;
+pub mod api_center;
 pub mod api_controls;
 pub mod api_devices;
 pub mod api_life;
@@ -24,6 +25,7 @@ pub mod api_zigbee;
 pub mod automations;
 pub mod broker;
 pub mod bus;
+pub mod center;
 pub mod dashboards;
 pub mod devices;
 pub mod effects;
@@ -178,6 +180,7 @@ pub struct Core {
     pub scenes: SceneHandle,
     pub timers: TimerHandle,
     pub notify: Arc<Notifier>,
+    pub center: Arc<center::Center>,
     pub store: StoreHandle,
     pub automations: AutomationHandle,
     pub settings: Arc<Settings>,
@@ -250,6 +253,13 @@ impl Core {
             store.clone(),
         );
         let settings = Settings::new(loaded.take(Table::Settings), store.clone(), bus.clone());
+        let center = center::Center::new(
+            loaded.take(Table::Notes),
+            store.clone(),
+            bus.clone(),
+            settings.clone(),
+        );
+        notify.set_center(center.clone());
         // La langue de la maison (notifications push, messages sans lecteur connu).
         i18n::set_house_lang(
             settings
@@ -284,6 +294,7 @@ impl Core {
             bus.clone(),
             settings.clone(),
             notify.clone(),
+            center.clone(),
         );
         bus.publish(bus::Event::Log {
             kind: "system".into(),
@@ -359,6 +370,7 @@ impl Core {
             },
         );
         let core = Core {
+            center: center.clone(),
             screen_task: Arc::new(std::sync::Mutex::new(None)),
             effects,
             bus,
@@ -403,6 +415,16 @@ impl Core {
         core.apply_matter_settings();
         core.apply_plugins();
         core.spawn_update_checker();
+        center::spawn(center::Watch {
+            center: core.center.clone(),
+            notify: core.notify.clone(),
+            settings: core.settings.clone(),
+            sampler: core.perf.clone(),
+            plugins: core.plugins.clone(),
+            registry: core.registry.clone(),
+            accounts: core.accounts.clone(),
+            bus: core.bus.clone(),
+        });
         core.spawn_power_on_for_new();
         api_zigbee::spawn_at_start(core.clone());
         dashboards::remove_auto_box_board(&core.settings);
@@ -583,6 +605,10 @@ impl Core {
                     core.settings.get(update::SETTINGS_KEY).unwrap_or_default();
                 if s.auto_check && s.repo().is_some() {
                     let st = core.updater.check(&s).await;
+                    if !st.available && st.error.is_none() {
+                        core.center
+                            .resolve("update", Some(format!("Heim {} est installé.", st.current)));
+                    }
                     if let (true, Some(r)) = (st.available, st.latest.as_ref())
                         && announced.as_deref() != Some(r.version.as_str())
                     {
@@ -603,6 +629,10 @@ impl Core {
                             to: admins,
                             except: Vec::new(),
                             action: Some(serde_json::json!({ "open": "#reglages/systeme" })),
+                            kind: Some(crate::center::Kind::Update),
+                            admin: true,
+                            key: Some("update".into()),
+                            ..Default::default()
                         });
                         announced = Some(r.version.clone());
                         let _ = core.settings.set("update.announced", &announced);
@@ -998,6 +1028,8 @@ fn spawn_timer_announcer(bus: &Bus, registry: RegistryHandle, notify: Arc<Notifi
                             to: Vec::new(),
                             except: Vec::new(),
                             action: None,
+                            kind: Some(crate::center::Kind::Message),
+                            ..Default::default()
                         });
                     }
                 }

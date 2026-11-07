@@ -50,7 +50,7 @@
     { id: 'integrations', label: tr("Connexions"), icon: 'plug', hint: integrationsHint },
     { id: 'reseau', label: tr("Réseau"), icon: 'link', hint: tr("Wi-Fi du Raspberry Pi") },
     { id: 'notifications', label: tr("Notifications"), icon: 'bell', hint: tr("Sur ce téléphone, et les autres"), all: true },
-    { id: 'alertes', label: tr("Alertes"), icon: 'battery', hint: tr("Piles faibles, appareils muets, fuites") },
+    { id: 'alertes', label: tr("Alertes"), icon: 'battery', hint: tr("Piles, fuites, box, consommation") },
     { id: 'lieu', label: tr("Lieu"), icon: 'sun', hint: tr("Pour le lever et le coucher du soleil") },
     { id: 'acces', label: tr("Accès à distance"), icon: 'link', hint: tr("Heim depuis dehors, avec Tailscale") },
     { id: 'journal', label: tr("Journal"), icon: 'history', hint: tr("Tout ce qui s’est passé, et qui l’a fait"), member: true },

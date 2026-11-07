@@ -62,6 +62,8 @@ export const home = $state({
   lastRun: {},
   /** Alarme : { status, config, log, snapshots } (null tant que pas chargé) */
   security: null,
+  /** Centre de notifications : { notes, unread, seen_at } */
+  center: null,
   /** Appairage Zigbee : { open, until, version, events } */
   pairing: { open: false, until: null, version: null, events: [] },
 });
@@ -240,6 +242,7 @@ export async function connect() {
     loadSun();
     if (isMember()) loadAutomations();
     loadSecurity();
+    loadCenter();
     loadLayout();
     if (isMember()) loadPairing();
   };
@@ -365,6 +368,9 @@ function handle(ev) {
         { at: new Date().toISOString(), event: ev.event, friendly_name: ev.friendly_name, detail: ev.detail },
         ...home.pairing.events,
       ].slice(0, 20);
+      break;
+    case 'center_changed':
+      loadCenterSoon();
       break;
     case 'automation_ran':
       home.lastRun[ev.id] = { ok: ev.ok, detail: ev.detail, at: Date.now() };
@@ -636,3 +642,25 @@ if (typeof document !== 'undefined') {
 setInterval(() => {
   if (home.connected) refreshEntities();
 }, 60_000);
+
+// ---- Centre de notifications ----------------------------------------------------------
+
+let centerTimer;
+function loadCenterSoon() {
+  clearTimeout(centerTimer);
+  centerTimer = setTimeout(loadCenter, 300);
+}
+
+export async function loadCenter() {
+  try {
+    home.center = await api('/center');
+  } catch {
+    /* pas de compte encore, ou ancienne box : pas de cloche */
+  }
+}
+
+export async function centerSeen() {
+  if (!home.center?.unread) return;
+  home.center.unread = 0;
+  await api('/center/seen', { method: 'POST' }).catch(() => {});
+}

@@ -29,6 +29,8 @@ pub enum Table {
     Automations,
     Users,
     Sessions,
+    /// Le centre de notifications.
+    Notes,
 }
 
 impl Table {
@@ -41,10 +43,11 @@ impl Table {
             Table::Automations => "automations",
             Table::Users => "users",
             Table::Sessions => "sessions",
+            Table::Notes => "notes",
         }
     }
 
-    const ALL: [Table; 7] = [
+    const ALL: [Table; 8] = [
         Table::Scenes,
         Table::Timers,
         Table::NotifyTargets,
@@ -52,6 +55,7 @@ impl Table {
         Table::Automations,
         Table::Users,
         Table::Sessions,
+        Table::Notes,
     ];
 }
 
@@ -240,6 +244,11 @@ fn migrate(conn: &Connection) -> anyhow::Result<()> {
              PRAGMA user_version = 3;",
         )?;
     }
+    // Sans changer la version du schéma : une version plus ancienne de Heim (retour arrière)
+    // ouvre toujours la base, et ignore cette table.
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS notes (id TEXT PRIMARY KEY, data TEXT NOT NULL);",
+    )?;
     Ok(())
 }
 

@@ -142,6 +142,8 @@ pub enum Event {
         id: String,
         identify: bool,
     },
+    /// Le centre de notifications a changé (nouvelle note, lue, retirée) : les écrans relisent.
+    CenterChanged,
     /// Notification destinée à une seule cible (un téléphone, un écran).
     Notification {
         target_id: String,

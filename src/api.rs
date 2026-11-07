@@ -185,6 +185,19 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
         .route("/automations/{id}/run", post(more::run_automation))
         .route("/automations/{id}/traces", get(more::automation_traces))
         .route("/automation_devices", get(more::automation_devices))
+        .route(
+            "/center",
+            get(crate::api_center::get_center).delete(crate::api_center::dismiss_all),
+        )
+        .route("/center/seen", post(crate::api_center::mark_seen))
+        .route(
+            "/center/settings",
+            get(crate::api_center::get_settings).put(crate::api_center::put_settings),
+        )
+        .route(
+            "/center/{id}",
+            axum::routing::delete(crate::api_center::dismiss),
+        )
         .route("/scenes", get(list_scenes))
         .route("/scenes/{id}", put(put_scene).delete(delete_scene))
         .route("/scenes/{id}/capture", post(capture_scene))
@@ -490,6 +503,10 @@ pub fn required_role(method: &axum::http::Method, path: &str) -> Option<Role> {
         }
         ["automations", _, "run"] | ["automations", _, "op"] if post => Some(Role::Member),
         ["automations", _, "traces"] if get => Some(Role::Member),
+        // Le centre de notifications : chacun voit (et marque lu) ce qui le concerne.
+        ["center"] if get || del => Some(Role::Guest),
+        ["center", "seen"] if post => Some(Role::Guest),
+        ["center", id] if del && *id != "settings" => Some(Role::Guest),
         ["history", _] if get => Some(Role::Guest),
         ["logbook"] | ["groups"] if get => Some(Role::Member),
         ["entities", _, "battery_reset"] if post => Some(Role::Member),

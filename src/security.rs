@@ -1078,6 +1078,8 @@ impl Engine {
             to: Vec::new(),
             except: Vec::new(),
             action: Some(json!({ "open": "security" })),
+            kind: Some(crate::center::Kind::Security),
+            ..Default::default()
         });
     }
 

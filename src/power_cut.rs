@@ -47,7 +47,13 @@ pub fn after_power_cut(data_dir: &Path) -> bool {
     fresh_boot && !planned
 }
 
-pub fn spawn(data_dir: &Path, bus: Bus, settings: Arc<Settings>, notify: Arc<Notifier>) {
+pub fn spawn(
+    data_dir: &Path,
+    bus: Bus,
+    settings: Arc<Settings>,
+    notify: Arc<Notifier>,
+    center: Arc<crate::center::Center>,
+) {
     if !after_power_cut(data_dir) {
         return;
     }
@@ -55,9 +61,23 @@ pub fn spawn(data_dir: &Path, bus: Bus, settings: Arc<Settings>, notify: Arc<Not
         .get(crate::api_controls::POWER_ON_KEY)
         .unwrap_or_default();
     tracing::warn!("démarrage après une coupure de courant");
+    let note = |message: String| crate::center::NewNote {
+        key: Some("power_cut".into()),
+        kind: crate::center::Kind::System,
+        level: Level::Important,
+        title: Some("Coupure de courant".into()),
+        message,
+        ..Default::default()
+    };
     if !s.rejoin {
+        center.post(note(
+            "La box a redémarré après une coupure de courant.".into(),
+        ));
         return;
     }
+    center.post(note(format!(
+        "La box a redémarré après une coupure de courant. L'appairage Zigbee s'ouvre {MINUTES} min pour récupérer les appareils réinitialisés."
+    )));
     let minutes = MINUTES;
     // Abonné tout de suite : on ne veut rater ni l'arrivée du pont ni les appareils.
     let mut rx = bus.subscribe();
@@ -106,8 +126,16 @@ pub fn spawn(data_dir: &Path, bus: Bus, settings: Arc<Settings>, notify: Arc<Not
             }
         }
         if back.is_empty() {
+            center.resolve(
+                "power_cut",
+                Some("Aucun appareil n'a eu besoin d'être récupéré.".into()),
+            );
             return;
         }
+        center.resolve(
+            "power_cut",
+            Some(format!("{} appareil(s) récupéré(s).", back.len())),
+        );
         let message = format!(
             "Après la coupure de courant, {} appareil(s) Zigbee sont revenus d'eux-mêmes : {}",
             back.len(),
@@ -126,6 +154,8 @@ pub fn spawn(data_dir: &Path, bus: Bus, settings: Arc<Settings>, notify: Arc<Not
             to: Vec::new(),
             except: Vec::new(),
             action: None,
+            kind: Some(crate::center::Kind::System),
+            ..Default::default()
         });
     });
 }

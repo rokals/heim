@@ -22,6 +22,7 @@
   import Settings from './components/Settings.svelte';
   import LoginScreen from './components/LoginScreen.svelte';
   import SetupWizard from './components/SetupWizard.svelte';
+  import CenterBell from './components/CenterBell.svelte';
   import { connect, currentBoard, hiddenTabs, home, isAdmin, isMember, setToken, showBoard } from './lib/store.svelte.js';
   import { applyLook, effectiveLook } from './lib/theme.js';
   import { currentLang, setLang } from './lib/i18n.js';
@@ -164,6 +165,9 @@
         </button>
       {/each}
     </nav>
+    <span class="bell-slot">
+      <CenterBell onopen={(h) => { const [t, ...rest] = h.slice(1).split('/'); go(t, rest.join('/')); }} />
+    </span>
     {/if}
   </header>
 
@@ -330,6 +334,10 @@
     padding: calc(14px + env(safe-area-inset-top)) 0 18px;
   }
 
+  .bell-slot {
+    margin-left: auto;
+  }
+
   .mark {
     display: inline-flex;
     align-items: center;
@@ -403,6 +411,10 @@
       backdrop-filter: none;
       border: 0;
       margin-left: auto;
+    }
+
+    .bell-slot {
+      margin-left: 0;
     }
 
     .tab {

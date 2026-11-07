@@ -68,7 +68,7 @@ pub struct Notification {
     pub created: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct NotifyRequest {
     #[serde(default)]
     pub title: Option<String>,
@@ -81,6 +81,18 @@ pub struct NotifyRequest {
     pub except: Vec<String>,
     #[serde(default)]
     pub action: Option<Value>,
+    /// Pour le centre de notifications : la catégorie (mise à jour, appareil, alarme…).
+    #[serde(default)]
+    pub kind: Option<crate::center::Kind>,
+    /// Une situation qui dure : la même clé met à jour la note au lieu d'en ajouter une.
+    #[serde(default)]
+    pub key: Option<String>,
+    /// Où mène la note (« #reglages/systeme »).
+    #[serde(default)]
+    pub open: Option<String>,
+    /// Note réservée aux admins dans le centre.
+    #[serde(default)]
+    pub admin: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -110,6 +122,7 @@ pub struct Notifier {
     inner: Mutex<Inner>,
     vapid: Mutex<Option<crate::push::Vapid>>,
     next_id: AtomicU64,
+    center: std::sync::OnceLock<Arc<crate::center::Center>>,
     bus: Bus,
     store: StoreHandle,
     #[cfg(feature = "webhook")]
@@ -126,6 +139,7 @@ impl Notifier {
             inner: Mutex::new(inner),
             vapid: Mutex::new(None),
             next_id: AtomicU64::new(Utc::now().timestamp_millis() as u64),
+            center: std::sync::OnceLock::new(),
             bus,
             store,
             #[cfg(feature = "webhook")]
@@ -269,12 +283,49 @@ impl Notifier {
         chosen.into_iter().collect()
     }
 
+    /// Le centre de notifications : chaque message y reste, même sans téléphone abonné.
+    pub fn set_center(&self, center: Arc<crate::center::Center>) {
+        let _ = self.center.set(center);
+    }
+
     pub fn send(&self, req: NotifyRequest) -> Result<SendReport, String> {
         let message = req.message.trim().to_string();
         if message.is_empty() {
             return Err("le message est vide".into());
         }
         let recipients = self.resolve(&req.to, &req.except);
+        if let Some(center) = self.center.get() {
+            // Adressé à certains : seuls leurs comptes (et les admins) le voient dans le centre.
+            let only: Vec<String> = if req.to.is_empty() && req.except.is_empty() {
+                Vec::new()
+            } else {
+                let mut owners: Vec<String> = recipients
+                    .iter()
+                    .filter_map(|t| self.target_owner(t))
+                    .collect();
+                owners.sort();
+                owners.dedup();
+                owners
+            };
+            let admin = req.admin || (!req.to.is_empty() && only.is_empty());
+            let open = req.open.clone().or_else(|| {
+                req.action
+                    .as_ref()
+                    .and_then(|a| a.get("open"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            });
+            center.post(crate::center::NewNote {
+                key: req.key.clone(),
+                kind: req.kind.unwrap_or_default(),
+                level: req.level,
+                title: req.title.clone().filter(|t| !t.trim().is_empty()),
+                message: message.clone(),
+                open,
+                admin,
+                only,
+            });
+        }
         if recipients.is_empty() {
             return Err("aucun destinataire ne correspond".into());
         }
@@ -586,6 +637,7 @@ mod tests {
                 to: vec![],
                 except: vec!["tel_camille".into()],
                 action: None,
+                ..Default::default()
             })
             .unwrap();
         assert_eq!(report.recipients.len(), 3);
@@ -598,7 +650,8 @@ mod tests {
                 level: Level::Info,
                 to: vec![],
                 except: vec![],
-                action: None
+                action: None,
+                ..Default::default()
             })
             .is_err()
         );
