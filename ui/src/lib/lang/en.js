@@ -1950,4 +1950,7 @@ export default {
   "aussi sur les téléphones": "also on phones",
   "+ Ajouter une alerte de consommation": "+ Add a consumption alert",
   "Aucune mesure chiffrée pour l'instant (prise connectée, Linky…).": "No numeric measurement yet (smart plug, Linky…).",
+  "Heim ne répond pas": "Heim is not responding",
+  "Connexion à Heim…": "Connecting to Heim…",
+  "La box ne répond pas encore. Heim réessaie tout seul ; vérifiez que le téléphone est sur le Wi-Fi de la maison (ou que l'accès à distance est actif).": "The box isn't answering yet. Heim keeps retrying on its own; check that the phone is on the home Wi-Fi (or that remote access is on).",
 };

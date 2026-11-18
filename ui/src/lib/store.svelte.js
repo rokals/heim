@@ -24,6 +24,8 @@ function storage(key, value) {
 export const home = $state({
   entities: {},
   loaded: false,
+  /** La box ne répond pas (Wi-Fi qui tarde, box qui redémarre). */
+  unreachable: false,
   connected: false,
   needToken: false,
   /** Écran de connexion : la liste des prénoms */
@@ -119,11 +121,24 @@ export async function api(path, { method = 'GET', body } = {}) {
   const headers = { 'X-Heim-Lang': currentLang() };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = 'Bearer ' + token;
-  const res = await fetch('/api' + path, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  // Un Wi-Fi qui tarde ne doit pas laisser une requête pendre indéfiniment.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15_000);
+  let res;
+  try {
+    res = await fetch('/api' + path, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+  } catch {
+    const err = new Error(tr("Heim ne répond pas"));
+    err.offline = true;
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   if (res.status === 401 && !path.startsWith('/auth/login')) {
     await needAuth();
     throw new Error(tr("Connexion requise"));
@@ -159,8 +174,10 @@ export async function loadMe() {
   try {
     home.me = await api('/auth/me');
     home.needLogin = false;
+    home.unreachable = false;
     return true;
-  } catch {
+  } catch (e) {
+    if (e.offline) home.unreachable = true;
     return false;
   }
 }
@@ -222,7 +239,15 @@ export async function loadSetup() {
 export async function connect() {
   clearTimeout(retryTimer);
   if (home.setup === null && !home.loaded) await loadSetup();
-  if (!(await loadMe())) return;
+  if (!(await loadMe())) {
+    // Box injoignable (Wi-Fi qui tarde, box qui redémarre) : on réessaie, sans fin.
+    // Refus d'accès : l'écran de connexion prend la main, pas de nouvel essai.
+    if (home.unreachable && !home.needLogin && !home.needToken) {
+      retryTimer = setTimeout(connect, retry);
+      retry = Math.min(retry * 2, 10_000);
+    }
+    return;
+  }
   if (ws) {
     ws.onclose = null;
     ws.close();
@@ -631,12 +656,15 @@ setInterval(() => {
 // Téléphone déverrouillé, appli revenue au premier plan : on se reconnecte tout de suite
 // au lieu d'attendre la prochaine tentative.
 if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && !home.connected && home.loaded) {
+  const now = () => {
+    if (!home.connected && !home.needLogin && !home.needToken) {
       retry = 1000;
       connect();
     }
-  });
+  };
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && now());
+  // Le Wi-Fi revient : on n'attend pas la prochaine tentative.
+  addEventListener('online', now);
 }
 
 setInterval(() => {

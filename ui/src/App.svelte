@@ -128,6 +128,12 @@
   });
   const offline = $derived(lostAt !== null && home.now - lostAt > 1500);
 
+  // Au démarrage, tant que la box n'a pas répondu : un écran d'attente plutôt qu'une page
+  // vide ; au bout de 4 s, l'explication et un bouton.
+  const startedAt = Date.now();
+  const booting = $derived(!home.loaded && !home.needLogin && !home.needToken && !home.setup?.needed);
+  const slowBoot = $derived(booting && (home.unreachable || home.now - startedAt > 4000));
+
   $effect(() => {
     const onHash = () => (route = fromHash());
     // Le bouton « retour » du téléphone ramène à la page précédente.
@@ -204,6 +210,21 @@
   </main>
 </div>
 
+{#if booting}
+  <div class="boot" role="status" aria-live="polite">
+    <svg viewBox="0 0 32 32" width="64" height="64" aria-hidden="true">
+      <path d="M6 15 16 7l10 8v11H6z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" />
+      <path d="M13 26v-6h6v6" fill="none" stroke="var(--ember)" stroke-width="2.4" stroke-linejoin="round" />
+    </svg>
+    <strong>{tr("Connexion à Heim…")}</strong>
+    <span class="dot" aria-hidden="true"></span>
+    {#if slowBoot}
+      <p>{tr("La box ne répond pas encore. Heim réessaie tout seul ; vérifiez que le téléphone est sur le Wi-Fi de la maison (ou que l'accès à distance est actif).")}</p>
+      <button class="btn quiet" onclick={() => connect()}>{tr("Réessayer maintenant")}</button>
+    {/if}
+  </div>
+{/if}
+
 {#if offline}
   <div class="veil" role="alertdialog" aria-live="assertive" aria-label={tr("Connexion perdue")}>
     <div class="lost">
@@ -257,6 +278,45 @@
   .identify em {
     font-style: normal;
     font-size: 18px;
+  }
+
+  .boot {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 14px;
+    padding: 24px;
+    text-align: center;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .boot strong {
+    font-size: 20px;
+  }
+
+  .boot p {
+    max-width: 340px;
+    margin: 0;
+    color: var(--muted);
+  }
+
+  .boot .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--ember);
+    animation: boot-pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes boot-pulse {
+    50% {
+      opacity: 0.2;
+      transform: scale(0.6);
+    }
   }
 
   .veil {
