@@ -397,6 +397,9 @@ function handle(ev) {
     case 'center_changed':
       loadCenterSoon();
       break;
+    case 'zigbee_map_changed':
+      home.zigbeeMapTick = (home.zigbeeMapTick ?? 0) + 1;
+      break;
     case 'automation_ran':
       home.lastRun[ev.id] = { ok: ev.ok, detail: ev.detail, at: Date.now() };
       loadAutomations();

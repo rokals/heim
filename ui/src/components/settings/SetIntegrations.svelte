@@ -1,4 +1,5 @@
 <script>
+  import ZigbeeMap from '../ZigbeeMap.svelte';
   import { tr } from '../../lib/i18n.js';
   // Toutes les intégrations au même endroit, puis la page de chacune.
   import { onMount } from 'svelte';
@@ -18,6 +19,7 @@
   let list = $state([]);
   let busy = $state(null);
   let pairing = $state(false);
+  let netmap = $state(false);
   let power = $state(null);
   let applying = $state(false);
   let view = $state('installed');
@@ -155,6 +157,8 @@
     {#if current.status === 'connected'}
       <h2>{tr("Nouvel appareil")}</h2>
       <button class="btn" onclick={() => (pairing = true)}><Icon name="plus" size={18} /> {tr("Ajouter un appareil Zigbee")}</button>
+      <h2>{tr("Réseau")}</h2>
+      <button class="btn quiet" onclick={() => (netmap = true)}><Icon name="flow" size={18} /> {tr("Carte du réseau")}</button>
     {/if}
   {:else if current.id === 'tuya'}
     <SetTuya embedded />
@@ -176,6 +180,9 @@
 
 {#if pairing}
   <PairingSheet onclose={() => (pairing = false)} />
+{/if}
+{#if netmap}
+  <ZigbeeMap onclose={() => (netmap = false)} />
 {/if}
 
 <style>

@@ -758,3 +758,38 @@ pub async fn mqtt_import(
         json!({ "imported": summary, "status": local_status(core).await }),
     ))
 }
+
+/// La carte du réseau (dernier scan), avec la pièce de chaque appareil et ceux absents de la
+/// carte.
+pub async fn get_map(State(app): State<AppState>) -> impl IntoResponse {
+    let core = app.core();
+    let status = core.zigbee_map.status();
+    let entities = core.registry.snapshot().await;
+    let mut rooms = serde_json::Map::new();
+    for e in &entities {
+        if let (Some(d), Some(r)) = (&e.meta.device_id, &e.meta.room) {
+            rooms.entry(d.clone()).or_insert_with(|| json!(r));
+        }
+    }
+    let on_map: std::collections::HashSet<String> = status
+        .map
+        .as_ref()
+        .map(|m| m.nodes.iter().map(|n| n.ieee.clone()).collect())
+        .unwrap_or_default();
+    let missing: Vec<serde_json::Value> = if status.map.is_some() {
+        crate::devices::lock(&core.controls)
+            .values()
+            .filter(|d| d.integration == crate::integrations::zigbee2mqtt::INTEGRATION)
+            .filter(|d| !on_map.contains(&d.device_id))
+            .map(|d| json!({ "ieee": d.device_id, "name": d.name }))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    Json(json!({ "status": status, "rooms": rooms, "missing": missing }))
+}
+
+pub async fn scan_map(State(app): State<AppState>) -> impl IntoResponse {
+    app.core().zigbee_map.scan();
+    Json(json!({ "ok": true }))
+}

@@ -101,6 +101,15 @@ pub enum Event {
         ok: bool,
         error: Option<String>,
     },
+    /// Demande la carte du réseau Zigbee à Zigbee2MQTT (voir `zigbee_map`).
+    ZigbeeMapRequest,
+    /// Réponse brute de Zigbee2MQTT à la demande de carte.
+    ZigbeeMap {
+        data: serde_json::Value,
+        error: Option<String>,
+    },
+    /// La carte du réseau a changé (scan lancé, terminé, raté) : les écrans relisent.
+    ZigbeeMapChanged,
     /// Un appareil rejoint le réseau, est interrogé, quitte le réseau...
     ZigbeeDevice {
         event: String,

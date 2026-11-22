@@ -788,6 +788,12 @@ pub async fn run(
                         if !ok {
                             tracing::warn!("zigbee2mqtt : {request} refusé : {}", error.clone().unwrap_or_default());
                         }
+                        if request == "networkmap" {
+                            bus.publish(Event::ZigbeeMap {
+                                data: v.get("data").cloned().unwrap_or_default(),
+                                error: if ok { None } else { error.clone().or(Some("refusé par Zigbee2MQTT".into())) },
+                            });
+                        }
                         bus.publish(Event::ZigbeeResponse { request: request.to_string(), ok, error });
                     }
                     if p.topic == format!("{}/bridge/state", bridge.cfg.base_topic) {
@@ -843,6 +849,13 @@ pub async fn run(
                     bridge.send_command(&entity_id, &target).await;
                 }
                 Ok(Event::ZigbeePermitJoin { seconds }) => bridge.permit_join(seconds),
+                Ok(Event::ZigbeeMapRequest) => {
+                    let topic = format!("{}/bridge/request/networkmap", bridge.cfg.base_topic);
+                    let payload = json!({"type": "raw", "routes": false}).to_string();
+                    if let Err(e) = bridge.client.try_publish(topic, QoS::AtLeastOnce, false, payload.into_bytes()) {
+                        bus.publish(Event::ZigbeeMap { data: Value::Null, error: Some(e.to_string()) });
+                    }
+                }
                 Ok(Event::DeviceSet { integration, device_id, values }) if integration == INTEGRATION => {
                     bridge.set_values(&device_id, &values);
                 }

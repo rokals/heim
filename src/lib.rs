@@ -57,6 +57,7 @@ pub mod timers;
 pub mod update;
 pub mod websec;
 pub mod zigbee_local;
+pub mod zigbee_map;
 pub mod zigbee_probe;
 
 use std::net::SocketAddr;
@@ -181,6 +182,7 @@ pub struct Core {
     pub timers: TimerHandle,
     pub notify: Arc<Notifier>,
     pub center: Arc<center::Center>,
+    pub zigbee_map: Arc<zigbee_map::Mapper>,
     pub store: StoreHandle,
     pub automations: AutomationHandle,
     pub settings: Arc<Settings>,
@@ -369,8 +371,11 @@ impl Core {
                 security: security.clone(),
             },
         );
+        let zigbee_map = zigbee_map::Mapper::new(&config.data_dir, bus.clone());
+        zigbee_map.spawn_nightly();
         let core = Core {
             center: center.clone(),
+            zigbee_map,
             screen_task: Arc::new(std::sync::Mutex::new(None)),
             effects,
             bus,

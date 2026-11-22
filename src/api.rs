@@ -242,6 +242,8 @@ pub fn router(core: Core, token: Option<String>, port: u16) -> Router {
         .route("/zigbee/local", get(zb::get_local).put(zb::put_local))
         .route("/zigbee/local/restart", post(zb::restart_local))
         .route("/zigbee/local/probe", post(zb::probe_local))
+        .route("/zigbee/map", get(zb::get_map))
+        .route("/zigbee/map/scan", post(zb::scan_map))
         .route("/migrate/ha/check", post(zb::ha_check))
         .route("/migrate/ha/import", post(zb::ha_import))
         .route("/migrate/ha/stop_addon", post(zb::ha_stop_addon))
